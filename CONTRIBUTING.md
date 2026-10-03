@@ -8,9 +8,9 @@ Use the [issue templates](https://github.com/SakithaSamarathunga33/PulseNode/iss
 
 ## Development setup
 
-PulseNode is a Next.js 14 frontend (repo root) + Go backend (`backend/`), run together via Docker Compose behind Caddy.
+PulseNode is a Next.js 15 frontend (repo root) + Go backend (`backend/`), run together via Docker Compose behind Caddy.
 
-**Prerequisites:** Docker 24+ with Compose v2, Node 20+, Go 1.22+.
+**Prerequisites:** Docker 24+ with Compose v2, Node 22+, Go 1.25+.
 
 ```bash
 git clone https://github.com/SakithaSamarathunga33/PulseNode.git
@@ -47,6 +47,34 @@ CI auto-versions and publishes a release on every push to `main` based on the co
 | `BREAKING CHANGE` in body | major bump (v1.x → v2.0.0) |
 
 Please write commits as `type(scope): summary`, e.g. `fix(containers): handle null ports in list view`.
+
+## CI and the release pipeline
+
+Run the same checks locally before pushing:
+
+```bash
+cd backend && go vet ./... && go test -race -count=1 ./...   # api tests take a few minutes with -race
+npm test && npx tsc --noEmit && npx next lint && NEXT_PUBLIC_GO_API=/go npm run build
+```
+
+**`.github/workflows/ci.yml`** runs on every pull request and on pushes to every branch except `main`:
+
+- **backend** — `go vet`, `go test -race`, and `gofmt` on the Go files your change touches (legacy files that were never formatted only fail the check once you edit them: run `gofmt -w` on them).
+- **govulncheck** — report-only, so a CVE with no upstream fix cannot block a merge.
+- **frontend** — `npm ci`, unit tests (vitest, `tests/`), type check, lint, production build.
+- **compose** — `docker compose config -q` for every overlay combination.
+- **docker** — builds both images, boots the go-api image (no Docker socket) and checks `/health` and that the tools the builder needs are present, and boots the web image and checks `/login`.
+
+**`.github/workflows/release.yml`** runs on every push to `main`, in this order, and stops at the first failure:
+
+1. the full CI workflow above (a broken `main` never publishes);
+2. compute the next version from the commit prefixes (a dry run — **no tag yet**);
+3. build both images natively on amd64 and arm64 runners and push them by digest;
+4. merge the digests into `:<version>` and `:latest` multi-arch tags;
+5. Trivy scan of the published images (report-only — set `exit-code: '1'` in the workflow to make it blocking);
+6. only then create the git tag and the GitHub release.
+
+The tag/release appearing therefore means the matching images are already published, which is what the self-updater relies on. The images are `ghcr.io/sakithasamarathunga33/pulsenode-web` and `...-go-api`.
 
 ## Pull requests
 

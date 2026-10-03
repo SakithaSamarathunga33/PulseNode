@@ -21,22 +21,22 @@ type LogFunc func(stream, line string)
 
 // Config holds all information needed to run one deployment.
 type Config struct {
-	DeploymentID string
-	ProjectID    string
-	ProjectName  string
-	RepoURL      string // plain clone URL — never embed credentials (argv, logs and .git/config leak them)
-	GitToken     string // optional token for private repos, passed to git via env
-	Branch       string
-	Method       Method // auto | compose | dockerfile | nixpacks
-	BuildCommand string // optional override
-	Port         int
-	Domain       string
-	EnvVars      string // JSON {"KEY":"VALUE"} — frontend/single-service env
-	BackendEnvVars string // JSON {"KEY":"VALUE"} — monorepo backend env (ignored for single-service)
-	BaseDir      string // "" | "frontend" | "backend" — subfolder to build from when this project is one component of a monorepo deployed separately. Skips monorepo auto-split.
-	TraefikNet   string
+	DeploymentID    string
+	ProjectID       string
+	ProjectName     string
+	RepoURL         string // plain clone URL — never embed credentials (argv, logs and .git/config leak them)
+	GitToken        string // optional token for private repos, passed to git via env
+	Branch          string
+	Method          Method // auto | compose | dockerfile | nixpacks
+	BuildCommand    string // optional override
+	Port            int
+	Domain          string
+	EnvVars         string // JSON {"KEY":"VALUE"} — frontend/single-service env
+	BackendEnvVars  string // JSON {"KEY":"VALUE"} — monorepo backend env (ignored for single-service)
+	BaseDir         string // "" | "frontend" | "backend" — subfolder to build from when this project is one component of a monorepo deployed separately. Skips monorepo auto-split.
+	TraefikNet      string
 	PrevContainerID string // previous running container, removed after the new one is healthy
-	Log          LogFunc
+	Log             LogFunc
 }
 
 // Result is the outcome of a successful build.

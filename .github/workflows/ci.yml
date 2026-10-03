@@ -1,0 +1,212 @@
+name: CI
+
+# Runs on pull requests and on every branch except main. Pushes to main go through
+# release.yml, which calls this workflow first (workflow_call) so a broken main can
+# never publish images.
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+    tags-ignore: ['**']
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # Superseded PR/branch runs are cancelled; a run gating a release is never cancelled.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  # Same value the Dockerfile and docker-compose.yml bake into the web bundle.
+  NEXT_PUBLIC_GO_API: /go
+
+jobs:
+  backend:
+    name: Backend (vet, test, gofmt)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the gofmt step diffs against the base commit
+
+      - uses: actions/setup-go@v5
+        with:
+          # go.mod says 1.25.0 (an exact patch release with known stdlib CVEs);
+          # "1.25" resolves to the latest 1.25.x patch.
+          go-version: '1.25'
+          cache-dependency-path: backend/go.sum
+
+      # The repo still contains files that were never gofmt'ed, so only the Go files
+      # this change touches are checked. Touching a legacy file means formatting it.
+      - name: gofmt (changed files only)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          base="${BASE_SHA:-}"
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base="$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
+          fi
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$base" HEAD -- 'backend/*.go')
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No Go files changed since $base"; exit 0
+          fi
+          unformatted="$(gofmt -l "${files[@]}")"
+          if [ -n "$unformatted" ]; then
+            echo "::error::These changed files are not gofmt-formatted (run: gofmt -w <file>):"
+            echo "$unformatted"
+            exit 1
+          fi
+          echo "gofmt OK for ${#files[@]} changed file(s)"
+
+      - name: go vet
+        working-directory: backend
+        run: go vet ./...
+
+      # The api package is slow under -race (about 4 minutes), hence the generous timeout.
+      - name: go test -race
+        working-directory: backend
+        run: go test -race -count=1 -timeout 15m ./...
+
+  govulncheck:
+    name: Backend (govulncheck, report-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: backend/go.sum
+      # Report-only on purpose: a CVE in a third-party module with no fix yet must not block
+      # every PR and release. Delete `continue-on-error` to make it a hard gate.
+      - name: govulncheck
+        working-directory: backend
+        continue-on-error: true
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
+  frontend:
+    name: Frontend (test, types, lint, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # matches the node:22-alpine images in Dockerfile
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      # `next lint` is deprecated (removed in Next 16) but is what the project uses today;
+      # migrate to the ESLint CLI before upgrading Next.
+      - name: Lint
+        run: npx next lint
+
+      - name: Cache Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('**/*.ts', '**/*.tsx') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+
+      - name: Build
+        run: npm run build
+
+  compose:
+    name: Compose files (validate every overlay)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: docker compose config
+        run: |
+          set -euo pipefail
+          cp .env.example ci.env
+          echo "LISTEN_PORT=8080" >> ci.env   # required by the nossl overlay
+          base="-f docker-compose.yml"
+          for overlay in \
+            "" \
+            "-f docker-compose.nossl.yml" \
+            "-f docker-compose.standalone.yml" \
+            "-f docker-compose.traefik.yml" \
+            "-f docker-compose.standalone.yml -f docker-compose.ghcr.yml" \
+            "-f docker-compose.traefik.yml -f docker-compose.ghcr.yml" \
+            "-f docker-compose.nossl.yml -f docker-compose.ghcr.yml"; do
+            echo "::group::docker compose $base $overlay"
+            # shellcheck disable=SC2086
+            docker compose --env-file ci.env $base $overlay config -q
+            echo "::endgroup::"
+          done
+
+  docker:
+    name: Docker images (build + smoke test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # amd64 only here for speed; release.yml builds amd64 + arm64 natively.
+      - name: Build go-api
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          load: true
+          push: false
+          tags: pulsenode-go-api:ci
+          cache-from: type=gha,scope=ci-go-api
+          cache-to: type=gha,scope=ci-go-api,mode=max
+
+      - name: Build web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          target: web
+          load: true
+          push: false
+          tags: pulsenode-web:ci
+          build-args: NEXT_PUBLIC_GO_API=/go
+          cache-from: type=gha,scope=ci-web
+          cache-to: type=gha,scope=ci-web,mode=max
+
+      # No Docker socket and no config: the API must still boot (generating its own
+      # secrets) and answer /health. A missing tool in the image or a startup panic fails here.
+      - name: Smoke test go-api (/health)
+        run: |
+          docker run -d --name smoke-api -p 127.0.0.1:4002:4002 pulsenode-go-api:ci
+          if ! curl -fsS --retry 30 --retry-delay 1 --retry-connrefused http://127.0.0.1:4002/health | grep -q '"ok":true'; then
+            echo "::error::go-api did not become healthy"
+            docker logs smoke-api
+            exit 1
+          fi
+          # Every tool the builder and scanners shell out to must exist in the image.
+          docker exec smoke-api sh -c 'for t in git docker curl trivy syft nixpacks; do command -v "$t" >/dev/null || { echo "missing in image: $t"; exit 1; }; done'
+          docker rm -f smoke-api
+
+      - name: Smoke test web (/login)
+        run: |
+          docker run -d --name smoke-web -p 127.0.0.1:3000:3000 pulsenode-web:ci
+          if ! curl -fsS --retry 30 --retry-delay 1 --retry-connrefused -o /dev/null http://127.0.0.1:3000/login; then
+            echo "::error::web did not serve /login"
+            docker logs smoke-web
+            exit 1
+          fi
+          docker rm -f smoke-web

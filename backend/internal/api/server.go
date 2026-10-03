@@ -150,6 +150,7 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/system/version", s.version)
 		r.Get("/system/update/status", s.updateStatus)
 		r.Post("/system/update", s.systemUpdate)
+		r.Post("/system/update/restore-snapshot", s.restoreSnapshot)
 
 		r.Get("/coolify/projects", s.coolifyProjects)
 		r.Get("/coolify/deployments", s.coolifyDeployments)

@@ -45,3 +45,6 @@ next-env.d.ts
 
 # graphify automatic dated backups of the previous graph
 graphify-out/20*-*-*/
+
+# self-update verdict written by the detached updater
+.pulsenode/

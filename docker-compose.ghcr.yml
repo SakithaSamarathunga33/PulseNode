@@ -1,13 +1,16 @@
 # Pre-built image overlay — pulls from GitHub Container Registry instead of building.
 # Used automatically by install.sh when GHCR images are available.
 #
+# PULSENODE_IMAGE_TAG (set in .env.local by the self-updater) pins both images to one
+# release tag, e.g. v1.4.2; unset means :latest.
+#
 # Manual usage:
 #   docker compose -f docker-compose.yml -f docker-compose.standalone.yml -f docker-compose.ghcr.yml pull
 #   docker compose -f docker-compose.yml -f docker-compose.standalone.yml -f docker-compose.ghcr.yml up -d
 
 services:
   web:
-    image: ghcr.io/sakithasamarathunga33/pulsenode-web:latest
+    image: ghcr.io/sakithasamarathunga33/pulsenode-web:${PULSENODE_IMAGE_TAG:-latest}
 
   go-api:
-    image: ghcr.io/sakithasamarathunga33/pulsenode-go-api:latest
+    image: ghcr.io/sakithasamarathunga33/pulsenode-go-api:${PULSENODE_IMAGE_TAG:-latest}

@@ -1,7 +1,6 @@
 package docker
 
 import (
-	"strconv"
 	"archive/tar"
 	"bytes"
 	"context"
@@ -12,35 +11,123 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
 
 type Client struct{ http *http.Client }
 
-type portBinding struct { PrivatePort int `json:"PrivatePort"`; PublicPort int `json:"PublicPort"`; Type string `json:"Type"` }
+type portBinding struct {
+	PrivatePort int    `json:"PrivatePort"`
+	PublicPort  int    `json:"PublicPort"`
+	Type        string `json:"Type"`
+}
 
-type Container struct { ID string `json:"id"`; Name string `json:"name"`; Image string `json:"image"`; State string `json:"state"`; Uptime string `json:"uptime"`; CPU int `json:"cpu"`; RAM int `json:"ram"`; Ports string `json:"ports"`; Created string `json:"created"`; Node string `json:"node"`; ExitCode int `json:"-"`; OneOff bool `json:"-"` }
-type Image struct { Repo string `json:"repo"`; Tag string `json:"tag"`; ID string `json:"id"`; Size string `json:"size"`; Created string `json:"created"`; Used int `json:"used"`; Layers int `json:"layers"`; Vulns map[string]int `json:"vulns"` }
-type Network struct { Name string `json:"name"`; Driver string `json:"driver"`; Scope string `json:"scope"`; Subnet string `json:"subnet"`; Gateway string `json:"gateway"`; Containers int `json:"containers"`; Attachable bool `json:"attachable"`; Internal bool `json:"internal"` }
-type Database struct { Name string `json:"name"`; ContainerID string `json:"containerId"`; Engine string `json:"engine"`; Version string `json:"version"`; Host string `json:"host"`; Port int `json:"port"`; Size string `json:"size"`; Conns int `json:"conns"`; MaxConns int `json:"maxConns"`; QPS int `json:"qps"`; Slow int `json:"slow"`; State string `json:"state"` }
-type Stat struct { ContainerID string `json:"containerId"`; CPU float64 `json:"cpu"`; RAM float64 `json:"ram"` }
-type ContainerStat struct { ID string `json:"id"`; Name string `json:"name"`; Image string `json:"image"`; State string `json:"state"`; CPU float64 `json:"cpu"`; RAMPct float64 `json:"ramPct"`; RAMMb float64 `json:"ramMb"`; RAMLimitMb float64 `json:"ramLimitMb"` }
-type ContainerLabels struct { ID string; Name string; State string; Labels map[string]string }
+type Container struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Image    string `json:"image"`
+	State    string `json:"state"`
+	Uptime   string `json:"uptime"`
+	CPU      int    `json:"cpu"`
+	RAM      int    `json:"ram"`
+	Ports    string `json:"ports"`
+	Created  string `json:"created"`
+	Node     string `json:"node"`
+	ExitCode int    `json:"-"`
+	OneOff   bool   `json:"-"`
+}
+type Image struct {
+	Repo    string         `json:"repo"`
+	Tag     string         `json:"tag"`
+	ID      string         `json:"id"`
+	Size    string         `json:"size"`
+	Created string         `json:"created"`
+	Used    int            `json:"used"`
+	Layers  int            `json:"layers"`
+	Vulns   map[string]int `json:"vulns"`
+}
+type Network struct {
+	Name       string `json:"name"`
+	Driver     string `json:"driver"`
+	Scope      string `json:"scope"`
+	Subnet     string `json:"subnet"`
+	Gateway    string `json:"gateway"`
+	Containers int    `json:"containers"`
+	Attachable bool   `json:"attachable"`
+	Internal   bool   `json:"internal"`
+}
+type Database struct {
+	Name        string `json:"name"`
+	ContainerID string `json:"containerId"`
+	Engine      string `json:"engine"`
+	Version     string `json:"version"`
+	Host        string `json:"host"`
+	Port        int    `json:"port"`
+	Size        string `json:"size"`
+	Conns       int    `json:"conns"`
+	MaxConns    int    `json:"maxConns"`
+	QPS         int    `json:"qps"`
+	Slow        int    `json:"slow"`
+	State       string `json:"state"`
+}
+type Stat struct {
+	ContainerID string  `json:"containerId"`
+	CPU         float64 `json:"cpu"`
+	RAM         float64 `json:"ram"`
+}
+type ContainerStat struct {
+	ID         string  `json:"id"`
+	Name       string  `json:"name"`
+	Image      string  `json:"image"`
+	State      string  `json:"state"`
+	CPU        float64 `json:"cpu"`
+	RAMPct     float64 `json:"ramPct"`
+	RAMMb      float64 `json:"ramMb"`
+	RAMLimitMb float64 `json:"ramLimitMb"`
+}
+type ContainerLabels struct {
+	ID     string
+	Name   string
+	State  string
+	Labels map[string]string
+}
 
 func New() (*Client, error) {
-	transport := &http.Transport{DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) { return (&net.Dialer{}).DialContext(ctx, "unix", "/var/run/docker.sock") }}
+	transport := &http.Transport{DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", "/var/run/docker.sock")
+	}}
 	c := &Client{http: &http.Client{Transport: transport, Timeout: 30 * time.Second}}
 	var ping bytes.Buffer
-	if err := c.doRaw(context.Background(), http.MethodGet, "/_ping", nil, &ping); err != nil { return nil, err }
+	if err := c.doRaw(context.Background(), http.MethodGet, "/_ping", nil, &ping); err != nil {
+		return nil, err
+	}
 	return c, nil
 }
 
 func (c *Client) Containers(ctx context.Context) ([]Container, error) {
-	var raw []struct { ID string `json:"Id"`; Names []string `json:"Names"`; Image string `json:"Image"`; State string `json:"State"`; Status string `json:"Status"`; Created int64 `json:"Created"`; Ports []portBinding `json:"Ports"`; Labels map[string]string `json:"Labels"` }
-	if err := c.do(ctx, http.MethodGet, "/containers/json?all=true", nil, &raw); err != nil { return nil, err }
+	var raw []struct {
+		ID      string            `json:"Id"`
+		Names   []string          `json:"Names"`
+		Image   string            `json:"Image"`
+		State   string            `json:"State"`
+		Status  string            `json:"Status"`
+		Created int64             `json:"Created"`
+		Ports   []portBinding     `json:"Ports"`
+		Labels  map[string]string `json:"Labels"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/containers/json?all=true", nil, &raw); err != nil {
+		return nil, err
+	}
 	out := make([]Container, 0, len(raw))
-	for _, item := range raw { name := ""; if len(item.Names)>0 { name = strings.TrimPrefix(item.Names[0], "/") }; out = append(out, Container{ID: shortID(item.ID), Name: name, Image: item.Image, State: item.State, Uptime: item.Status, Ports: formatPorts(item.Ports), Created: time.Unix(item.Created,0).Format("Jan 2"), Node: "primary", ExitCode: exitCodeOf(item.State, item.Status), OneOff: strings.EqualFold(item.Labels["com.docker.compose.oneoff"], "true")}) }
+	for _, item := range raw {
+		name := ""
+		if len(item.Names) > 0 {
+			name = strings.TrimPrefix(item.Names[0], "/")
+		}
+		out = append(out, Container{ID: shortID(item.ID), Name: name, Image: item.Image, State: item.State, Uptime: item.Status, Ports: formatPorts(item.Ports), Created: time.Unix(item.Created, 0).Format("Jan 2"), Node: "primary", ExitCode: exitCodeOf(item.State, item.Status), OneOff: strings.EqualFold(item.Labels["com.docker.compose.oneoff"], "true")})
+	}
 	return out, nil
 }
 
@@ -48,42 +135,152 @@ func (c *Client) Containers(ctx context.Context) ([]Container, error) {
 var exitedRe = regexp.MustCompile(`^Exited \((-?\d+)\)`)
 
 func exitCodeOf(state, status string) int {
-	if state != "exited" { return -1 }
-	if m := exitedRe.FindStringSubmatch(status); m != nil { if n, err := strconv.Atoi(m[1]); err == nil { return n } }
+	if state != "exited" {
+		return -1
+	}
+	if m := exitedRe.FindStringSubmatch(status); m != nil {
+		if n, err := strconv.Atoi(m[1]); err == nil {
+			return n
+		}
+	}
 	return -1
 }
 
 // ContainersWithLabels lists all containers with their raw labels, used for
 // discovering Traefik/Caddy domain routing labels.
 func (c *Client) ContainersWithLabels(ctx context.Context) ([]ContainerLabels, error) {
-	var raw []struct { ID string `json:"Id"`; Names []string `json:"Names"`; State string `json:"State"`; Labels map[string]string `json:"Labels"` }
-	if err := c.do(ctx, http.MethodGet, "/containers/json?all=true", nil, &raw); err != nil { return nil, err }
+	var raw []struct {
+		ID     string            `json:"Id"`
+		Names  []string          `json:"Names"`
+		State  string            `json:"State"`
+		Labels map[string]string `json:"Labels"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/containers/json?all=true", nil, &raw); err != nil {
+		return nil, err
+	}
 	out := []ContainerLabels{}
-	for _, item := range raw { name := ""; if len(item.Names)>0 { name = strings.TrimPrefix(item.Names[0], "/") }; out = append(out, ContainerLabels{ID: shortID(item.ID), Name: name, State: item.State, Labels: item.Labels}) }
+	for _, item := range raw {
+		name := ""
+		if len(item.Names) > 0 {
+			name = strings.TrimPrefix(item.Names[0], "/")
+		}
+		out = append(out, ContainerLabels{ID: shortID(item.ID), Name: name, State: item.State, Labels: item.Labels})
+	}
 	return out, nil
 }
 
 func (c *Client) Images(ctx context.Context) ([]Image, error) {
-	var raw []struct { ID string `json:"Id"`; RepoTags []string `json:"RepoTags"`; Size int64 `json:"Size"`; Created int64 `json:"Created"` }
-	if err := c.do(ctx, http.MethodGet, "/images/json", nil, &raw); err != nil { return nil, err }
+	var raw []struct {
+		ID       string   `json:"Id"`
+		RepoTags []string `json:"RepoTags"`
+		Size     int64    `json:"Size"`
+		Created  int64    `json:"Created"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/images/json", nil, &raw); err != nil {
+		return nil, err
+	}
 	out := make([]Image, 0, len(raw))
-	for _, item := range raw { repo, tag := "<none>", "latest"; if len(item.RepoTags)>0 { parts := strings.SplitN(item.RepoTags[0], ":", 2); repo = parts[0]; if len(parts)==2 { tag = parts[1] } }; out = append(out, Image{Repo: repo, Tag: tag, ID: shortID(strings.TrimPrefix(item.ID,"sha256:")), Size: fmt.Sprintf("%d MB", item.Size/1024/1024), Created: time.Unix(item.Created,0).Format("Jan 2"), Vulns: map[string]int{"crit":0,"high":0,"med":0,"low":0}}) }
+	for _, item := range raw {
+		repo, tag := "<none>", "latest"
+		if len(item.RepoTags) > 0 {
+			parts := strings.SplitN(item.RepoTags[0], ":", 2)
+			repo = parts[0]
+			if len(parts) == 2 {
+				tag = parts[1]
+			}
+		}
+		out = append(out, Image{Repo: repo, Tag: tag, ID: shortID(strings.TrimPrefix(item.ID, "sha256:")), Size: fmt.Sprintf("%d MB", item.Size/1024/1024), Created: time.Unix(item.Created, 0).Format("Jan 2"), Vulns: map[string]int{"crit": 0, "high": 0, "med": 0, "low": 0}})
+	}
 	return out, nil
 }
 
 func (c *Client) Networks(ctx context.Context) ([]Network, error) {
-	var raw []struct { Name string `json:"Name"`; Driver string `json:"Driver"`; Scope string `json:"Scope"`; Attachable bool `json:"Attachable"`; Internal bool `json:"Internal"`; Containers map[string]any `json:"Containers"`; IPAM struct{ Config []struct{ Subnet string `json:"Subnet"`; Gateway string `json:"Gateway"` } `json:"Config"` } `json:"IPAM"` }
-	if err := c.do(ctx, http.MethodGet, "/networks", nil, &raw); err != nil { return nil, err }
+	var raw []struct {
+		Name       string         `json:"Name"`
+		Driver     string         `json:"Driver"`
+		Scope      string         `json:"Scope"`
+		Attachable bool           `json:"Attachable"`
+		Internal   bool           `json:"Internal"`
+		Containers map[string]any `json:"Containers"`
+		IPAM       struct {
+			Config []struct {
+				Subnet  string `json:"Subnet"`
+				Gateway string `json:"Gateway"`
+			} `json:"Config"`
+		} `json:"IPAM"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/networks", nil, &raw); err != nil {
+		return nil, err
+	}
 	out := make([]Network, 0, len(raw))
-	for _, item := range raw { subnet, gateway := "-", "-"; if len(item.IPAM.Config)>0 { subnet = item.IPAM.Config[0].Subnet; gateway = item.IPAM.Config[0].Gateway }; out = append(out, Network{Name:item.Name, Driver:item.Driver, Scope:item.Scope, Subnet:subnet, Gateway:gateway, Containers:len(item.Containers), Attachable:item.Attachable, Internal:item.Internal}) }
+	for _, item := range raw {
+		subnet, gateway := "-", "-"
+		if len(item.IPAM.Config) > 0 {
+			subnet = item.IPAM.Config[0].Subnet
+			gateway = item.IPAM.Config[0].Gateway
+		}
+		out = append(out, Network{Name: item.Name, Driver: item.Driver, Scope: item.Scope, Subnet: subnet, Gateway: gateway, Containers: len(item.Containers), Attachable: item.Attachable, Internal: item.Internal})
+	}
 	return out, nil
 }
 
-func (c *Client) DatabaseContainers(ctx context.Context) ([]Database, error) { containers, err := c.Containers(ctx); if err != nil { return nil, err }; re := regexp.MustCompile(`(?i)postgres|mysql|mariadb|redis|mongo|clickhouse|cassandra|elasticsearch`); out := []Database{}; for _, ctr := range containers { if !re.MatchString(ctr.Image) { continue }; engine, port, max := dbMeta(ctr.Image); state := "error"; if ctr.State=="running" { state="ok" }; out = append(out, Database{Name:ctr.Name, ContainerID:ctr.ID, Engine:engine, Version:imageVersion(ctr.Image), Host:ctr.Name, Port:port, Size:"-", MaxConns:max, State:state}) }; return out, nil }
-func (c *Client) Logs(ctx context.Context, id string, tail int) (string, error) { var buf bytes.Buffer; err := c.doRaw(ctx, http.MethodGet, fmt.Sprintf("/containers/%s/logs?stdout=true&stderr=true&timestamps=true&tail=%d", id, tail), nil, &buf); return cleanDockerStream(buf.Bytes()), err }
-func (c *Client) Action(ctx context.Context, id string, action string) error { switch action { case "restart": return c.do(ctx, http.MethodPost, "/containers/"+id+"/restart", nil, nil); case "start": return c.do(ctx, http.MethodPost, "/containers/"+id+"/start", nil, nil); case "stop": return c.do(ctx, http.MethodPost, "/containers/"+id+"/stop", nil, nil); case "remove": return c.do(ctx, http.MethodDelete, "/containers/"+id+"?force=true", nil, nil); default: return fmt.Errorf("unknown docker action %q", action) } }
-func (c *Client) Exec(ctx context.Context, id string, cmd string) (string, error) { var created struct{ ID string `json:"Id"` }; if err := c.do(ctx, http.MethodPost, "/containers/"+id+"/exec", map[string]any{"Cmd":[]string{"sh","-c",cmd},"AttachStdout":true,"AttachStderr":true}, &created); err != nil { return "", err }; var buf bytes.Buffer; err := c.doRaw(ctx, http.MethodPost, "/exec/"+created.ID+"/start", map[string]any{"Detach":false,"Tty":false}, &buf); return cleanDockerStream(buf.Bytes()), err }
-func (c *Client) PruneBuildCache(ctx context.Context) (uint64, error) { var raw struct{ SpaceReclaimed uint64 `json:"SpaceReclaimed"` }; err := c.do(ctx, http.MethodPost, "/build/prune", map[string]any{}, &raw); return raw.SpaceReclaimed, err }
+func (c *Client) DatabaseContainers(ctx context.Context) ([]Database, error) {
+	containers, err := c.Containers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	re := regexp.MustCompile(`(?i)postgres|mysql|mariadb|redis|mongo|clickhouse|cassandra|elasticsearch`)
+	out := []Database{}
+	for _, ctr := range containers {
+		if !re.MatchString(ctr.Image) {
+			continue
+		}
+		engine, port, max := dbMeta(ctr.Image)
+		state := "error"
+		if ctr.State == "running" {
+			state = "ok"
+		}
+		out = append(out, Database{Name: ctr.Name, ContainerID: ctr.ID, Engine: engine, Version: imageVersion(ctr.Image), Host: ctr.Name, Port: port, Size: "-", MaxConns: max, State: state})
+	}
+	return out, nil
+}
+func (c *Client) Logs(ctx context.Context, id string, tail int) (string, error) {
+	var buf bytes.Buffer
+	err := c.doRaw(ctx, http.MethodGet, fmt.Sprintf("/containers/%s/logs?stdout=true&stderr=true&timestamps=true&tail=%d", id, tail), nil, &buf)
+	return cleanDockerStream(buf.Bytes()), err
+}
+func (c *Client) Action(ctx context.Context, id string, action string) error {
+	switch action {
+	case "restart":
+		return c.do(ctx, http.MethodPost, "/containers/"+id+"/restart", nil, nil)
+	case "start":
+		return c.do(ctx, http.MethodPost, "/containers/"+id+"/start", nil, nil)
+	case "stop":
+		return c.do(ctx, http.MethodPost, "/containers/"+id+"/stop", nil, nil)
+	case "remove":
+		return c.do(ctx, http.MethodDelete, "/containers/"+id+"?force=true", nil, nil)
+	default:
+		return fmt.Errorf("unknown docker action %q", action)
+	}
+}
+func (c *Client) Exec(ctx context.Context, id string, cmd string) (string, error) {
+	var created struct {
+		ID string `json:"Id"`
+	}
+	if err := c.do(ctx, http.MethodPost, "/containers/"+id+"/exec", map[string]any{"Cmd": []string{"sh", "-c", cmd}, "AttachStdout": true, "AttachStderr": true}, &created); err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err := c.doRaw(ctx, http.MethodPost, "/exec/"+created.ID+"/start", map[string]any{"Detach": false, "Tty": false}, &buf)
+	return cleanDockerStream(buf.Bytes()), err
+}
+func (c *Client) PruneBuildCache(ctx context.Context) (uint64, error) {
+	var raw struct {
+		SpaceReclaimed uint64 `json:"SpaceReclaimed"`
+	}
+	err := c.do(ctx, http.MethodPost, "/build/prune", map[string]any{}, &raw)
+	return raw.SpaceReclaimed, err
+}
 
 // ExecSlice runs cmd inside a container by name or ID and returns combined stdout+stderr.
 func (c *Client) ExecSlice(ctx context.Context, containerNameOrID string, cmd []string) (string, error) {
@@ -96,7 +293,9 @@ func (c *Client) ExecSliceEnv(ctx context.Context, containerNameOrID string, env
 	if len(env) > 0 {
 		body["Env"] = env
 	}
-	var created struct{ ID string `json:"Id"` }
+	var created struct {
+		ID string `json:"Id"`
+	}
 	if err := c.do(ctx, http.MethodPost, "/containers/"+containerNameOrID+"/exec", body, &created); err != nil {
 		return "", err
 	}
@@ -104,6 +303,7 @@ func (c *Client) ExecSliceEnv(ctx context.Context, containerNameOrID string, env
 	err := c.doRaw(ctx, http.MethodPost, "/exec/"+created.ID+"/start", map[string]any{"Detach": false, "Tty": false}, &buf)
 	return cleanDockerStream(buf.Bytes()), err
 }
+
 // ExecStreamEnv runs cmd in the container (with optional extra env) and copies
 // only stdout to dst, stripping Docker's 8-byte multiplexed-stream framing.
 // Use this for large dumps (pg_dump, mysqldump, mongodump, redis RDB) where
@@ -113,7 +313,9 @@ func (c *Client) ExecStreamEnv(ctx context.Context, containerNameOrID string, en
 	if len(env) > 0 {
 		body["Env"] = env
 	}
-	var created struct{ ID string `json:"Id"` }
+	var created struct {
+		ID string `json:"Id"`
+	}
 	if err := c.do(ctx, http.MethodPost, "/containers/"+containerNameOrID+"/exec", body, &created); err != nil {
 		return err
 	}
@@ -176,7 +378,13 @@ func (c *Client) CopyToContainer(ctx context.Context, containerID, destDir, file
 	return nil
 }
 
-func (c *Client) PruneImages(ctx context.Context) (uint64, error) { var raw struct{ SpaceReclaimed uint64 `json:"SpaceReclaimed"` }; err := c.do(ctx, http.MethodPost, "/images/prune?filters=%7B%22dangling%22%3A%5B%22false%22%5D%7D", map[string]any{}, &raw); return raw.SpaceReclaimed, err }
+func (c *Client) PruneImages(ctx context.Context) (uint64, error) {
+	var raw struct {
+		SpaceReclaimed uint64 `json:"SpaceReclaimed"`
+	}
+	err := c.do(ctx, http.MethodPost, "/images/prune?filters=%7B%22dangling%22%3A%5B%22false%22%5D%7D", map[string]any{}, &raw)
+	return raw.SpaceReclaimed, err
+}
 func (c *Client) ContainerStats(ctx context.Context) ([]Stat, error) {
 	containers, err := c.Containers(ctx)
 	if err != nil {
@@ -269,17 +477,17 @@ func (c *Client) FetchOneStat(ctx context.Context, id string) (Stat, error) {
 
 func (c *Client) fetchOneStat(ctx context.Context, id string) (Stat, error) {
 	var raw struct {
-		ID     string `json:"id"`
-		CPUSt  struct {
+		ID    string `json:"id"`
+		CPUSt struct {
 			Usage struct {
-				Total  uint64 `json:"total_usage"`
+				Total uint64 `json:"total_usage"`
 			} `json:"cpu_usage"`
 			SystemUsage uint64 `json:"system_cpu_usage"`
 			OnlineCPUs  int    `json:"online_cpus"`
 		} `json:"cpu_stats"`
 		PreCPUSt struct {
 			Usage struct {
-				Total  uint64 `json:"total_usage"`
+				Total uint64 `json:"total_usage"`
 			} `json:"cpu_usage"`
 			SystemUsage uint64 `json:"system_cpu_usage"`
 			OnlineCPUs  int    `json:"online_cpus"`
@@ -300,7 +508,7 @@ func (c *Client) fetchOneStat(ctx context.Context, id string) (Stat, error) {
 	}
 	// CPU %
 	cpuDelta := float64(raw.CPUSt.Usage.Total) - float64(raw.PreCPUSt.Usage.Total)
-	sysDelta  := float64(raw.CPUSt.SystemUsage) - float64(raw.PreCPUSt.SystemUsage)
+	sysDelta := float64(raw.CPUSt.SystemUsage) - float64(raw.PreCPUSt.SystemUsage)
 	numCPU := raw.CPUSt.OnlineCPUs
 	if numCPU == 0 {
 		numCPU = 1
@@ -328,20 +536,26 @@ func (c *Client) fetchOneStat(ctx context.Context, id string) (Stat, error) {
 
 func (c *Client) fetchDetailedStat(ctx context.Context, id string) (detailedStat, error) {
 	var raw struct {
-		CPUSt  struct {
-			Usage       struct{ Total uint64 `json:"total_usage"` } `json:"cpu_usage"`
+		CPUSt struct {
+			Usage struct {
+				Total uint64 `json:"total_usage"`
+			} `json:"cpu_usage"`
 			SystemUsage uint64 `json:"system_cpu_usage"`
 			OnlineCPUs  int    `json:"online_cpus"`
 		} `json:"cpu_stats"`
 		PreCPUSt struct {
-			Usage       struct{ Total uint64 `json:"total_usage"` } `json:"cpu_usage"`
+			Usage struct {
+				Total uint64 `json:"total_usage"`
+			} `json:"cpu_usage"`
 			SystemUsage uint64 `json:"system_cpu_usage"`
 		} `json:"precpu_stats"`
 		MemSt struct {
 			Usage uint64 `json:"usage"`
 			Limit uint64 `json:"limit"`
 			Cache uint64 `json:"cache"`
-			Stats struct{ Cache uint64 `json:"cache"` } `json:"stats"`
+			Stats struct {
+				Cache uint64 `json:"cache"`
+			} `json:"stats"`
 		} `json:"memory_stats"`
 	}
 	statCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
@@ -350,7 +564,7 @@ func (c *Client) fetchDetailedStat(ctx context.Context, id string) (detailedStat
 		return detailedStat{}, err
 	}
 	cpuDelta := float64(raw.CPUSt.Usage.Total) - float64(raw.PreCPUSt.Usage.Total)
-	sysDelta  := float64(raw.CPUSt.SystemUsage) - float64(raw.PreCPUSt.SystemUsage)
+	sysDelta := float64(raw.CPUSt.SystemUsage) - float64(raw.PreCPUSt.SystemUsage)
 	numCPU := raw.CPUSt.OnlineCPUs
 	if numCPU == 0 {
 		numCPU = 1
@@ -400,8 +614,59 @@ func (c *Client) ContainerInfo(ctx context.Context, nameOrID string) (image stri
 	return
 }
 
-func (c *Client) do(ctx context.Context, method, path string, body any, out any) error { var buf io.Reader; if body != nil { data, _ := json.Marshal(body); buf = bytes.NewReader(data) }; req, err := http.NewRequestWithContext(ctx, method, "http://docker"+path, buf); if err != nil { return err }; if body != nil { req.Header.Set("Content-Type", "application/json") }; res, err := c.http.Do(req); if err != nil { return err }; defer res.Body.Close(); if res.StatusCode >= 400 { data, _ := io.ReadAll(res.Body); return fmt.Errorf("docker %s %s: %s", method, path, strings.TrimSpace(string(data))) }; if out == nil { io.Copy(io.Discard, res.Body); return nil }; return json.NewDecoder(res.Body).Decode(out) }
-func (c *Client) doRaw(ctx context.Context, method, path string, body any, out io.Writer) error { var buf io.Reader; if body != nil { data, _ := json.Marshal(body); buf = bytes.NewReader(data) }; req, err := http.NewRequestWithContext(ctx, method, "http://docker"+path, buf); if err != nil { return err }; if body != nil { req.Header.Set("Content-Type", "application/json") }; res, err := c.http.Do(req); if err != nil { return err }; defer res.Body.Close(); if res.StatusCode >= 400 { data, _ := io.ReadAll(res.Body); return fmt.Errorf("docker %s %s: %s", method, path, strings.TrimSpace(string(data))) }; _, err = io.Copy(out, res.Body); return err }
+func (c *Client) do(ctx context.Context, method, path string, body any, out any) error {
+	var buf io.Reader
+	if body != nil {
+		data, _ := json.Marshal(body)
+		buf = bytes.NewReader(data)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, "http://docker"+path, buf)
+	if err != nil {
+		return err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	res, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode >= 400 {
+		data, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("docker %s %s: %s", method, path, strings.TrimSpace(string(data)))
+	}
+	if out == nil {
+		io.Copy(io.Discard, res.Body)
+		return nil
+	}
+	return json.NewDecoder(res.Body).Decode(out)
+}
+func (c *Client) doRaw(ctx context.Context, method, path string, body any, out io.Writer) error {
+	var buf io.Reader
+	if body != nil {
+		data, _ := json.Marshal(body)
+		buf = bytes.NewReader(data)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, "http://docker"+path, buf)
+	if err != nil {
+		return err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	res, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode >= 400 {
+		data, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("docker %s %s: %s", method, path, strings.TrimSpace(string(data)))
+	}
+	_, err = io.Copy(out, res.Body)
+	return err
+}
 
 func formatPorts(ports []portBinding) string {
 	seen := map[string]bool{}
@@ -423,10 +688,58 @@ func formatPorts(ports []portBinding) string {
 	}
 	return strings.Join(values, ", ")
 }
-func shortID(id string) string { if len(id)<=12 { return id }; return id[:12] }
-func cleanDockerStream(buf []byte) string { var out bytes.Buffer; for len(buf)>8 && (buf[0]==1 || buf[0]==2) { size := int(buf[4])<<24|int(buf[5])<<16|int(buf[6])<<8|int(buf[7]); if len(buf)<8+size { break }; out.Write(buf[8:8+size]); buf=buf[8+size:] }; if out.Len()==0 { out.Write(buf) }; return strings.Map(func(r rune) rune { if r<32 && r!=10 && r!=9 && r!=13 { return -1 }; return r }, out.String()) }
-func dbMeta(image string) (string,int,int) { lower := strings.ToLower(image); switch { case strings.Contains(lower,"mysql"), strings.Contains(lower,"mariadb"): return "mysql",3306,100; case strings.Contains(lower,"redis"): return "redis",6379,200; case strings.Contains(lower,"mongo"): return "mongodb",27017,100; case strings.Contains(lower,"clickhouse"): return "clickhouse",8123,50; case strings.Contains(lower,"cassandra"): return "cassandra",9042,100; case strings.Contains(lower,"elasticsearch"): return "elasticsearch",9200,100; default: return "postgres",5432,100 } }
-func imageVersion(image string) string { parts := strings.Split(image, ":"); if len(parts)<2 || parts[1]=="" { return "latest" }; return strings.Split(parts[1], "-")[0] }
+func shortID(id string) string {
+	if len(id) <= 12 {
+		return id
+	}
+	return id[:12]
+}
+func cleanDockerStream(buf []byte) string {
+	var out bytes.Buffer
+	for len(buf) > 8 && (buf[0] == 1 || buf[0] == 2) {
+		size := int(buf[4])<<24 | int(buf[5])<<16 | int(buf[6])<<8 | int(buf[7])
+		if len(buf) < 8+size {
+			break
+		}
+		out.Write(buf[8 : 8+size])
+		buf = buf[8+size:]
+	}
+	if out.Len() == 0 {
+		out.Write(buf)
+	}
+	return strings.Map(func(r rune) rune {
+		if r < 32 && r != 10 && r != 9 && r != 13 {
+			return -1
+		}
+		return r
+	}, out.String())
+}
+func dbMeta(image string) (string, int, int) {
+	lower := strings.ToLower(image)
+	switch {
+	case strings.Contains(lower, "mysql"), strings.Contains(lower, "mariadb"):
+		return "mysql", 3306, 100
+	case strings.Contains(lower, "redis"):
+		return "redis", 6379, 200
+	case strings.Contains(lower, "mongo"):
+		return "mongodb", 27017, 100
+	case strings.Contains(lower, "clickhouse"):
+		return "clickhouse", 8123, 50
+	case strings.Contains(lower, "cassandra"):
+		return "cassandra", 9042, 100
+	case strings.Contains(lower, "elasticsearch"):
+		return "elasticsearch", 9200, 100
+	default:
+		return "postgres", 5432, 100
+	}
+}
+func imageVersion(image string) string {
+	parts := strings.Split(image, ":")
+	if len(parts) < 2 || parts[1] == "" {
+		return "latest"
+	}
+	return strings.Split(parts[1], "-")[0]
+}
 
 // ── Database provisioning ─────────────────────────────────────────────────────
 
@@ -499,7 +812,9 @@ func (c *Client) ContainerState(ctx context.Context, nameOrID string) (string, e
 }
 
 func (c *Client) CreateTTYExec(ctx context.Context, containerID string) (string, error) {
-	var created struct{ ID string `json:"Id"` }
+	var created struct {
+		ID string `json:"Id"`
+	}
 	err := c.do(ctx, http.MethodPost, "/containers/"+containerID+"/exec",
 		map[string]any{
 			"Cmd":          []string{"sh"},

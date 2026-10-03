@@ -18,12 +18,12 @@ import (
 // ── Engine metadata ────────────────────────────────────────────────────────────
 
 type engineMeta struct {
-	Image     string
+	Image      string
 	InternPort int
-	DataPath  string
-	EnvUser   string
-	EnvPass   string
-	EnvDB     string
+	DataPath   string
+	EnvUser    string
+	EnvPass    string
+	EnvDB      string
 }
 
 var engines = map[string]engineMeta{
@@ -118,13 +118,13 @@ func (s *Server) provisionDatabase(w http.ResponseWriter, r *http.Request) {
 	go s.runProvision(id, containerName, volumeName, password, username, dbName, hostPort, meta, req.Engine)
 
 	writeJSON(w, http.StatusAccepted, map[string]any{
-		"id":          id,
-		"name":        req.Name,
-		"engine":      req.Engine,
-		"status":      "creating",
-		"host_port":   hostPort,
-		"username":    username,
-		"db_name":     dbName,
+		"id":        id,
+		"name":      req.Name,
+		"engine":    req.Engine,
+		"status":    "creating",
+		"host_port": hostPort,
+		"username":  username,
+		"db_name":   dbName,
 	})
 }
 

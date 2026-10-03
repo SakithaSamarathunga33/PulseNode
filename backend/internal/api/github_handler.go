@@ -104,7 +104,9 @@ func (s *Server) githubDisconnect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) githubSavePAT(w http.ResponseWriter, r *http.Request) {
-	var body struct{ Token string `json:"token"` }
+	var body struct {
+		Token string `json:"token"`
+	}
 	if err := decodeJSON(r, &body); err != nil || body.Token == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "token required"})
 		return
@@ -251,8 +253,8 @@ func (s *Server) githubSaveOAuthSettings(w http.ResponseWriter, r *http.Request)
 
 func (s *Server) githubOAuthSettings(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"clientId":     os.Getenv("GITHUB_CLIENT_ID"),
-		"hasSecret":    os.Getenv("GITHUB_CLIENT_SECRET") != "",
-		"configured":   os.Getenv("GITHUB_CLIENT_ID") != "" && os.Getenv("GITHUB_CLIENT_SECRET") != "",
+		"clientId":   os.Getenv("GITHUB_CLIENT_ID"),
+		"hasSecret":  os.Getenv("GITHUB_CLIENT_SECRET") != "",
+		"configured": os.Getenv("GITHUB_CLIENT_ID") != "" && os.Getenv("GITHUB_CLIENT_SECRET") != "",
 	})
 }

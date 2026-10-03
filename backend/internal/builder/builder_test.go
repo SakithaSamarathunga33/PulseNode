@@ -63,7 +63,7 @@ func TestShortID(t *testing.T) {
 func TestSanitizeName(t *testing.T) {
 	cases := map[string]string{
 		"My App":        "my-app",
-		"weird@@name!!":  "weird--name",
+		"weird@@name!!": "weird--name",
 		"---":           "app",
 		"Good-Name123":  "good-name123",
 	}

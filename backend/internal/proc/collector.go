@@ -126,8 +126,8 @@ func (c *Collector) Host(apps int) map[string]any {
 		"disk":   map[string]any{"used": disk.usedGB, "total": disk.totalGB, "free": disk.freeGB, "unit": "GB", "pct": disk.percent},
 		"swap":   swapUsage(),
 		"network": map[string]any{
-			"rx": c.Live().NetIn,
-			"tx": c.Live().NetOut,
+			"rx":   c.Live().NetIn,
+			"tx":   c.Live().NetOut,
 			"unit": "KB/s",
 		},
 		"load":   loadavg(),
@@ -485,7 +485,7 @@ func loadavg() []float64 {
 }
 
 type procStat struct {
-	name        string
+	name         string
 	utime, stime uint64
 }
 

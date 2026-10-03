@@ -57,9 +57,9 @@ type Match struct {
 }
 
 type Handler struct {
-	Handler   string  `json:"handler"`
+	Handler   string     `json:"handler"`
 	Upstreams []Upstream `json:"upstreams,omitempty"`
-	Root      string  `json:"root,omitempty"`
+	Root      string     `json:"root,omitempty"`
 }
 
 type Upstream struct {

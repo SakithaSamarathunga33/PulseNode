@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
-  AlertTriangle, CheckCircle2, Download, ExternalLink, Loader2, LogOut,
-  RefreshCw, Settings, Shield, Zap,
+  AlertTriangle, CheckCircle2, DatabaseBackup, Download, ExternalLink, Loader2, LogOut,
+  RefreshCw, RotateCcw, Settings, Shield, Undo2, Zap,
 } from "lucide-react"
+import { toast } from "sonner"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
+import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
 import { Pill } from "@/components/dashboard/Pill"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -25,11 +27,30 @@ interface VersionInfo {
   changelog: string | null
 }
 
+interface SnapshotInfo { name: string; size: number; createdAt: string }
+
+type UpdatePhase = "idle" | "preflight" | "snapshot" | "pulling" | "building" | "switching" | "done" | "rolled_back" | "failed"
+
 interface UpdateStatus {
   running: boolean
   log: string[]
   error: string | null
   startedAt: string | null
+  // Persisted by the backend, so they survive the container restart:
+  phase?: UpdatePhase
+  rolledBack?: boolean
+  rollbackHealthy?: boolean
+  finishedAt?: string | null
+  fromVersion?: string
+  toVersion?: string
+  imageTag?: string
+  snapshotPath?: string
+  schemaChanged?: boolean
+  snapshots?: SnapshotInfo[]
+}
+
+function fmtBytes(n: number) {
+  return n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`
 }
 
 interface AuthStatus { enabled: boolean; loggedIn: boolean; username?: string }
@@ -65,6 +86,8 @@ export default function SettingsPage() {
   const [updating,     setUpdating]     = useState(false)
   const [countdown,    setCountdown]    = useState(0)
   const [reconnecting, setReconnecting] = useState(false)
+  const [restoreTarget, setRestoreTarget] = useState<SnapshotInfo | null>(null)
+  const [restoring,     setRestoring]     = useState(false)
   const logEndRef = useRef<HTMLDivElement>(null)
   // Boot id of the backend we are currently talking to. After an update we reload
   // only once this changes, which proves the container restarted with new code.
@@ -108,6 +131,8 @@ export default function SettingsPage() {
   }, [])
 
   useEffect(() => { fetchVersion() }, [fetchVersion])
+  // The last update's outcome is persisted server-side: show it after the restart.
+  useEffect(() => { fetchStatus() }, [fetchStatus])
   useEffect(() => { fetchAuthStatus() }, [fetchAuthStatus])
 
   useEffect(() => {
@@ -123,6 +148,21 @@ export default function SettingsPage() {
     timer = setTimeout(tick, 1500)
     return () => { cancelled = true; clearTimeout(timer) }
   }, [updating, fetchStatus])
+
+  // The updater keeps verifying the new version (up to ~2 min) after the page has
+  // reloaded onto it; keep asking until it has recorded its verdict.
+  const verifying = !updating && status?.phase === "switching"
+  useEffect(() => {
+    if (!verifying) return
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const tick = async () => {
+      await fetchStatus()
+      if (!cancelled) timer = setTimeout(tick, 4000)
+    }
+    timer = setTimeout(tick, 4000)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [verifying, fetchStatus])
 
   // Auto-scroll log to bottom whenever new lines arrive
   useEffect(() => {
@@ -151,8 +191,9 @@ export default function SettingsPage() {
   // builds the new image while the OLD container keeps serving, so /health stays up
   // the whole time — waiting for the boot id to CHANGE avoids reloading the old
   // version. A failed probe means the container is mid-restart (reconnecting UI).
+  const watching = updating || restoring
   useEffect(() => {
-    if (!updating) return
+    if (!watching) return
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | undefined
     let sawOutage = false // backend went unreachable at least once → it is restarting
@@ -185,7 +226,7 @@ export default function SettingsPage() {
     }
     timer = setTimeout(probe, 5000) // brief grace before the first probe
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [updating, HEALTH_URL])
+  }, [watching, HEALTH_URL])
 
   async function handleUpdate() {
     setUpdating(true)
@@ -198,6 +239,24 @@ export default function SettingsPage() {
         setUpdating(false)
       }
     } catch { /* Node-api going down is expected during update */ }
+  }
+
+  async function handleRestore() {
+    if (!restoreTarget) return
+    try {
+      const res = await fetch(`${GO_API}/api/system/update/restore-snapshot`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshot: restoreTarget.name, confirm: "restore" }),
+      })
+      const b = await res.json().catch(() => ({})) as { error?: string; restarting?: boolean }
+      if (!res.ok) { toast.error(b.error || "Could not restore the snapshot"); return }
+      setRestoreTarget(null)
+      setRestoring(true)
+      toast.success(b.restarting === false
+        ? "Snapshot staged — restart the go-api container to apply it."
+        : "Snapshot staged — PulseNode is restarting to apply it.")
+    } catch { toast.error("Could not reach the server") }
   }
 
   async function handleEnableLogin(e: React.FormEvent) {
@@ -361,14 +420,119 @@ export default function SettingsPage() {
               </Card>
             )}
 
+            {verifying && (
+              <Alert>
+                <Loader2 className="animate-spin" />
+                <AlertTitle>Verifying the new version…</AlertTitle>
+                <AlertDescription>
+                  PulseNode is checking that the update is healthy and will roll back by itself if it is not.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {restoring && (
+              <Alert>
+                <Loader2 className="animate-spin" />
+                <AlertTitle>Restoring the database snapshot…</AlertTitle>
+                <AlertDescription>PulseNode is restarting to apply it. This page reloads when it is back.</AlertDescription>
+              </Alert>
+            )}
+
+            {!updating && status && (status.phase === "done" || status.phase === "rolled_back" || status.phase === "failed") && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Undo2 className="size-4 text-[var(--hue)]" /> Last update</CardTitle>
+                  {status.finishedAt && (
+                    <CardDescription>{new Date(status.finishedAt).toLocaleString()}</CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {status.phase === "done" && (
+                    <Alert>
+                      <CheckCircle2 className="text-success" />
+                      <AlertTitle>
+                        Updated{status.fromVersion ? ` from v${status.fromVersion}` : ""}{status.toVersion ? ` to v${status.toVersion}` : ""}
+                      </AlertTitle>
+                      <AlertDescription>
+                        The new version passed its health check
+                        {status.imageTag ? <> and is pinned to <code className="font-mono">{status.imageTag}</code></> : null}.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {status.phase === "rolled_back" && (
+                    <Alert variant="destructive">
+                      <AlertTriangle />
+                      <AlertTitle>
+                        {status.rollbackHealthy
+                          ? `The update${status.toVersion ? ` to v${status.toVersion}` : ""} failed and was rolled back`
+                          : "The update failed and the rollback is not healthy either"}
+                      </AlertTitle>
+                      <AlertDescription>
+                        {status.error}
+                        {status.rollbackHealthy
+                          ? " The previous version is running again with your data untouched."
+                          : " Check the containers on the server (docker compose ps / logs)."}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {status.phase === "failed" && (
+                    <Alert variant="destructive">
+                      <AlertTriangle />
+                      <AlertTitle>The update did not start</AlertTitle>
+                      <AlertDescription>{status.error} Nothing was changed.</AlertDescription>
+                    </Alert>
+                  )}
+                  {status.phase === "rolled_back" && status.schemaChanged && (
+                    <p className="text-sm text-muted-foreground">
+                      The failed version changed the database layout. The previous version still ran against the live
+                      database; restore a snapshot below only if it misbehaves.
+                    </p>
+                  )}
+                  {status.log && status.log.length > 0 && (
+                    <details className="rounded-lg border bg-muted/40 p-3">
+                      <summary className="cursor-pointer text-sm font-medium">Updater log</summary>
+                      <div className="mt-2 max-h-72 space-y-0.5 overflow-y-auto" role="log" aria-label="Updater log">
+                        {status.log.map((l, i) => <LogLine key={i} line={l} />)}
+                      </div>
+                    </details>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {!updating && status?.snapshots && status.snapshots.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><DatabaseBackup className="size-4 text-[var(--hue)]" /> Database snapshots</CardTitle>
+                  <CardDescription>Taken automatically before every update; the newest {status.snapshots.length} are kept.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="divide-y rounded-lg border">
+                    {status.snapshots.map(sn => (
+                      <li key={sn.name} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium">{new Date(sn.createdAt).toLocaleString()}</p>
+                          <p className="truncate font-mono text-xs text-muted-foreground">{sn.name} · {fmtBytes(sn.size)}</p>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => setRestoreTarget(sn)} disabled={restoring}>
+                          <RotateCcw /> Restore…
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
             {!updating && (
               <Card>
                 <CardHeader><CardTitle>How updates work</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
                   <ol className="list-decimal space-y-1.5 pl-5 text-sm text-muted-foreground">
-                    <li>Pulls the latest code from GitHub (<code className="font-mono text-xs text-foreground">git pull</code>)</li>
-                    <li>Stops all running containers (<code className="font-mono text-xs text-foreground">docker compose down</code>)</li>
-                    <li>Rebuilds and restarts with the new code (<code className="font-mono text-xs text-foreground">docker compose up --build -d</code>)</li>
+                    <li>Checks that the new release&apos;s images are published, and saves a snapshot of the database</li>
+                    <li>Pulls the latest code (<code className="font-mono text-xs text-foreground">git pull</code>) and the pinned images, or builds from source</li>
+                    <li>Swaps the containers from a separate helper, so the swap survives the dashboard restarting</li>
+                    <li>Waits for the new version to pass its health check — if it does not, the previous version is put back automatically</li>
                     <li>The dashboard reconnects automatically when ready</li>
                   </ol>
                   <p className="text-xs text-muted-foreground">
@@ -436,6 +600,17 @@ export default function SettingsPage() {
           </Card>
         </div>
       </PageBody>
+
+      <ConfirmDialog
+        open={restoreTarget !== null}
+        onOpenChange={o => { if (!o) setRestoreTarget(null) }}
+        title="Restore this database snapshot?"
+        icon={DatabaseBackup}
+        items={restoreTarget ? [{ primary: new Date(restoreTarget.createdAt).toLocaleString(), secondary: restoreTarget.name }] : undefined}
+        note="Everything written since this snapshot is replaced. The current database is saved first as a new snapshot, and PulseNode restarts to apply the restore."
+        confirmLabel="Restore snapshot"
+        onConfirm={handleRestore}
+      />
     </>
   )
 }

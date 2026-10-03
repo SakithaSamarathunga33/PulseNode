@@ -29,11 +29,11 @@ func TestListOpenPullRequests(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode([]map[string]any{
 			{
-				"id":     1,
-				"number": 7,
-				"title":  "Add feature",
-				"state":  "open",
-				"user":   map[string]any{"login": "octocat"},
+				"id":       1,
+				"number":   7,
+				"title":    "Add feature",
+				"state":    "open",
+				"user":     map[string]any{"login": "octocat"},
 				"html_url": "https://github.com/acme/widgets/pull/7",
 			},
 		})

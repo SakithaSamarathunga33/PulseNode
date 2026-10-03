@@ -22,9 +22,11 @@ import (
 type DB struct {
 	*sql.DB
 	sessOnce sync.Once
+	path     string // database file; snapshots and staged restores live beside it
 }
 
 func Open(path string) (*DB, error) {
+	applyPendingRestore(path) // a restore staged from the Settings page lands before the DB opens
 	raw, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)")
 	if err != nil {
 		return nil, err
@@ -32,7 +34,7 @@ func Open(path string) (*DB, error) {
 	// SQLite: one writer at a time. The _pragma options in the DSN are applied to
 	// every new connection the pool opens, so they survive connection recycling.
 	raw.SetMaxOpenConns(1)
-	d := &DB{DB: raw}
+	d := &DB{DB: raw, path: path}
 	if err := d.migrate(); err != nil {
 		_ = raw.Close()
 		return nil, fmt.Errorf("migrate: %w", err)

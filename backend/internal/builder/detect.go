@@ -60,11 +60,11 @@ func DetectMonorepo(root string) (frontendDir, backendDir string, ok bool) {
 // nixpacks supports).
 var buildableProjectFiles = []string{
 	"Dockerfile",
-	"package.json", // node
-	"go.mod",       // go
+	"package.json",                                  // node
+	"go.mod",                                        // go
 	"requirements.txt", "pyproject.toml", "Pipfile", // python
-	"Gemfile",     // ruby
-	"Cargo.toml",  // rust
+	"Gemfile",       // ruby
+	"Cargo.toml",    // rust
 	"composer.json", // php
 }
 

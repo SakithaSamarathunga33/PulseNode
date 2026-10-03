@@ -24,6 +24,10 @@ import (
 )
 
 func main() {
+	// `pulsenode updater` is the detached self-update helper (see api/update_sidecar.go).
+	if len(os.Args) > 1 && os.Args[1] == "updater" {
+		os.Exit(api.RunUpdater())
+	}
 	// run() returns instead of calling log.Fatal so its deferred cleanup (DB
 	// close, WAL checkpoint) always executes.
 	if err := run(); err != nil {

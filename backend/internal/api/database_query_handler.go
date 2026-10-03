@@ -241,7 +241,7 @@ func (s *Server) databaseSchema(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-	// Redis has no schema
+		// Redis has no schema
 	}
 
 	writeJSON(w, http.StatusOK, result)

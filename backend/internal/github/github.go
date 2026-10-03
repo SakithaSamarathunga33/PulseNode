@@ -185,7 +185,9 @@ func (c *Client) ListRepos() ([]Repo, error) {
 }
 
 func (c *Client) ListBranches(owner, repo string) ([]string, error) {
-	var raw []struct{ Name string `json:"name"` }
+	var raw []struct {
+		Name string `json:"name"`
+	}
 	if err := c.get(fmt.Sprintf("%s/branches?per_page=100", repoPath(owner, repo)), &raw); err != nil {
 		return nil, err
 	}

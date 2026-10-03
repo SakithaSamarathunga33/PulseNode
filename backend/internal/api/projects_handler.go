@@ -68,11 +68,11 @@ func validBranch(b string) bool {
 
 func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Name         string `json:"name"`
-		RepoURL      string `json:"repoUrl"`
-		Branch       string `json:"branch"`
-		BuildMethod  string `json:"buildMethod"`
-		BuildCommand string `json:"buildCommand"`
+		Name           string `json:"name"`
+		RepoURL        string `json:"repoUrl"`
+		Branch         string `json:"branch"`
+		BuildMethod    string `json:"buildMethod"`
+		BuildCommand   string `json:"buildCommand"`
 		Port           int    `json:"port"`
 		Domain         string `json:"domain"`
 		EnvVars        string `json:"envVars"`
@@ -177,10 +177,10 @@ func (s *Server) getProject(w http.ResponseWriter, r *http.Request) {
 func (s *Server) updateProject(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
-		Name         string `json:"name"`
-		Branch       string `json:"branch"`
-		BuildMethod  string `json:"buildMethod"`
-		BuildCommand string `json:"buildCommand"`
+		Name           string `json:"name"`
+		Branch         string `json:"branch"`
+		BuildMethod    string `json:"buildMethod"`
+		BuildCommand   string `json:"buildCommand"`
 		Port           int    `json:"port"`
 		Domain         string `json:"domain"`
 		EnvVars        string `json:"envVars"`
@@ -405,4 +405,3 @@ func (s *Server) streamDeploymentLogs(w http.ResponseWriter, r *http.Request, de
 		}
 	}
 }
-
