@@ -76,3 +76,17 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Theme toggle reveal (AnimatedThemeToggler): the toggler sets the data-attribute and
+   duration variable only while a toggle is in flight, so other view transitions are untouched. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+html[data-magicui-theme-vt="active"]::view-transition-group(root) {
+  animation-duration: var(--magicui-theme-toggle-vt-duration);
+}
+html[data-magicui-theme-vt="active"]::view-transition-new(root) {
+  clip-path: var(--magicui-theme-vt-clip-from);
+}

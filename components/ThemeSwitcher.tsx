@@ -1,37 +1,26 @@
 "use client"
 
 import { useTheme } from "next-themes"
-import { Check, Monitor, Moon, Sun } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler"
+import { buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
-const OPTIONS = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
-] as const
-
+/**
+ * Light/dark toggle with the Magic UI circular reveal (View Transitions API).
+ * "System" is available from the Ctrl+K palette.
+ */
 export function ThemeSwitcher() {
-  const { theme, setTheme } = useTheme()
+  const { resolvedTheme, setTheme } = useTheme()
+  const dark = resolvedTheme === "dark"
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={<Button variant="ghost" size="icon" aria-label="Change theme" title="Change theme" />}
-      >
-        <Sun className="size-4 dark:hidden" />
-        <Moon className="hidden size-4 dark:block" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-36">
-        {OPTIONS.map(({ value, label, icon: Icon }) => (
-          <DropdownMenuItem key={value} onClick={() => setTheme(value)}>
-            <Icon className="size-4" />
-            {label}
-            {theme === value && <Check className="ml-auto size-4" />}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <AnimatedThemeToggler
+      theme={dark ? "dark" : "light"}
+      onThemeChange={setTheme}
+      variant="circle"
+      duration={520}
+      title={dark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+      className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "[&_svg]:size-4")}
+    />
   )
 }
