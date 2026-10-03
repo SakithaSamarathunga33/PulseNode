@@ -200,10 +200,6 @@ func shortSHA(sha string) string {
 }
 
 func (cfg Config) buildCompose(ctx context.Context, dir, containerName string, envMap map[string]string) (string, error) {
-	cfg.log("system", "→ Checking docker-compose.yml…")
-	if err := cfg.checkComposePolicy(ctx, dir); err != nil {
-		return "", err
-	}
 	// Write overlay with Traefik labels for the first service
 	cfg.log("system", "→ Writing Traefik labels overlay…")
 	traefikNet := cfg.resolveTraefikNetwork(ctx)
@@ -228,6 +224,12 @@ func (cfg Config) buildCompose(ctx context.Context, dir, containerName string, e
 		if err := os.WriteFile(filepath.Join(dir, ".env"), []byte(sb.String()), 0o600); err != nil {
 			return "", err
 		}
+	}
+
+	// After .env is written, so ${VAR:?required} interpolation resolves.
+	cfg.log("system", "→ Checking docker-compose.yml…")
+	if err := cfg.checkComposePolicy(ctx, dir); err != nil {
+		return "", err
 	}
 
 	cfg.log("system", "→ Building and starting containers…")

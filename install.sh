@@ -129,7 +129,10 @@ echo ""
 json_escape() { local s=${1//\\/\\\\}; s=${s//\"/\\\"}; printf '%s' "$s"; }
 
 # Talk to go-api inside its container — independent of Caddy, ports and TLS.
-go_api() { docker compose -f docker-compose.yml exec -T go-api curl -fsS --max-time 10 "$@" 2>/dev/null; }
+# stdin must be /dev/null: under `curl … | bash` it is the rest of this script,
+# and `docker compose exec` would swallow it. go_api_stdin is for piped bodies.
+go_api()       { docker compose -f docker-compose.yml exec -T go-api curl -fsS --max-time 10 "$@" </dev/null 2>/dev/null; }
+go_api_stdin() { docker compose -f docker-compose.yml exec -T go-api curl -fsS --max-time 10 "$@" 2>/dev/null; }
 
 AUTH_ENABLED=""
 if [[ -f .env.local ]]; then
@@ -274,7 +277,7 @@ if [[ -n "$ADMIN_USER" && -n "$ADMIN_PASS" ]]; then
   # Payload goes over stdin so the password never shows up in `ps`.
   if printf '{"username":"%s","password":"%s","setup_token":"%s"}' \
        "$(json_escape "$ADMIN_USER")" "$(json_escape "$ADMIN_PASS")" "$SETUP_TOKEN" |
-     go_api -X POST http://localhost:4002/api/auth/setup \
+     go_api_stdin -X POST http://localhost:4002/api/auth/setup \
        -H 'Content-Type: application/json' --data-binary @- >/dev/null; then
     echo -e "  ${G}✓ Admin account created — sign in as '${ADMIN_USER}'${N}"
     # The token is single-use; drop it from the config now that it's spent.

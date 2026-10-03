@@ -1,9 +1,11 @@
 {
 	admin localhost:2019
 	servers {
-		# Trust X-Forwarded-* only from private networks (e.g. a Traefik in front),
-		# so {client_ip} is the real browser IP and can't be spoofed from outside.
-		trusted_proxies static private_ranges
+		# Whose X-Forwarded-For to believe when resolving {client_ip}. Standalone,
+		# Caddy is the edge, so nobody (loopback only). The Traefik overlay sets
+		# private_ranges; narrow it to Traefik's own IP/CIDR if untrusted apps
+		# share its network, or they can spoof their IP to the rate limiter.
+		trusted_proxies static {$CADDY_TRUSTED_PROXIES:127.0.0.1/32}
 	}
 }
 

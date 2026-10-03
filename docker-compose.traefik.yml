@@ -9,6 +9,9 @@
 
 services:
   caddy:
+    environment:
+      # Traefik forwards the real client IP; trust it (see Caddyfile).
+      CADDY_TRUSTED_PROXIES: ${CADDY_TRUSTED_PROXIES:-private_ranges}
     networks:
       - default
       - traefik-net

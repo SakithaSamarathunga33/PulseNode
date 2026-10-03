@@ -30,7 +30,7 @@ What PulseNode does for you:
 - **Cross-site requests** that change state are rejected unless they come from the dashboard's own origin (this also covers apps you deploy on sibling subdomains).
 - **Brute force:** login is limited to 10 attempts per minute per IP.
 - **Secrets:** missing or placeholder `JWT_SECRET` / `AES_KEY` values are replaced by random keys; stored tokens, env vars and DB passwords are AES-256-GCM encrypted.
-- **Deploys:** a repo's `docker-compose.yml` may not use `privileged`, host namespaces, `cap_add`, devices, host bind mounts (including the Docker socket), `traefik.*` labels, or files outside the repo. Builds never see PulseNode's own environment, and your GitHub token is never written into clone URLs or logs.
+- **Deploys:** a repo's `docker-compose.yml` may not use `privileged`, host or other containers' namespaces, `cap_add`, devices, host bind mounts (including the Docker socket), external or explicitly named volumes, Traefik router labels, or files outside the repo. Builds never see PulseNode's own environment, and your GitHub token is never written into clone URLs or logs.
 - **Headers:** Caddy sends CSP, `X-Frame-Options: DENY`, HSTS, `nosniff` and a strict referrer policy.
 
 ## Hardening checklist for your install
@@ -38,5 +38,6 @@ What PulseNode does for you:
 - **Use a domain and HTTPS.** `install.sh` offers HTTPS automatically when you enter a domain whose DNS points at the server. Over plain HTTP your password and session cookie cross the network unencrypted.
 - **Firewall the host — and know that Docker bypasses UFW.** Ports published by Docker (80/443 here) are opened in iptables before UFW's rules, so `ufw deny` does not block them. To restrict who can reach PulseNode, add rules to the `DOCKER-USER` chain, use your provider's cloud firewall, or reach the dashboard only over a VPN/Tailscale.
 - **Only connect repositories you trust to auto-deploy.** Anyone who can push to a deployed branch can run code in a container on your server (without host access, thanks to the compose policy above).
+- **Behind Traefik?** Caddy trusts forwarded client IPs from private ranges by default (`CADDY_TRUSTED_PROXIES`). If untrusted apps share Traefik's network, set it to Traefik's own IP so they can't spoof their IP past the login rate limit.
 - **Keep `.env.local` private** (`chmod 600`, done by the installer) and never commit it.
 - **Keep PulseNode updated** — releases ship continuously.

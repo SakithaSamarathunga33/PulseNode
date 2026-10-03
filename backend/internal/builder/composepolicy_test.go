@@ -106,3 +106,36 @@ func TestGitAuthEnvKeepsTokenOutOfURL(t *testing.T) {
 		t.Fatal("no token → no auth env")
 	}
 }
+
+func TestComposeViolationsRejectsPanelVolumesAndNamespaces(t *testing.T) {
+	dir := t.TempDir()
+	// Shape taken from real `docker compose config --format json` output.
+	raw := `{
+	  "name": "pn-build-1",
+	  "services": {
+	    "app": {
+	      "pid": "container:vps-go-api-1", "ipc": "container:vps-go-api-1", "cgroup": "host",
+	      "labels": {"traefik.enable": "false", "traefik.http.routers.x.rule": "Host(` + "`a`" + `)"},
+	      "volumes": [{"type": "volume", "source": "stolen", "target": "/s"},
+	                  {"type": "volume", "source": "named", "target": "/n"},
+	                  {"type": "volume", "source": "plain", "target": "/p"}]
+	    }
+	  },
+	  "volumes": {
+	    "stolen": {"name": "vps_pn-go-data", "external": true},
+	    "named": {"name": "vps_pn-sqlite-data"},
+	    "plain": {"name": "pn-build-1_plain"}
+	  }
+	}`
+	got := strings.Join(composeViolations([]byte(raw), dir), "\n")
+	for _, want := range []string{"pid: container:", "ipc: container:", "cgroup: host", "volume stolen", "volume named", "traefik.http.routers.x.rule"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing violation %q in:\n%s", want, got)
+		}
+	}
+	for _, unwanted := range []string{"volume plain", "traefik.enable"} {
+		if strings.Contains(got, unwanted) {
+			t.Errorf("false positive %q in:\n%s", unwanted, got)
+		}
+	}
+}

@@ -27,8 +27,11 @@ func (cfg Config) checkComposePolicy(ctx context.Context, dir string) error {
 }
 
 type composeFile struct {
+	Name     string                    `json:"name"`
 	Services map[string]composeService `json:"services"`
 	Volumes  map[string]struct {
+		Name       string            `json:"name"`
+		External   bool              `json:"external"`
 		DriverOpts map[string]string `json:"driver_opts"`
 	} `json:"volumes"`
 	Secrets map[string]struct {
@@ -42,6 +45,7 @@ type composeFile struct {
 type composeService struct {
 	Privileged  bool              `json:"privileged"`
 	Pid         string            `json:"pid"`
+	Cgroup      string            `json:"cgroup"`
 	Ipc         string            `json:"ipc"`
 	Uts         string            `json:"uts"`
 	UsernsMode  string            `json:"userns_mode"`
@@ -79,9 +83,12 @@ func composeViolations(raw []byte, dir string) []string {
 		if s.Privileged {
 			add("%s: privileged: true", name)
 		}
-		for key, v := range map[string]string{"pid": s.Pid, "ipc": s.Ipc, "uts": s.Uts, "userns_mode": s.UsernsMode} {
-			if v == "host" {
-				add("%s: %s: host", name, key)
+		// Sharing a namespace with the host or another container (e.g. go-api,
+		// which holds the Docker socket) escapes the sandbox. Private namespaces
+		// and ones shared with this project's own services are fine.
+		for key, v := range map[string]string{"pid": s.Pid, "ipc": s.Ipc, "uts": s.Uts, "userns_mode": s.UsernsMode, "cgroup": s.Cgroup} {
+			if v != "" && v != "private" && v != "shareable" && !strings.HasPrefix(v, "service:") {
+				add("%s: %s: %s", name, key, v)
 			}
 		}
 		if s.NetworkMode == "host" || strings.HasPrefix(s.NetworkMode, "container:") {
@@ -103,8 +110,11 @@ func composeViolations(raw []byte, dir string) []string {
 				add("%s: volumes_from: %s", name, v)
 			}
 		}
+		// Router/service labels could claim another app's or the panel's domain.
+		// Harmless ones (traefik.enable, traefik.docker.network) are allowed.
 		for k := range s.Labels {
-			if strings.HasPrefix(strings.ToLower(k), "traefik.") {
+			lk := strings.ToLower(k)
+			if strings.HasPrefix(lk, "traefik.http.") || strings.HasPrefix(lk, "traefik.tcp.") || strings.HasPrefix(lk, "traefik.udp.") {
 				add("%s: label %s (routing is managed by PulseNode — set the project domain instead)", name, k)
 			}
 		}
@@ -142,6 +152,11 @@ func composeViolations(raw []byte, dir string) []string {
 	for name, v := range cf.Volumes {
 		if v.DriverOpts["device"] != "" || strings.Contains(v.DriverOpts["o"], "bind") {
 			add("volume %s: driver_opts bind-mounts a host path", name)
+		}
+		// Only volumes owned by this compose project: an external or explicitly
+		// named volume could be PulseNode's own (keys, database, backups).
+		if v.External || (cf.Name != "" && !strings.HasPrefix(v.Name, cf.Name+"_")) {
+			add("volume %s: external or explicitly named volumes are not allowed (%s)", name, v.Name)
 		}
 	}
 	for name, s := range cf.Secrets {

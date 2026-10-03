@@ -3,6 +3,7 @@ services:
     image: caddy:2-alpine
     environment:
       CADDY_SITE_ADDRESS: ${CADDY_SITE_ADDRESS:-:80}
+      CADDY_TRUSTED_PROXIES: ${CADDY_TRUSTED_PROXIES:-127.0.0.1/32}
     depends_on:
       - web
       - go-api

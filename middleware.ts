@@ -17,25 +17,38 @@ export async function middleware(request: NextRequest) {
   }
 
   const sessionCookie = request.cookies.get("pn_session")
+  const loginUrl = new URL("/login", request.url)
+  loginUrl.searchParams.set("next", pathname)
+
+  // Forward the browser's IP (set by Caddy) so go-api rate-limits per client,
+  // not one shared bucket for this server, and the scheme for the Secure flag.
+  const headers: Record<string, string> = {}
+  if (sessionCookie) headers.Cookie = `pn_session=${sessionCookie.value}`
+  for (const h of ["x-real-ip", "x-forwarded-proto"]) {
+    const v = request.headers.get(h)
+    if (v) headers[h] = v
+  }
+
+  let res: Response
+  try {
+    res = await fetch(`${GO_API_INTERNAL}/api/auth/status`, { headers, cache: "no-store" })
+  } catch {
+    // Go API unreachable (startup, update) — don't block the user. The API
+    // itself still enforces auth on every data request.
+    return NextResponse.next()
+  }
 
   try {
-    const res = await fetch(`${GO_API_INTERNAL}/api/auth/status`, {
-      headers: sessionCookie
-        ? { Cookie: `pn_session=${sessionCookie.value}` }
-        : {},
-      cache: "no-store",
-    })
-
+    // Any non-OK answer (e.g. 429) must not open the gate.
+    if (!res.ok) return NextResponse.redirect(loginUrl)
     const data = (await res.json()) as { enabled: boolean; loggedIn: boolean }
 
     if (!data.enabled) {
-      // No login configured — pass through.
+      // Login explicitly disabled (PULSENODE_INSECURE_NO_AUTH) — pass through.
       return NextResponse.next()
     }
 
     if (!data.loggedIn) {
-      const loginUrl = new URL("/login", request.url)
-      loginUrl.searchParams.set("next", pathname)
       return NextResponse.redirect(loginUrl)
     }
 
@@ -47,8 +60,7 @@ export async function middleware(request: NextRequest) {
     }
     return response
   } catch {
-    // Go API unreachable (startup, update) — don't block the user.
-    return NextResponse.next()
+    return NextResponse.redirect(loginUrl)
   }
 }
 
