@@ -21,20 +21,20 @@ export function Segmented<T extends string>({
       aria-label={ariaLabel}
       value={[value]}
       onValueChange={v => { if (v[0]) onChange(v[0] as T) }}
-      variant="outline"
+      variant="default"
       size={size}
-      spacing={0}
-      className={cn("bg-background", className)}
+      spacing={2}
+      className={cn("gap-0.5 rounded-xl border bg-muted/70 p-[3px]", className)}
     >
       {options.map(o => (
         <ToggleGroupItem
           key={o.value}
           value={o.value}
-          className="data-[pressed]:bg-[color-mix(in_srgb,var(--hue,var(--primary))_16%,transparent)] data-[pressed]:font-semibold data-[pressed]:text-foreground data-[pressed]:shadow-[inset_0_-2px_0_var(--hue,var(--primary))]"
+          className="rounded-lg! px-2.5 font-medium text-muted-foreground hover:bg-transparent hover:text-foreground data-[pressed]:bg-card data-[pressed]:text-foreground data-[pressed]:shadow-sm data-[pressed]:ring-1 data-[pressed]:ring-border"
         >
           {o.label}
           {o.count !== undefined && (
-            <span className="ml-1 rounded-full bg-muted px-1.5 font-mono text-[11px] tabular-nums text-muted-foreground">
+            <span className="ml-1 rounded-full bg-background/80 px-1.5 font-mono text-[11px] tabular-nums text-muted-foreground">
               {o.count}
             </span>
           )}

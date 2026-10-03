@@ -108,8 +108,8 @@ function QueryResult({ result }: { result: DbQueryResult }) {
             <Button size="xs" variant="ghost" onClick={exportCsv}>
               <Download /> Export CSV
             </Button>
-            <Button size="xs" variant="ghost" onClick={() => setExpanded(true)} aria-label="Expand results to full screen">
-              <Maximize2 /> Expand
+            <Button size="icon-xs" variant="ghost" onClick={() => setExpanded(true)} aria-label="Open results fullscreen" title="Fullscreen">
+              <Maximize2 />
             </Button>
           </div>
         </div>
@@ -320,8 +320,31 @@ export function DatabaseQueryEditor({
           </Button>
         </div>
 
-        {/* Body: full-width editor */}
-        <div className="space-y-2 p-3">
+        {/* Body: terminal-surface editor */}
+        <div
+          className="m-3 overflow-hidden rounded-xl border border-[var(--t-border)] bg-[var(--t-bg)] text-[var(--t-fg)] [--t-bg:#0d1117] [--t-bar:#161b22] [--t-border:#30363d] [--t-hover:#21262d] [--t-fg:#e6edf3] [--t-muted:#8b949e]"
+        >
+          <div className="flex items-center gap-2 border-b border-[var(--t-border)] bg-[var(--t-bar)] px-3 py-1.5">
+            <span className="font-mono text-xs text-[var(--t-muted)]">
+              {db.engine}{selectedDatabase ? ` · ${selectedDatabase}` : ""}
+            </span>
+            <span className="flex-1" />
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-[var(--t-muted)] hover:bg-[var(--t-hover)] hover:text-[var(--t-fg)]"
+              onClick={() => { setQuery(""); setResult(null); setError(null); setTableView(null) }}
+            >
+              Clear
+            </Button>
+            <Button size="sm" onClick={() => runQuery()} disabled={loading || !hasQuery}>
+              {loading ? <Loader2 className="animate-spin" /> : <Play />}
+              {loading ? "Running…" : "Run"}
+              <kbd className="ml-1 rounded border border-current/30 px-1 font-mono text-[11px] opacity-80">
+                Ctrl ↵
+              </kbd>
+            </Button>
+          </div>
           <Label htmlFor={`query-${db.name}`} className="sr-only">Query</Label>
           <Textarea
             id={`query-${db.name}`}
@@ -330,28 +353,12 @@ export function DatabaseQueryEditor({
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="h-48 resize-y bg-background font-mono text-xs"
+            className="block min-h-36 w-full resize-y rounded-none border-0 bg-transparent px-3.5 py-3 font-mono text-[13px] leading-relaxed text-[var(--t-fg)] shadow-none placeholder:text-[var(--t-muted)] focus-visible:ring-0 dark:bg-transparent"
+            rows={7}
             spellCheck={false}
           />
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={() => runQuery()} disabled={loading || !hasQuery}>
-              {loading ? <Loader2 className="animate-spin" /> : <Play />}
-              {loading ? "Running…" : "Run"}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => { setQuery(""); setResult(null); setError(null); setTableView(null) }}
-            >
-              Clear
-            </Button>
-            <span className="ml-auto font-mono text-xs text-muted-foreground">
-              {isRedis
-                ? "Redis command"
-                : isMongo
-                ? "collection {filter}"
-                : "Ctrl+↵ to run"}
-            </span>
+          <div className="border-t border-[var(--t-border)] px-3.5 py-1.5 font-mono text-[11px] text-[var(--t-muted)]">
+            {isRedis ? "Redis command" : isMongo ? "collection {filter}" : "SQL"}
           </div>
         </div>
 
@@ -410,9 +417,20 @@ export function DatabaseQueryEditor({
         open={showWarning}
         onOpenChange={setShowWarning}
         icon={AlertTriangle}
-        title="Destructive query detected"
-        description="This query may permanently delete or modify data (DROP, TRUNCATE, or DELETE/UPDATE without WHERE). Are you sure you want to run it?"
-        target={<span className="line-clamp-6 whitespace-pre-wrap">{query}</span>}
+        tone="warning"
+        title="Run potentially destructive query?"
+        description="This query may modify or remove a large amount of data."
+        items={[{
+          primary: query.length > 90 ? `${query.slice(0, 90)}…` : query,
+          secondary: `${db.name}${selectedDatabase ? ` · ${selectedDatabase}` : ""}`,
+        }]}
+        note={`Detected: ${
+          /\bdrop\b/i.test(query) ? "DROP"
+          : /\btruncate\b/i.test(query) ? "TRUNCATE"
+          : /\bdelete\b/i.test(query) ? "DELETE without WHERE"
+          : /\bupdate\b/i.test(query) ? "UPDATE without WHERE"
+          : "bulk data change"
+        }. This may not be reversible.`}
         confirmLabel="Run anyway"
         onConfirm={() => { setShowWarning(false); runQuery(true) }}
       />

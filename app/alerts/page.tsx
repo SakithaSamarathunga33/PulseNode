@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 
@@ -133,13 +132,17 @@ export default function AlertsPage() {
           </>
         }
       >
-        <Tabs value={activeTab} onValueChange={v => setActiveTab(v as Tab)}>
-          <TabsList variant="line">
-            <TabsTrigger value="history">History</TabsTrigger>
-            <TabsTrigger value="rules">Rules</TabsTrigger>
-            <TabsTrigger value="channels">Channels</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <Segmented<Tab>
+          aria-label="Alerts view"
+          value={activeTab}
+          onChange={setActiveTab}
+          size="default"
+          options={[
+            { value: "history", label: "History" },
+            { value: "rules", label: "Rules" },
+            { value: "channels", label: "Channels" },
+          ]}
+        />
       </PageHeader>
 
       <PageBody className="motion-safe:animate-in fade-in-0 duration-300">

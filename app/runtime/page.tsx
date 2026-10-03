@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Link from "next/link"
 import { Box, Cpu, MemoryStick, Activity, ArrowUp, ArrowDown, ChevronsUpDown, AlertCircle, Flame } from "lucide-react"
 import { nodeApi } from "@/lib/api"
 import type { Container } from "@/lib/types"
@@ -9,13 +8,12 @@ import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { LiveBadge } from "@/components/pn/LiveBadge"
 import { EmptyState } from "@/components/pn/EmptyState"
 import { Segmented } from "@/components/pn/Segmented"
-import { StatCard } from "@/components/dashboard/StatCard"
+import { SummaryStrip } from "@/components/pn/SummaryStrip"
+import { StatusDot } from "@/components/pn/StatusDot"
 import { Pill } from "@/components/dashboard/Pill"
 import { ProgressBar } from "@/components/dashboard/ProgressBar"
-import { Card, CardAction, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
@@ -74,22 +72,26 @@ function usageTone(v: number): "ok" | "warn" | "bad" {
 
 const TEXT_TONE = { ok: "text-foreground", warn: "text-warning", bad: "text-danger" } as const
 
-function HeartbeatBar({ statuses, windowMs }: { statuses: BeatStatus[]; windowMs: number }) {
+function HeartbeatBar({ statuses, windowMs, name, pct, downs }: { statuses: BeatStatus[]; windowMs: number; name: string; pct: number | null; downs: number }) {
   const bucketMs = windowMs / BAR_COUNT
   const now = Date.now()
   const fmt = (t: number) => new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
   return (
-    <div className="flex items-center gap-[3px]" role="img" aria-label={`Heartbeat history, oldest to newest: ${statuses.filter(s => s === "up").length} up, ${statuses.filter(s => s === "down").length} down, ${statuses.filter(s => s !== "up" && s !== "down").length} no data`}>
-      {statuses.map((s, i) => {
+    <div
+      className="grid h-[26px] grid-cols-[repeat(50,minmax(0,1fr))] gap-px sm:gap-[3px]"
+      role="img"
+      aria-label={`${name} uptime ${pct === null ? "unknown" : pct.toFixed(2) + "%"}, ${downs} down intervals`}
+    >
+      {statuses.map((st, i) => {
         const end = now - (BAR_COUNT - 1 - i) * bucketMs
-        const label = s === "down" ? "Down" : s === "up" ? "Up" : "No data"
+        const label = st === "down" ? "Down" : st === "up" ? "Up" : "No data"
         return (
-          <div
+          <span
             key={i}
             title={`${label} · ${fmt(end - bucketMs)} – ${fmt(end)}`}
             className={cn(
-              "h-5 w-[5px] shrink-0 rounded-sm",
-              s === "down" ? "bg-[repeating-linear-gradient(45deg,var(--danger)_0_2px,color-mix(in_srgb,var(--danger)_35%,transparent)_2px_4px)]" : s === "up" ? "bg-success" : "bg-muted",
+              "rounded-[2px] transition-transform hover:scale-y-110",
+              st === "down" ? "bg-danger" : st === "up" ? "bg-success" : "border bg-muted",
             )}
           />
         )
@@ -206,36 +208,28 @@ export default function RuntimePage() {
   const hottest     = containers.length ? [...containers].sort((a, b) => b.cpu - a.cpu)[0] : null
   const upCount     = allContainers.filter(c => c.state === "running").length
 
+  const rangeLabel = { "24h": "Last 24 hours", "3d": "Last 3 days", "7d": "Last 7 days" }[range]
+  const rangeStart = { "24h": "24h ago", "3d": "3d ago", "7d": "7d ago" }[range]
+
   return (
     <>
       <PageHeader
         icon={Box}
-        title="Runtime Monitor"
-        description={view === "resources"
-          ? "Live CPU and memory usage for all running Docker containers"
-          : "Up/down history for every container, recorded every 60s"}
+        title="Runtime"
+        description="Per-container resource usage and availability history."
         actions={
-          view === "resources" ? (
-            <LiveBadge stale={error}>
-              {error ? "Updates failing" : "Live · every 3s"}
-              {lastUpdate && !error && (
-                <span className="font-normal tabular-nums text-muted-foreground">
-                  · {lastUpdate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                </span>
-              )}
-            </LiveBadge>
-          ) : (
-            <LiveBadge>History · every 60s</LiveBadge>
-          )
+          <Segmented
+            aria-label="Runtime view"
+            value={view}
+            onChange={setView}
+            size="default"
+            options={[
+              { value: "resources", label: <><Cpu className="size-3.5" />Resources</> },
+              { value: "uptime", label: <><Activity className="size-3.5" />Uptime</> },
+            ]}
+          />
         }
-      >
-        <Tabs value={view} onValueChange={v => setView(v as "resources" | "uptime")}>
-          <TabsList variant="line">
-            <TabsTrigger value="resources"><Cpu className="size-3.5" />Resources</TabsTrigger>
-            <TabsTrigger value="uptime"><Activity className="size-3.5" />Uptime</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </PageHeader>
+      />
 
       <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
         {view === "resources" && (
@@ -249,155 +243,157 @@ export default function RuntimePage() {
             )}
 
             {loading ? (
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[104px] rounded-xl" />)}
-              </div>
+              <Skeleton className="h-[112px] rounded-xl" />
             ) : containers.length > 0 && (
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <StatCard label="Running containers" value={containers.length} icon={Box} />
-                <StatCard
-                  label="Avg CPU usage" value={avgCpu.toFixed(1)} unit="%" icon={Cpu}
-                  sub={`Total ${totalCpu.toFixed(1)}%`} animate={false}
-                />
-                <StatCard label="Total RAM used" value={fmtMb(totalRamMb)} icon={MemoryStick} />
-                <StatCard
-                  label="Highest CPU" value={hottest ? hottest.cpu.toFixed(1) : "—"} unit={hottest ? "%" : undefined}
-                  icon={Flame} tone={hottest && hottest.cpu > 70 ? "bad" : "warn"}
-                  sub={hottest?.name} animate={false}
-                />
-              </div>
+              <SummaryStrip
+                items={[
+                  { label: "Running containers", icon: Box, value: containers.length, unit: allContainers.length ? `of ${allContainers.length}` : undefined, meta: allContainers.length ? `${Math.max(0, allContainers.length - upCount)} stopped or exited` : undefined },
+                  { label: "Average CPU", icon: Cpu, value: avgCpu.toFixed(1), unit: "%", meta: "across running containers" },
+                  { label: "Total RAM", icon: MemoryStick, value: fmtMb(totalRamMb).split(" ")[0], unit: fmtMb(totalRamMb).split(" ")[1], meta: "used by running containers" },
+                  { label: "Highest CPU", icon: Flame, value: hottest ? hottest.cpu.toFixed(1) : "—", unit: hottest ? "%" : undefined, meta: <span className="font-mono">{hottest?.name}</span>, tone: hottest && hottest.cpu >= 80 ? "bad" : hottest && hottest.cpu >= 60 ? "warn" : undefined },
+                ]}
+              />
             )}
 
-            <Card className="gap-0 py-0">
-              <CardHeader className="border-b py-3">
-                <CardTitle>Containers</CardTitle>
-                <CardDescription>{containers.length} running</CardDescription>
-                <CardAction>
-                  <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/containers" />}>Manage</Button>
-                </CardAction>
-              </CardHeader>
-
-              {loading ? (
-                <TableSkeleton />
-              ) : containers.length === 0 ? (
-                <EmptyState
-                  icon={Box} title="No running containers" className="rounded-none border-0"
-                  description="Containers that are running will show their CPU and memory here."
-                />
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <SortHead label="Container" k="name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                        <TableHead>Image</TableHead>
-                        <SortHead label="CPU" k="cpu" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                        <SortHead label="RAM" k="ramMb" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                        <TableHead>RAM %</TableHead>
-                        <TableHead className="text-right">Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sorted.map(c => (
-                        <TableRow key={c.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Box className="size-4 shrink-0 text-[var(--hue-fg)]" />
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium">{c.name}</p>
-                                <p className="font-mono text-xs text-muted-foreground">{c.id}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-mono text-xs text-muted-foreground" title={c.image}>
-                            {c.image.length > 36 ? c.image.slice(0, 36) + "…" : c.image}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex min-w-[140px] items-center gap-2">
-                              <ProgressBar value={c.cpu} tone={usageTone(c.cpu)} className="flex-1" />
-                              <span className={cn("w-14 shrink-0 text-right font-mono text-xs tabular-nums", TEXT_TONE[usageTone(c.cpu)])}>
-                                {c.cpu.toFixed(1)}%
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex min-w-[160px] items-center gap-2">
-                              <ProgressBar value={c.ramPct} tone={usageTone(c.ramPct)} className="flex-1" />
-                              <span className="w-[4.5rem] shrink-0 text-right font-mono text-xs tabular-nums">{fmtMb(c.ramMb)}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className={cn("font-mono text-xs tabular-nums", TEXT_TONE[usageTone(c.ramPct)])}>
-                              {c.ramPct.toFixed(1)}%
-                            </span>
-                            {c.ramLimitMb > 0 && (
-                              <span className="ml-1.5 text-xs text-muted-foreground">of {fmtMb(c.ramLimitMb)}</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Pill tone="ok" dot>running</Pill>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+            <section aria-labelledby="rt-res" className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 id="rt-res" className="text-lg font-semibold">Resource usage</h2>
+                <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5"><span className="h-1 w-3.5 rounded-full bg-success" />&lt; 60% normal</span>
+                  <span className="inline-flex items-center gap-1.5"><span className="h-1 w-3.5 rounded-full bg-warning" />60–80% warning</span>
+                  <span className="inline-flex items-center gap-1.5"><span className="h-1 w-3.5 rounded-full bg-danger" />&gt; 80% critical</span>
+                  <LiveBadge stale={error}>
+                    {error ? "Updates failing" : "Auto · 3s"}
+                    {lastUpdate && !error && (
+                      <span className="font-normal tabular-nums text-muted-foreground">
+                        · {lastUpdate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                      </span>
+                    )}
+                  </LiveBadge>
                 </div>
-              )}
-            </Card>
+              </div>
+
+              <Card className="gap-0 overflow-hidden py-0">
+                {loading ? (
+                  <TableSkeleton />
+                ) : containers.length === 0 ? (
+                  <EmptyState
+                    icon={Box} title="No running containers" className="rounded-none border-0"
+                    description="Containers that are running will show their CPU and memory here."
+                  />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table className="min-w-[760px]">
+                      <TableHeader>
+                        <TableRow>
+                          <SortHead label="Container" k="name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="w-[26%]" />
+                          <SortHead label="CPU" k="cpu" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="w-[28%]" />
+                          <SortHead label="Memory" k="ramMb" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="w-[34%]" />
+                          <TableHead className="text-right">Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {sorted.map(c => (
+                          <TableRow key={c.id} className="h-[52px]">
+                            <TableCell>
+                              <p className="text-sm font-medium">{c.name}</p>
+                              <p className="font-mono text-[11px] text-muted-foreground" title={c.image}>
+                                {c.image.length > 36 ? c.image.slice(0, 36) + "…" : c.image}
+                              </p>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2.5">
+                                <ProgressBar value={c.cpu} tone={usageTone(c.cpu)} className="flex-1" />
+                                <span className={cn("w-14 shrink-0 text-right text-sm font-medium tabular-nums", TEXT_TONE[usageTone(c.cpu)])}>
+                                  {c.cpu.toFixed(1)}%
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2.5">
+                                <ProgressBar value={c.ramPct} tone={usageTone(c.ramPct)} className="flex-1" />
+                                <span className="shrink-0 text-right text-sm tabular-nums whitespace-nowrap">
+                                  <span className={cn("font-medium", TEXT_TONE[usageTone(c.ramPct)])}>{fmtMb(c.ramMb)}</span>
+                                  {c.ramLimitMb > 0 && <span className="text-muted-foreground"> / {fmtMb(c.ramLimitMb)}</span>}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Pill tone="ok" dot>running</Pill>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </Card>
+            </section>
           </>
         )}
 
         {view === "uptime" && (
-          <Card className="gap-0 py-0">
-            <CardHeader className="border-b py-3">
-              <CardTitle>Uptime</CardTitle>
-              <CardDescription>{upCount} / {allContainers.length} up</CardDescription>
-              <CardAction>
+          <section aria-labelledby="rt-up" className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-1">
+                <h2 id="rt-up" className="text-lg font-semibold">Uptime</h2>
+                <p className="text-xs text-muted-foreground">{rangeLabel} · {upCount} / {allContainers.length} up · Recorded every 60s</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex gap-3.5 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5"><span className="h-3.5 w-1.5 rounded-sm bg-success" />Up</span>
+                  <span className="inline-flex items-center gap-1.5"><span className="h-3.5 w-1.5 rounded-sm bg-danger" />Down</span>
+                  <span className="inline-flex items-center gap-1.5"><span className="h-3.5 w-1.5 rounded-sm border bg-muted" />No data</span>
+                </div>
                 <Segmented
-                  aria-label="History range"
+                  aria-label="Time range"
                   value={range}
                   onChange={setRange}
                   options={RANGE_OPTIONS.map(r => ({ value: r, label: r }))}
                 />
-              </CardAction>
-            </CardHeader>
+              </div>
+            </div>
 
-            {!allLoaded ? (
-              <TableSkeleton />
-            ) : allContainers.length === 0 ? (
-              <EmptyState icon={Activity} title="No containers found" className="rounded-none border-0"
-                description="Uptime history appears once containers exist." />
-            ) : (
-              <ul className="divide-y">
-                {allContainers.map(c => {
-                  const beats = heartbeats.find(h => h.name === c.name)?.beats ?? []
-                  const ups = beats.filter(b => b.up).length
-                  const pct = beats.length ? (ups / beats.length) * 100 : null
-                  const isUp = c.state === "running"
-                  return (
-                    <li key={c.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-3.5">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <Pill tone={isUp ? "ok" : "bad"} dot>{isUp ? "Up" : "Down"}</Pill>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{c.name}</p>
-                          <p className="truncate font-mono text-xs text-muted-foreground">{c.uptime}</p>
+            <Card className="gap-0 overflow-hidden py-0">
+              {!allLoaded ? (
+                <TableSkeleton />
+              ) : allContainers.length === 0 ? (
+                <EmptyState icon={Activity} title="No containers found" className="rounded-none border-0"
+                  description="Uptime history appears once containers exist." />
+              ) : (
+                <ul className="divide-y">
+                  {allContainers.map(c => {
+                    const beats = heartbeats.find(h => h.name === c.name)?.beats ?? []
+                    const statuses = bucketBeats(beats, RANGE_MS[range])
+                    const downs = statuses.filter(b => b === "down").length
+                    const ups = beats.filter(b => b.up).length
+                    const pct = beats.length ? (ups / beats.length) * 100 : null
+                    const isUp = c.state === "running"
+                    const tone = !isUp ? "bad" : downs ? "warn" : "ok"
+                    return (
+                      <li key={c.id} className="space-y-2.5 px-[18px] py-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <span className={cn("inline-flex", tone === "ok" ? "text-success" : tone === "warn" ? "text-warning" : "text-danger")}>
+                            <StatusDot tone={tone} />
+                          </span>
+                          <span className="text-sm font-medium">{c.name}</span>
+                          <span className="truncate text-xs text-muted-foreground">
+                            {!isUp ? "Down" : downs ? `${downs} incident${downs > 1 ? "s" : ""}` : "No incidents"}
+                          </span>
+                          <span className="flex-1" />
+                          <span className={cn("text-[15px] font-semibold tabular-nums", downs || !isUp ? "text-warning" : "text-foreground")}>
+                            {pct === null ? "—" : `${pct.toFixed(2)}%`}
+                          </span>
                         </div>
-                      </div>
-                      <div className="flex max-w-full shrink-0 items-center gap-4 overflow-x-auto">
-                        <HeartbeatBar statuses={bucketBeats(beats, RANGE_MS[range])} windowMs={RANGE_MS[range]} />
-                        <span className={cn(
-                          "w-14 text-right font-mono text-xs tabular-nums",
-                          pct === null ? "text-muted-foreground" : pct >= 99 ? "text-success" : pct >= 90 ? "text-warning" : "text-danger",
-                        )}>
-                          {pct === null ? "—" : `${pct.toFixed(1)}%`}
-                        </span>
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </Card>
+                        <HeartbeatBar statuses={statuses} windowMs={RANGE_MS[range]} name={c.name} pct={pct} downs={downs} />
+                        <div className="flex justify-between text-[11px] text-muted-foreground"><span>{rangeStart}</span><span>now</span></div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </Card>
+          </section>
         )}
       </PageBody>
     </>

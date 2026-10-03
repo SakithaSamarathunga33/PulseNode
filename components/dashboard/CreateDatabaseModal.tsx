@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Check, Copy, Loader2, Clock, CheckCircle2, XCircle } from "lucide-react"
+import { ArrowLeft, Check, CheckCircle2, Clock, Copy, Loader2, XCircle } from "lucide-react"
 import { DbIcon } from "@/components/dashboard/DbIcon"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -12,13 +12,41 @@ import { nodeApi } from "@/lib/api"
 import { cn, copyText } from "@/lib/utils"
 
 const ENGINES = [
-  { id: "postgres", label: "PostgreSQL", desc: "Relational · postgres:16-alpine" },
-  { id: "mysql",    label: "MySQL",      desc: "Relational · mysql:8.0" },
-  { id: "redis",    label: "Redis",      desc: "Key-value  · redis:7-alpine" },
-  { id: "mongodb",  label: "MongoDB",    desc: "Document   · mongo:7" },
+  { id: "postgres", label: "PostgreSQL", kind: "Relational", image: "postgres:16-alpine" },
+  { id: "mysql",    label: "MySQL",      kind: "Relational", image: "mysql:8.0" },
+  { id: "redis",    label: "Redis",      kind: "Key-value",  image: "redis:7-alpine" },
+  { id: "mongodb",  label: "MongoDB",    kind: "Document",   image: "mongo:7" },
 ]
 
-type Phase = "pick" | "provisioning" | "done" | "error"
+const STEPS = ["Engine", "Provision", "Done"]
+
+type Phase = "pick" | "name" | "provisioning" | "done" | "error"
+
+function Stepper({ step }: { step: number }) {
+  return (
+    <ol aria-label="Progress" className="flex items-center gap-2">
+      {STEPS.map((label, i) => {
+        const n = i + 1
+        const done = step > n
+        const cur = step === n
+        return (
+          <li key={label} aria-current={cur ? "step" : undefined} className={cn("flex items-center gap-2 text-sm", i < 2 && "flex-1")}>
+            <span
+              className={cn(
+                "grid size-6 shrink-0 place-items-center rounded-full border text-xs font-semibold tabular-nums",
+                done || cur ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground",
+              )}
+            >
+              {done ? <Check className="size-3.5" /> : n}
+            </span>
+            <span className={cn("font-medium", cur ? "text-foreground" : "text-muted-foreground")}>{label}</span>
+            {i < 2 && <span className={cn("h-px flex-1", done ? "bg-primary" : "bg-border")} aria-hidden />}
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
 
 interface Creds {
   username: string
@@ -115,77 +143,104 @@ export function CreateDatabaseModal({ onClose, onCreated }: { onClose: () => voi
   }
 
   return (
-    <Dialog open disablePointerDismissal onOpenChange={open => { if (!open && (phase === "pick" || phase === "error")) onClose() }}>
+    <Dialog open disablePointerDismissal onOpenChange={open => { if (!open && (phase === "pick" || phase === "name" || phase === "error")) onClose() }}>
       <DialogContent className="max-h-[90vh] gap-4 overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Create database</DialogTitle>
           <DialogDescription>Spin up a new container on this VPS</DialogDescription>
         </DialogHeader>
 
-        {/* Engine + name picker */}
+        <Stepper step={phase === "pick" ? 1 : phase === "done" ? 3 : 2} />
+
+        {/* Step 1: engine */}
         {phase === "pick" && (
           <>
-            <div role="group" aria-label="Database engine" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div role="radiogroup" aria-label="Database engine" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {ENGINES.map(e => (
                 <button
                   key={e.id}
                   type="button"
-                  aria-pressed={engine === e.id}
+                  role="radio"
+                  aria-checked={engine === e.id}
                   onClick={() => setEngine(e.id)}
                   className={cn(
-                    "flex flex-col items-start gap-1 rounded-lg border p-3 text-left outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
-                    engine === e.id
-                      ? "border-primary bg-primary/8 ring-1 ring-primary"
-                      : "hover:bg-muted/60",
+                    "flex items-center gap-3 rounded-lg border p-3 text-left outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+                    engine === e.id ? "border-primary bg-primary/8 ring-1 ring-primary" : "hover:bg-muted/60",
                   )}
                 >
-                  <span className="flex items-center gap-2">
-                    <DbIcon engine={e.id} size={22} />
+                  <DbIcon engine={e.id} size={24} />
+                  <span className="flex min-w-0 flex-1 flex-col">
                     <span className="text-sm font-semibold">{e.label}</span>
+                    <span className="truncate text-xs text-muted-foreground">{e.kind} · <span className="font-mono">{e.image}</span></span>
                   </span>
-                  <span className="font-mono text-xs text-muted-foreground">{e.desc}</span>
+                  {engine === e.id && <CheckCircle2 className="size-4 shrink-0 text-primary" aria-hidden />}
                 </button>
               ))}
             </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="create-db-name">
-                Database name <span className="font-normal text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id="create-db-name"
-                value={name}
-                onChange={e => setName(e.target.value.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9_.-]/g, ""))}
-                placeholder={engine ? `my-${engine}` : "my-database"}
-                className="font-mono"
-              />
-              <p className="text-xs text-muted-foreground">
-                Leave blank to auto-generate. Used as the container and database name — letters, numbers, dots, dashes and underscores only.
-              </p>
-            </div>
-
-            <Alert>
-              <Clock />
-              <AlertDescription>First-time pulls may take 1–5 minutes depending on image size and network speed.</AlertDescription>
-            </Alert>
-
             <DialogFooter>
-              <Button variant="outline" onClick={onClose}>Cancel</Button>
-              <Button onClick={provision} disabled={!engine}>
-                Create {engine ? ENGINES.find(e => e.id === engine)?.label : ""}
-              </Button>
+              <Button variant="ghost" onClick={onClose}>Cancel</Button>
+              <Button onClick={() => setPhase("name")} disabled={!engine}>Continue</Button>
             </DialogFooter>
           </>
         )}
 
-        {/* Provisioning */}
-        {phase === "provisioning" && (
-          <div role="status" className="flex flex-col items-center gap-4 py-6">
-            <Loader2 className="size-9 animate-spin text-primary" />
-            <div className="text-center">
-              <p className="text-sm font-medium">Provisioning {engine}…</p>
-              <p className="mt-1 text-xs text-muted-foreground">{progress}</p>
+        {/* Step 2: name, then provisioning */}
+        {(phase === "name" || phase === "provisioning" || phase === "error") && (
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="create-db-name">
+                Container name <span className="font-normal text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="create-db-name"
+                value={name}
+                disabled={phase === "provisioning"}
+                onChange={e => setName(e.target.value.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9_.-]/g, ""))}
+                placeholder={engine ? `my-${engine}` : "my-database"}
+                spellCheck={false}
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave blank to auto-generate. Letters, numbers, dots, dashes and underscores only.
+              </p>
             </div>
+            <div className="rounded-lg border bg-muted/40 px-3 py-2">
+              <div className="text-xs text-muted-foreground">Image</div>
+              <div className="font-mono text-xs">{ENGINES.find(e => e.id === engine)?.image}</div>
+            </div>
+
+            {phase === "name" && (
+              <Alert>
+                <Clock />
+                <AlertDescription>First-time pulls may take 1–5 minutes depending on image size and network speed.</AlertDescription>
+              </Alert>
+            )}
+
+            {phase === "provisioning" && (
+              <div role="status" className="flex items-center gap-3 rounded-lg border bg-muted/40 p-3">
+                <Loader2 className="size-5 shrink-0 animate-spin text-primary" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Provisioning {engine}…</p>
+                  <p className="text-xs text-muted-foreground">{progress}</p>
+                </div>
+              </div>
+            )}
+
+            {phase === "error" && (
+              <Alert variant="destructive">
+                <XCircle />
+                <AlertDescription className="break-all font-mono text-xs">{errMsg}</AlertDescription>
+              </Alert>
+            )}
+
+            <DialogFooter>
+              <Button variant="ghost" disabled={phase === "provisioning"} onClick={() => setPhase("pick")}>
+                <ArrowLeft /> Back
+              </Button>
+              <Button onClick={provision} disabled={phase === "provisioning"}>
+                {phase === "provisioning" ? <><Loader2 className="animate-spin" /> Provisioning…</> : phase === "error" ? "Try again" : "Provision"}
+              </Button>
+            </DialogFooter>
           </div>
         )}
 
@@ -193,8 +248,10 @@ export function CreateDatabaseModal({ onClose, onCreated }: { onClose: () => voi
         {phase === "done" && creds && (
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-success">
-              <CheckCircle2 className="size-5" />
-              <span className="font-semibold">{engine} is running</span>
+              <CheckCircle2 className="size-5 shrink-0" />
+              <span className="text-sm font-medium">
+                {name.trim() || engine} is running and added to monitoring. Store the password now — it is shown only once.
+              </span>
             </div>
             <CopyField label="Connection string" value={creds.connection_string} />
             <CopyField label="Password" value={creds.password} />
@@ -210,24 +267,11 @@ export function CreateDatabaseModal({ onClose, onCreated }: { onClose: () => voi
             </div>
             <p className="text-xs text-muted-foreground">The container uses <code className="font-mono">--restart unless-stopped</code> and will survive VPS reboots.</p>
             <DialogFooter>
-              <Button onClick={onClose}>Done</Button>
+              <Button onClick={onClose}>Open database</Button>
             </DialogFooter>
           </div>
         )}
 
-        {/* Error */}
-        {phase === "error" && (
-          <div className="space-y-4">
-            <Alert variant="destructive">
-              <XCircle />
-              <AlertDescription className="break-all font-mono text-xs">{errMsg}</AlertDescription>
-            </Alert>
-            <DialogFooter>
-              <Button variant="outline" onClick={onClose}>Close</Button>
-              <Button onClick={() => setPhase("pick")}>Try again</Button>
-            </DialogFooter>
-          </div>
-        )}
       </DialogContent>
     </Dialog>
   )

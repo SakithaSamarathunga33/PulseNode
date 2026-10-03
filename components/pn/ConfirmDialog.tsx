@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
  * Replaces window.confirm(); `target` shows what will be affected.
  */
 export function ConfirmDialog({
-  open, onOpenChange, title, description, target, confirmLabel = "Confirm", tone = "danger",
+  open, onOpenChange, title, description, target, items, note, confirmLabel = "Confirm", tone = "danger",
   icon: Icon, loading, onConfirm,
 }: {
   open: boolean
@@ -21,6 +21,10 @@ export function ConfirmDialog({
   title: string
   description?: React.ReactNode
   target?: React.ReactNode
+  /** What will be affected: a primary line (name) and a secondary line (image, subnet…) each. */
+  items?: { primary: string; secondary?: string }[]
+  /** Consequence line under the list, coloured by tone (e.g. "This action cannot be undone."). */
+  note?: React.ReactNode
   confirmLabel?: string
   tone?: "danger" | "warning" | "default"
   icon?: LucideIcon
@@ -37,6 +41,21 @@ export function ConfirmDialog({
           {description && <AlertDialogDescription>{description}</AlertDialogDescription>}
         </AlertDialogHeader>
         {target && <div className="rounded-lg border bg-muted/50 px-3 py-2 font-mono text-xs break-all">{target}</div>}
+        {items && items.length > 0 && (
+          <ul className="max-h-48 divide-y overflow-auto rounded-lg border bg-muted/40 py-1">
+            {items.map(it => (
+              <li key={it.primary + (it.secondary ?? "")} className="flex flex-col gap-px px-3 py-1.5 font-mono">
+                <span className="text-[13px] font-medium break-all">{it.primary}</span>
+                {it.secondary && <span className="text-xs break-all text-muted-foreground">{it.secondary}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+        {note && (
+          <p className={tone === "danger" ? "text-sm font-medium text-danger" : tone === "warning" ? "text-sm font-medium text-warning" : "text-sm text-muted-foreground"}>
+            {note}
+          </p>
+        )}
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <Button

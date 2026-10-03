@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { nodeApi, API_BASE } from "@/lib/api"
 import type { Database, DbSchemaResult } from "@/lib/types"
@@ -21,6 +22,7 @@ export function RestoreDialog({ db, onClose }: { db: Database; onClose: () => vo
   const [error,   setError]   = useState("")
   const [output,  setOutput]  = useState("")
   const [done,    setDone]    = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const isRedis = db.engine?.toLowerCase() === "redis"
 
   useEffect(() => {
@@ -127,13 +129,24 @@ export function RestoreDialog({ db, onClose }: { db: Database; onClose: () => vo
           ) : (
             <>
               <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
-              <Button onClick={restore} disabled={!file || loading}>
+              <Button onClick={() => setConfirming(true)} disabled={!file || loading}>
                 {loading ? <><Loader2 className="animate-spin" /> Restoring…</> : <><RotateCcw /> Restore</>}
               </Button>
             </>
           )}
         </DialogFooter>
       </DialogContent>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        icon={RotateCcw}
+        tone="warning"
+        title={`Restore ${db.name}?`}
+        items={[{ primary: `${db.name}${selDb ? ` · ${selDb}` : ""}`, secondary: file ? `from ${file.name}` : undefined }]}
+        note="Existing data in the target is replaced. This action cannot be undone."
+        confirmLabel="Restore"
+        onConfirm={() => { setConfirming(false); void restore() }}
+      />
     </Dialog>
   )
 }

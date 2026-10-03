@@ -8,8 +8,9 @@ import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarHeader, SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, SidebarRail,
 } from "@/components/ui/sidebar"
-import { Progress } from "@/components/ui/progress"
 import { NumberTicker } from "@/components/magicui/number-ticker"
+import { LiveBadge } from "@/components/pn/LiveBadge"
+import { TONE_BG, toneFor } from "@/components/containers/utils"
 import { getSocket } from "@/lib/socket"
 import { nodeApi } from "@/lib/api"
 import { ALERTS, HOST } from "@/lib/mock-data"
@@ -133,19 +134,30 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">
-        <div className="space-y-2 px-1 pt-1 group-data-[collapsible=icon]:hidden">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">CPU</span>
-            <span className="font-mono tabular-nums">
-              <NumberTicker value={cpu} decimals={1} />%
-            </span>
+        <div className="space-y-2 group-data-[collapsible=icon]:hidden">
+          <div className="space-y-2 rounded-lg border bg-card p-2.5 shadow-card">
+            <div className="flex items-baseline justify-between">
+              <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Host CPU</span>
+              <span className="text-sm font-semibold tabular-nums"><NumberTicker value={cpu} decimals={1} />%</span>
+            </div>
+            <div
+              role="meter" aria-label="Host CPU" aria-valuenow={Math.round(cpu)} aria-valuemin={0} aria-valuemax={100}
+              className="relative h-1 rounded-full bg-muted"
+            >
+              <div className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ${TONE_BG[toneFor(cpu)]}`} style={{ width: `${Math.min(100, cpu)}%` }} />
+              <span className="absolute -top-0.5 left-[60%] h-2 w-px bg-border" aria-hidden />
+              <span className="absolute -top-0.5 left-[80%] h-2 w-px bg-border" aria-hidden />
+            </div>
+            <div className="h-px bg-border" />
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate text-sm font-medium">{HOST.name}</span>
+                <span className="truncate font-mono text-[11px] text-muted-foreground">{HOST.ip}</span>
+              </div>
+              <LiveBadge className="text-[11px]">Live</LiveBadge>
+            </div>
           </div>
-          <Progress value={cpu} aria-label="CPU usage" className="h-1" />
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="size-1.5 shrink-0 rounded-full bg-success status-live" />
-            <span className="truncate">{HOST.name}</span>
-            <span className="ml-auto truncate font-mono">{HOST.ip}</span>
-          </div>
+          <p className="px-1 text-[11px] text-muted-foreground italic">Infrastructure at a glance.</p>
         </div>
         <SidebarMenu>
           <SidebarMenuItem data-area="neutral">

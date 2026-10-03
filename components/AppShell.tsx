@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation"
 import { AppSidebar } from "@/components/sidebar/AppSidebar"
 import { Topbar } from "@/components/dashboard/Topbar"
 import { CommandMenuProvider } from "@/components/CommandMenu"
+import { MobileNav } from "@/components/MobileNav"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { areaOf } from "@/lib/nav"
 
@@ -27,10 +28,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <AppSidebar />
         <SidebarInset id="main" tabIndex={-1} className="h-svh min-w-0 overflow-hidden outline-none">
           <Topbar />
-          <div data-area={areaOf(pathname)} className="min-h-0 flex-1 overflow-y-auto">
+          <div data-area={areaOf(pathname)} className="min-h-0 flex-1 overflow-y-auto pb-16 md:pb-0">
             {children}
           </div>
         </SidebarInset>
+        <MobileNav />
       </SidebarProvider>
     </CommandMenuProvider>
   )

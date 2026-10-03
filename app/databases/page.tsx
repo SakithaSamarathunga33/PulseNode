@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { Activity, AlertTriangle, Database as DatabaseIcon, Gauge, PlugZap, Plus, SearchX, XCircle } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Activity, Clock, Database as DatabaseIcon, Link2, PlugZap, Plus, Search, SearchX, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { nodeApi } from "@/lib/api"
 import type { CustomConnection, Database, DbMetrics } from "@/lib/types"
@@ -11,13 +11,13 @@ import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageBody, PageHeader } from "@/components/pn/PageHeader"
 import { LiveBadge } from "@/components/pn/LiveBadge"
-import { SearchInput } from "@/components/pn/SearchInput"
+import { SummaryStrip } from "@/components/pn/SummaryStrip"
+import { Input } from "@/components/ui/input"
 import { Segmented } from "@/components/pn/Segmented"
 import { EmptyState } from "@/components/pn/EmptyState"
-import { StatCard } from "@/components/dashboard/StatCard"
 import { CreateDatabaseModal } from "@/components/dashboard/CreateDatabaseModal"
 import { ConnectDatabaseModal } from "@/components/dashboard/ConnectDatabaseModal"
-import { DatabaseTable } from "@/components/databases/DatabaseTable"
+import { DatabaseCards, DatabaseTable, type Sort, type SortKey } from "@/components/databases/DatabaseTable"
 import { BackupDialog } from "@/components/databases/BackupDialog"
 import { RestoreDialog } from "@/components/databases/RestoreDialog"
 import { DeleteDialog } from "@/components/databases/DeleteDialog"
@@ -40,6 +40,21 @@ export default function DatabasesPage() {
   const [showConnect, setShowConnect] = useState(false)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
+  const [sort, setSort] = useState<Sort>({ key: "name", dir: 1 })
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  // "/" focuses the search box (unless you are already typing somewhere).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return
+      e.preventDefault()
+      searchRef.current?.focus()
+    }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [])
 
   useEffect(() => {
     nodeApi.get<Database[]>("/api/docker/databases")
@@ -117,7 +132,7 @@ export default function DatabasesPage() {
 
   const filteredDatabases = useMemo(() => {
     const needle = search.trim().toLowerCase()
-    return databases.filter(db => {
+    const list = databases.filter(db => {
       const matchesStatus = statusFilter === "all" || statusTone(db.state) === statusFilter
       const matchesSearch =
         !needle ||
@@ -126,15 +141,30 @@ export default function DatabasesPage() {
         db.host.toLowerCase().includes(needle)
       return matchesStatus && matchesSearch
     })
-  }, [databases, search, statusFilter])
+    const rank = { ok: 0, warn: 1, bad: 2 } as const
+    const val: Record<SortKey, (d: Database) => string | number> = {
+      name: d => d.name.toLowerCase(), engine: d => d.engine, state: d => rank[statusTone(d.state)],
+      conns: d => d.conns, qps: d => d.qps, slow: d => d.slow,
+    }
+    return list.sort((a, b) => {
+      const x = val[sort.key](a), y = val[sort.key](b)
+      return (x > y ? 1 : x < y ? -1 : 0) * sort.dir
+    })
+  }, [databases, search, statusFilter, sort])
+
+  const onSort = (key: SortKey) =>
+    setSort(prev => (prev.key === key ? { key, dir: prev.dir === 1 ? -1 : 1 } : { key, dir: key === "name" || key === "engine" ? 1 : -1 }))
+
+
+  const handlers = { onDelete: setDeleteTarget, onBackup: setBackupDb, onRestore: setRestoreDb }
 
   const addActions = (
     <>
-      <Button variant="secondary" onClick={() => setShowCreate(true)}>
-        <Plus /> Create database
-      </Button>
-      <Button onClick={() => setShowConnect(true)}>
+      <Button variant="outline" onClick={() => setShowConnect(true)}>
         <PlugZap /> Connect database
+      </Button>
+      <Button onClick={() => setShowCreate(true)}>
+        <Plus /> Create database
       </Button>
     </>
   )
@@ -148,18 +178,14 @@ export default function DatabasesPage() {
         actions={addActions}
       />
       <PageBody className="motion-safe:animate-in motion-safe:fade-in-0 duration-300">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard label="Databases" value={databases.length} icon={DatabaseIcon} />
-          <StatCard label="Connections" value={totalConns} icon={Activity} sub={`${Math.max(...connHistory)} peak`} />
-          <StatCard label="Queries/sec" value={totalQps > 0 ? totalQps.toLocaleString() : "-"} icon={Gauge} />
-          <StatCard
-            label="Slow queries"
-            value={totalSlow}
-            icon={AlertTriangle}
-            tone={totalSlow > 0 ? "warn" : "ok"}
-            sub={unhealthy > 0 ? `${unhealthy} attention` : "healthy"}
-          />
-        </div>
+        <SummaryStrip
+          items={[
+            { label: "Databases", icon: DatabaseIcon, value: databases.length, meta: `${databases.length - unhealthy} healthy${unhealthy > 0 ? ` · ${unhealthy} need attention` : ""}`, tone: unhealthy > 0 ? "warn" : undefined },
+            { label: "Connections", icon: Link2, value: totalConns, unit: "open", meta: `${Math.max(...connHistory)} peak this session` },
+            { label: "Queries/sec", icon: Activity, value: totalQps > 0 ? totalQps.toLocaleString() : "—", meta: "across all engines" },
+            { label: "Slow queries", icon: Clock, value: totalSlow, meta: totalSlow === 0 ? "none reported" : "flagged by engines", tone: totalSlow > 0 ? "warn" : "ok" },
+          ]}
+        />
 
         {!loaded ? (
           <Card className="gap-3 p-4">
@@ -183,12 +209,19 @@ export default function DatabasesPage() {
         ) : (
           <Card className="gap-0 overflow-hidden py-0">
             <div className="flex flex-wrap items-center gap-2 border-b p-3">
-              <SearchInput
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search databases, engines, hosts"
-                aria-label="Search databases"
-              />
+              <label className="relative flex w-[min(300px,100%)] items-center">
+                <Search className="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground" />
+                <Input
+                  ref={searchRef}
+                  type="search"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  aria-label="Search databases by name, engine or host"
+                  placeholder="Search name, engine or host"
+                  className="pr-8 pl-8"
+                />
+                <kbd className="pointer-events-none absolute right-2 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border bg-muted px-1 font-mono text-[10px] text-muted-foreground">/</kbd>
+              </label>
               <Segmented
                 aria-label="Filter by state"
                 value={statusFilter}
@@ -218,17 +251,28 @@ export default function DatabasesPage() {
                 }
               />
             ) : (
-              <div className="@container overflow-x-auto">
-                <DatabaseTable
-                  databases={filteredDatabases}
-                  connHist={connHist}
-                  expandedDb={expandedDb}
-                  onExpand={name => setExpandedDb(prev => prev === name ? null : name)}
-                  onDelete={setDeleteTarget}
-                  onBackup={setBackupDb}
-                  onRestore={setRestoreDb}
-                />
-              </div>
+              <>
+                <div className="@container hidden overflow-x-auto min-[900px]:block">
+                  <DatabaseTable
+                    databases={filteredDatabases}
+                    sort={sort}
+                    onSort={onSort}
+                    connHist={connHist}
+                    expandedDb={expandedDb}
+                    onExpand={name => setExpandedDb(prev => prev === name ? null : name)}
+                    handlers={handlers}
+                  />
+                </div>
+                <div className="min-[900px]:hidden">
+                  <DatabaseCards
+                    databases={filteredDatabases}
+                    connHist={connHist}
+                    expandedDb={expandedDb}
+                    onExpand={name => setExpandedDb(prev => prev === name ? null : name)}
+                    handlers={handlers}
+                  />
+                </div>
+              </>
             )}
           </Card>
         )}

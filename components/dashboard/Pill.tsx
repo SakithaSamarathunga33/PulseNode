@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { StatusDot, type StatusShape } from "@/components/pn/StatusDot"
 
 interface PillProps {
   children: React.ReactNode
@@ -21,7 +22,7 @@ const TONE: Record<NonNullable<PillProps["tone"]>, string> = {
 export function Pill({ children, tone = "outline", dot, className }: PillProps) {
   return (
     <Badge variant="ghost" className={cn("h-5 gap-1.5 text-[11px] font-semibold", TONE[tone], className)}>
-      {dot && <span className="size-1.5 rounded-full bg-current" />}
+      {dot && <StatusDot tone={tone === "outline" ? "off" : (tone as StatusShape)} />}
       {children}
     </Badge>
   )

@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { BarChart3, Cpu, HardDrive, MemoryStick, Network, Trash2 } from "lucide-react"
+import { ArrowDownRight, ArrowUpRight, BarChart3, Cpu, HardDrive, MemoryStick, Network, Trash2 } from "lucide-react"
 import { HOST as MOCK_HOST, SPARKS as MOCK_SPARKS } from "@/lib/mock-data"
 import { nodeApi, pythonApi, API_BASE } from "@/lib/api"
 import { getSocket } from "@/lib/socket"
 import type { HostInfo, SystemMetrics } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { StatCard } from "@/components/dashboard/StatCard"
+import { SummaryStrip } from "@/components/pn/SummaryStrip"
 import { ProgressBar } from "@/components/dashboard/ProgressBar"
 import { UPlotChart } from "@/components/dashboard/UPlotChart"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
@@ -24,7 +24,21 @@ type PyMetrics = {
 
 const C1 = "var(--chart-1)", C2 = "var(--chart-2)", C3 = "var(--chart-3)"
 const fill = (c: string) => `color-mix(in srgb, ${c} 16%, transparent)`
-const statusTone = (pct: number) => (pct > 85 ? "bad" : pct > 70 ? "warn" : "acc") as "bad" | "warn" | "acc"
+const tone = (pct: number) => (pct >= 80 ? "bad" : pct >= 60 ? "warn" : undefined) as "bad" | "warn" | undefined
+
+/** Change between the start and end of the in-memory history window. */
+function Trend({ data, unit, extra }: { data: number[]; unit: string; extra?: string }) {
+  const head = data.slice(0, 6)
+  const first = head.length ? head.reduce((x, y) => x + y, 0) / head.length : 0
+  const d = (data[data.length - 1] ?? 0) - first
+  const Icon = d >= 0 ? ArrowUpRight : ArrowDownRight
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="inline-flex items-center gap-0.5 font-medium text-foreground/80"><Icon className="size-3" />{d >= 0 ? "+" : ""}{d.toFixed(1)}{unit}</span>
+      <span>vs. start of window{extra ? ` · ${extra}` : ""}</span>
+    </span>
+  )
+}
 
 function KV({ k, v }: { k: string; v: React.ReactNode }) {
   return (
@@ -178,29 +192,20 @@ export default function StatsPage() {
     <>
       <PageHeader
         icon={BarChart3}
-        title="System Stats"
+        title="Host analytics"
         description={`${host.name} · ${host.region} · ${host.ip}`}
         actions={<LiveBadge>Live</LiveBadge>}
       />
       <PageBody className="motion-safe:animate-in motion-safe:fade-in-0 duration-300">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard
-            label="CPU" icon={Cpu} value={host.cpu.usage} unit="%" spark={cpuHist}
-            tone={statusTone(host.cpu.usage)} sub={<span className="truncate">{host.cpu.model}</span>}
-          />
-          <StatCard
-            label="Memory" icon={MemoryStick} value={host.memory.pct} unit="%" spark={ramHist}
-            tone={statusTone(host.memory.pct)} sub={<span>{host.memory.used}/{host.memory.total} {host.memory.unit} used</span>}
-          />
-          <StatCard
-            label="Disk" icon={HardDrive} value={host.disk.pct} unit="%" spark={diskHist}
-            tone={statusTone(host.disk.pct)} sub={<span>{host.disk.free} {host.disk.unit} free</span>}
-          />
-          <StatCard
-            label="Network RX" icon={Network} value={host.network.rx} unit={host.network.unit} spark={netHist}
-            tone="info" sub={<span>TX {host.network.tx} {host.network.unit}</span>}
-          />
-        </div>
+        <SummaryStrip
+          aria-label="Current values"
+          items={[
+            { label: "CPU", icon: Cpu, value: host.cpu.usage, unit: "%", meta: <Trend data={cpuHist} unit=" pts" />, tone: tone(host.cpu.usage) },
+            { label: "Memory", icon: MemoryStick, value: host.memory.pct, unit: "%", meta: <Trend data={ramHist} unit=" pts" extra={`${host.memory.used}/${host.memory.total} ${host.memory.unit}`} />, tone: tone(host.memory.pct) },
+            { label: "Disk", icon: HardDrive, value: host.disk.pct, unit: "%", meta: <Trend data={diskHist} unit=" pts" extra={`${host.disk.free} ${host.disk.unit} free`} />, tone: tone(host.disk.pct) },
+            { label: "Network", icon: Network, value: host.network.rx, unit: `${host.network.unit} in`, meta: <Trend data={netHist} unit={` ${host.network.unit}`} extra={`TX ${host.network.tx}`} /> },
+          ]}
+        />
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <ChartCard title="CPU usage" value={host.cpu.usage} unit="%" live legend={[{ label: "CPU %", color: C1 }]}>

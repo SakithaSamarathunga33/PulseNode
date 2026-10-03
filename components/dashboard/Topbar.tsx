@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Bell, LogOut, RefreshCw, Search, Settings } from "lucide-react"
+import { Bell, LogOut, RefreshCw, Search, Server, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
@@ -26,12 +26,17 @@ export function Topbar() {
   const { open: openSearch } = useCommandMenu()
   const [authEnabled, setAuthEnabled] = useState(false)
   const [username, setUsername] = useState("")
+  const [hostName, setHostName] = useState("")
 
   // The sign-out menu is only shown when login protection is configured.
   useEffect(() => {
     fetch(`${GO_API}/api/auth/status`, { cache: "no-store" })
       .then(r => r.json() as Promise<{ enabled?: boolean; username?: string }>)
       .then(d => { setAuthEnabled(!!d.enabled); setUsername(d.username ?? "") })
+      .catch(() => {})
+    fetch(`${GO_API}/api/host`, { cache: "no-store" })
+      .then(r => (r.ok ? r.json() : null))
+      .then((d: { name?: string } | null) => { if (d?.name) setHostName(d.name) })
       .catch(() => {})
   }, [])
 
@@ -42,10 +47,16 @@ export function Topbar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:px-4">
-      <SidebarTrigger className="-ml-1" />
+      <SidebarTrigger className="-ml-1 hidden md:inline-flex" />
       <Separator orientation="vertical" className="mx-1 hidden h-5 sm:block" />
       <Breadcrumb className="hidden sm:block">
         <BreadcrumbList>
+          {hostName && (
+            <>
+              <BreadcrumbItem className="gap-1.5 text-muted-foreground"><Server className="size-3.5" />{hostName}</BreadcrumbItem>
+              <BreadcrumbSeparator />
+            </>
+          )}
           {info && (
             <>
               <BreadcrumbItem className="text-muted-foreground">{info.group}</BreadcrumbItem>
@@ -65,7 +76,7 @@ export function Topbar() {
         aria-label="Search pages and actions"
       >
         <Search className="size-4 shrink-0" />
-        <span className="truncate">Search or jump to…</span>
+        <span className="truncate">Search pages, containers, projects…</span>
         <kbd className="ml-auto hidden rounded border bg-background px-1.5 font-mono text-[11px] sm:block">Ctrl K</kbd>
       </button>
 
@@ -81,8 +92,8 @@ export function Topbar() {
           <DropdownMenuTrigger
             render={<Button variant="ghost" size="icon" className="ml-1 rounded-full" aria-label="Account menu" />}
           >
-            <span className="grid size-7 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-              {username.trim().charAt(0).toUpperCase() || "?"}
+            <span className="grid size-7 place-items-center rounded-full border border-primary/30 bg-primary/12 text-[11px] font-semibold text-primary">
+              {username.trim().slice(0, 2).toUpperCase() || "?"}
             </span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">

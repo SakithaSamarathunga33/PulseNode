@@ -24,6 +24,7 @@ export function ConnectDatabaseModal({
   const [alias,      setAlias]      = useState("")
   const [testResult, setTestResult] = useState<{ engine: string; host: string; port: number; version?: string } | null>(null)
   const [errMsg,     setErrMsg]     = useState("")
+  const [step,       setStep]       = useState<1 | 2>(1)
 
   async function testConnection() {
     if (!connStr.trim()) return
@@ -80,48 +81,58 @@ export function ConnectDatabaseModal({
 
   const busy = phase === "testing" || phase === "saving"
 
+  // Hide the password in the confirmation line on step 2.
+  const masked = connStr.trim().replace(/(:\/\/[^:/@]*:)[^@]*@/, "$1••••••@")
+
   return (
     <Dialog open disablePointerDismissal onOpenChange={open => { if (!open) onClose() }}>
       <DialogContent className="max-h-[90vh] gap-4 overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Connect database</DialogTitle>
-          <DialogDescription>Monitor any external database by connection string</DialogDescription>
+          <DialogTitle>Connect external database</DialogTitle>
+          <DialogDescription>Step {step} of 2 · {step === 1 ? "Connection string" : "Name and test"}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="connect-db-string">Connection string</Label>
-          <Textarea
-            id="connect-db-string"
-            value={connStr}
-            onChange={e => { setConnStr(e.target.value); setPhase("input"); setTestResult(null) }}
-            placeholder={ENGINE_EXAMPLES.postgres}
-            rows={3}
-            spellCheck={false}
-            className="resize-none font-mono text-xs"
-          />
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Examples:</span>
-            {Object.entries(ENGINE_EXAMPLES).map(([eng, ex]) => (
-              <Button key={eng} type="button" variant="outline" size="xs" onClick={() => setConnStr(ex)}>
-                {eng}
-              </Button>
-            ))}
+        {step === 1 && (
+          <div className="space-y-1.5">
+            <Label htmlFor="connect-db-string">Connection string</Label>
+            <Textarea
+              id="connect-db-string"
+              value={connStr}
+              onChange={e => { setConnStr(e.target.value); setPhase("input"); setTestResult(null) }}
+              placeholder={ENGINE_EXAMPLES.postgres}
+              rows={3}
+              spellCheck={false}
+              className="resize-none font-mono text-xs"
+            />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Examples:</span>
+              {Object.entries(ENGINE_EXAMPLES).map(([eng, ex]) => (
+                <Button key={eng} type="button" variant="outline" size="xs" onClick={() => setConnStr(ex)}>
+                  {eng}
+                </Button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="space-y-1.5">
-          <Label htmlFor="connect-db-alias">
-            Display name <span className="font-normal text-muted-foreground">(optional)</span>
-          </Label>
-          <Input
-            id="connect-db-alias"
-            value={alias}
-            onChange={e => setAlias(e.target.value)}
-            placeholder="My Production DB"
-          />
-        </div>
+        {step === 2 && (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="connect-db-alias">
+                Display name <span className="font-normal text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="connect-db-alias"
+                value={alias}
+                onChange={e => setAlias(e.target.value)}
+                placeholder="My Production DB"
+              />
+            </div>
+            <div className="rounded-lg border bg-muted/40 px-3 py-2 font-mono text-xs break-all">{masked}</div>
+          </>
+        )}
 
-        {phase === "tested" && testResult && (
+        {step === 2 && phase === "tested" && testResult && (
           <Alert className="border-success/40 bg-success/10 text-success">
             <CheckCircle2 />
             <AlertDescription className="text-success">
@@ -130,7 +141,7 @@ export function ConnectDatabaseModal({
           </Alert>
         )}
 
-        {phase === "error" && (
+        {step === 2 && phase === "error" && (
           <Alert variant="destructive">
             <XCircle />
             <AlertDescription className="break-all font-mono text-xs">{errMsg}</AlertDescription>
@@ -146,22 +157,30 @@ export function ConnectDatabaseModal({
           </Alert>
         )}
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          {(phase === "input" || phase === "error" || phase === "tested") && (
-            <Button
-              onClick={phase === "tested" ? saveConnection : testConnection}
-              disabled={phase !== "tested" && !connStr.trim()}
-            >
-              {phase === "tested" ? "Save to monitoring" : "Test connection"}
-            </Button>
-          )}
-          {busy && (
-            <Button disabled>
-              <Loader2 className="animate-spin" />
-              {phase === "testing" ? "Testing…" : "Saving…"}
-            </Button>
-          )}
+        <DialogFooter className="sm:justify-between">
+          <Button
+            variant="ghost"
+            disabled={busy}
+            onClick={() => { if (step === 1) onClose(); else { setStep(1); setPhase("input"); setTestResult(null) } }}
+          >
+            {step === 1 ? "Cancel" : "Back"}
+          </Button>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row">
+            {step === 2 && (
+              <Button variant="outline" onClick={testConnection} disabled={busy}>
+                {phase === "testing" && <Loader2 className="animate-spin" />}
+                {phase === "testing" ? "Testing…" : "Test connection"}
+              </Button>
+            )}
+            {step === 1 ? (
+              <Button onClick={() => setStep(2)} disabled={!/^\w+:\/\/.+/.test(connStr.trim())}>Continue</Button>
+            ) : (
+              <Button onClick={saveConnection} disabled={phase !== "tested"}>
+                {phase === "saving" && <Loader2 className="animate-spin" />}
+                {phase === "saving" ? "Saving…" : "Save to monitoring"}
+              </Button>
+            )}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

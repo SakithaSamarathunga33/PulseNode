@@ -19,7 +19,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { detectSuspicious } from "@/components/processes/detect"
 import { ProcessActions, ProcessConfirm, RiskPill, procName, type DialogState, type Risk } from "@/components/processes/parts"
 
@@ -212,6 +211,7 @@ export default function ProcessesPage() {
   return (
     <>
       <PageHeader
+        className="pb-5"
         icon={Activity}
         title={
           <span className="flex items-center gap-2">
@@ -224,17 +224,16 @@ export default function ProcessesPage() {
         description={`${processes.length} processes${blocked.length > 0 ? ` · ${blocked.length} suspended` : ""}`}
         actions={<LiveBadge>Live · 5s</LiveBadge>}
       >
-        <Tabs value={activeTab} onValueChange={v => setActiveTab(v as Tab)}>
-          <TabsList variant="line">
-            <TabsTrigger value="processes">
-              All processes <CountBadge n={processes.length} />
-            </TabsTrigger>
-            <TabsTrigger value="suspicious">
-              <ShieldAlert className="size-3.5" />
-              Suspicious activity <CountBadge n={suspicious.length} tone={suspicious.length > 0 ? "bad" : undefined} />
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <Segmented<Tab>
+          aria-label="Processes view"
+          value={activeTab}
+          onChange={setActiveTab}
+          size="default"
+          options={[
+            { value: "processes", label: "All processes", count: processes.length },
+            { value: "suspicious", label: <><ShieldAlert className="size-3.5" />Suspicious activity</>, count: suspicious.length },
+          ]}
+        />
       </PageHeader>
 
       <PageBody className="motion-safe:animate-in motion-safe:fade-in-0 duration-300">

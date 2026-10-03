@@ -531,7 +531,7 @@ export default function ProjectDetailPage() {
             </>
           }
         >
-          <TabsList variant="line">
+          <TabsList>
             <TabsTrigger value="settings"><Settings2 className="size-4" />Settings</TabsTrigger>
             <TabsTrigger value="logs"><Terminal className="size-4" />Logs</TabsTrigger>
             <TabsTrigger value="history"><History className="size-4" />History</TabsTrigger>

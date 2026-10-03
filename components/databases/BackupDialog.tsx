@@ -155,6 +155,9 @@ export function BackupDialog({ db, onClose }: { db: Database; onClose: () => voi
                 <span className="ml-auto font-mono text-xs tabular-nums text-muted-foreground">{fmtBytes(state.bytes)}</span>
               )}
             </div>
+            <div role="progressbar" aria-label="Backup progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={state.phase === "done" ? 100 : undefined} className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className={`h-full rounded-full ${state.phase === "done" ? "w-full bg-success" : state.phase === "error" ? "w-full bg-danger" : "w-1/3 animate-pulse bg-primary"}`} />
+            </div>
             {state.name && <p className="truncate font-mono text-xs text-muted-foreground">{state.name}</p>}
             {state.error && (
               <Alert variant="destructive"><AlertDescription className="break-all font-mono text-xs">{state.error}</AlertDescription></Alert>

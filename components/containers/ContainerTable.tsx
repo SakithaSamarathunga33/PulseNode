@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { ImageIcon } from "./ImageIcon"
+import { StatusDot, type StatusShape } from "@/components/pn/StatusDot"
 import { shortId, splitImage, toneFor, TONE_BG } from "./utils"
 
 export type SortKey = "name" | "image" | "state" | "cpu" | "ram"
@@ -31,6 +32,7 @@ const STATE_STYLE: Record<string, string> = {
   paused: "bg-warning/14 text-warning",
   stopped: "bg-muted text-muted-foreground",
 }
+const STATE_SHAPE: Record<string, StatusShape> = { running: "ok", exited: "bad", paused: "warn", stopped: "off" }
 const STATE_LABEL: Record<string, string> = { running: "Running", exited: "Exited", paused: "Paused", stopped: "Stopped" }
 
 export function StatePill({ state, busy }: { state: string; busy?: boolean }) {
@@ -41,7 +43,7 @@ export function StatePill({ state, busy }: { state: string; busy?: boolean }) {
         busy ? "bg-info/12 text-info" : (STATE_STYLE[state] ?? STATE_STYLE.stopped),
       )}
     >
-      {busy ? <Loader2 className="size-3 animate-spin" /> : <span className="size-1.5 rounded-full bg-current" />}
+      {busy ? <Loader2 className="size-3 animate-spin" /> : <StatusDot tone={STATE_SHAPE[state] ?? "off"} />}
       {busy ? "Working…" : (STATE_LABEL[state] ?? state)}
     </span>
   )
