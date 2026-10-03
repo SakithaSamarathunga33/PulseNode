@@ -89,9 +89,23 @@ if port_in_use 80; then
   done
 fi
 
+is_ip() { [[ "$1" =~ ^[0-9.]+$ || "$1" == *:* ]]; }
+
 if [[ "$LISTEN" == "80" ]]; then
   BASE_URL="http://${HOST}"
-  if port_in_use 443; then
+  USE_HTTPS="n"
+  if ! is_ip "$HOST" && ! port_in_use 443; then
+    # A real domain: serve HTTPS so the admin password and session cookie
+    # never cross the internet in cleartext. Caddy gets the certificate.
+    printf "  Serve %s over HTTPS (DNS must already point to this server)? [Y/n]: " "$HOST"
+    read -r USE_HTTPS </dev/tty || USE_HTTPS="y"
+    USE_HTTPS="${USE_HTTPS:-y}"
+  fi
+  if [[ "${USE_HTTPS,,}" == "y" ]]; then
+    BASE_URL="https://${HOST}"
+    CADDY_SITE_ADDRESS="${HOST}"
+    OVERLAY="docker-compose.standalone.yml"
+  elif port_in_use 443; then
     # 443 occupied — disable auto-HTTPS so Caddy doesn't try to bind it
     CADDY_SITE_ADDRESS="http://:80"
     OVERLAY="docker-compose.nossl.yml"
@@ -99,6 +113,7 @@ if [[ "$LISTEN" == "80" ]]; then
   else
     CADDY_SITE_ADDRESS=":80"
     OVERLAY="docker-compose.standalone.yml"
+    echo -e "  ${Y}⚠ Serving plain HTTP — your login travels unencrypted. Use a domain for HTTPS.${N}"
   fi
 else
   BASE_URL="http://${HOST}:${LISTEN}"
@@ -113,15 +128,15 @@ echo ""
 # never sit on a public IP without a login. Create the admin account up front.
 json_escape() { local s=${1//\\/\\\\}; s=${s//\"/\\\"}; printf '%s' "$s"; }
 
+# Talk to go-api inside its container — independent of Caddy, ports and TLS.
+go_api() { docker compose -f docker-compose.yml exec -T go-api curl -fsS --max-time 10 "$@" 2>/dev/null; }
+
 AUTH_ENABLED=""
 if [[ -f .env.local ]]; then
-  OLD_PORT=$(grep '^LISTEN_PORT=' .env.local | cut -d= -f2- || true)
-  if [[ -n "${OLD_PORT}" ]]; then
-    STATUS=$(curl -fsSL --max-time 3 "http://localhost:${OLD_PORT}/go/api/auth/status" 2>/dev/null || true)
-    # setupRequired means no admin exists yet, even though login is enforced.
-    if [[ "$STATUS" == *'"enabled":true'* && "$STATUS" != *'setupRequired'* ]]; then
-      AUTH_ENABLED=1
-    fi
+  STATUS=$(go_api http://localhost:4002/api/auth/status || true)
+  # setupRequired means no admin exists yet, even though login is enforced.
+  if [[ "$STATUS" == *'"enabled":true'* && "$STATUS" != *'setupRequired'* ]]; then
+    AUTH_ENABLED=1
   fi
 fi
 
@@ -242,7 +257,7 @@ fi
 echo ""
 echo -e "${C}━━━  Waiting for services to be ready  ━━━━━━━━━━━━━━━━━━━━━${N}"
 WAIT=0
-until curl -fsSL --max-time 2 "http://localhost:${LISTEN}/health" &>/dev/null; do
+until go_api http://localhost:4002/health >/dev/null; do
   if (( WAIT >= 90 )); then
     echo -e "\n  ${Y}⚠ Taking longer than expected. Check logs: docker compose logs${N}"
     break
@@ -259,8 +274,8 @@ if [[ -n "$ADMIN_USER" && -n "$ADMIN_PASS" ]]; then
   # Payload goes over stdin so the password never shows up in `ps`.
   if printf '{"username":"%s","password":"%s","setup_token":"%s"}' \
        "$(json_escape "$ADMIN_USER")" "$(json_escape "$ADMIN_PASS")" "$SETUP_TOKEN" |
-     curl -fsSL --max-time 10 -X POST "http://localhost:${LISTEN}/go/api/auth/setup" \
-       -H 'Content-Type: application/json' --data-binary @- &>/dev/null; then
+     go_api -X POST http://localhost:4002/api/auth/setup \
+       -H 'Content-Type: application/json' --data-binary @- >/dev/null; then
     echo -e "  ${G}✓ Admin account created — sign in as '${ADMIN_USER}'${N}"
     # The token is single-use; drop it from the config now that it's spent.
     sed -i '/^PULSENODE_SETUP_TOKEN=/d' .env.local

@@ -13,6 +13,12 @@ services:
     restart: unless-stopped
     networks:
       - default
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
     deploy:
       resources:
         limits:
@@ -33,6 +39,10 @@ services:
     restart: unless-stopped
     networks:
       - default
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     deploy:
       resources:
         limits:
@@ -80,7 +90,12 @@ services:
       - pn-go-data:/var/lib/pulsenode
       - pn-sqlite-data:/data
       - ${PULSENODE_INSTALL_DIR:-.}:/workspace
+    # go-api is root-equivalent on the host by design: it holds the Docker
+    # socket and shares the host PID namespace (process list/kill). Protect it
+    # with login (always on), HTTPS, and a firewall — see SECURITY.md.
     pid: "host"
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
     networks:
       - default

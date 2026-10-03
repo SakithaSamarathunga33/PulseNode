@@ -1,4 +1,4 @@
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -10,13 +10,16 @@ COPY . .
 RUN npm run build
 RUN npm prune --omit=dev
 
-FROM node:20-alpine AS web
+FROM node:22-alpine AS web
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-COPY --from=web-builder /app/.next/standalone ./
-COPY --from=web-builder /app/.next/static ./.next/static
-COPY --from=web-builder /app/public ./public
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY --from=web-builder --chown=node:node /app/.next/standalone ./
+COPY --from=web-builder --chown=node:node /app/.next/static ./.next/static
+COPY --from=web-builder --chown=node:node /app/public ./public
+# The web tier needs no privileges — run as the image's unprivileged user.
+USER node
 EXPOSE 3000
 CMD ["node", "--max-old-space-size=96", "server.js"]
