@@ -192,7 +192,7 @@ jobs:
       - name: Smoke test go-api (/health)
         run: |
           docker run -d --name smoke-api -p 127.0.0.1:4002:4002 pulsenode-go-api:ci
-          if ! curl -fsS --retry 30 --retry-delay 1 --retry-connrefused http://127.0.0.1:4002/health | grep -q '"ok":true'; then
+          if ! curl -fsS --retry 30 --retry-delay 1 --retry-connrefused --retry-all-errors http://127.0.0.1:4002/health | grep -q '"ok":true'; then
             echo "::error::go-api did not become healthy"
             docker logs smoke-api
             exit 1
@@ -204,7 +204,7 @@ jobs:
       - name: Smoke test web (/login)
         run: |
           docker run -d --name smoke-web -p 127.0.0.1:3000:3000 pulsenode-web:ci
-          if ! curl -fsS --retry 30 --retry-delay 1 --retry-connrefused -o /dev/null http://127.0.0.1:3000/login; then
+          if ! curl -fsS --retry 30 --retry-delay 1 --retry-connrefused --retry-all-errors -o /dev/null http://127.0.0.1:3000/login; then
             echo "::error::web did not serve /login"
             docker logs smoke-web
             exit 1
