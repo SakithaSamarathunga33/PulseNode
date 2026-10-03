@@ -41,9 +41,17 @@ func addProject(t *testing.T, d *db.DB, id, container string) {
 	}
 }
 
-func newQ(d *db.DB, workers int, build buildFunc) *Queue {
+func newQ(t *testing.T, d *db.DB, workers int, build buildFunc) *Queue {
+	t.Helper()
 	q := New(d, hub.New(), workers)
 	q.runBuild = build
+	// Registered after testDB's cleanup, so it runs first: workers must be done
+	// before the DB closes, or late log flushes hit "sql: database is closed".
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = q.Close(ctx)
+	})
 	return q
 }
 
@@ -70,7 +78,7 @@ func TestSuccessfulDeployKeepsPrevContainerAndFlushesLogs(t *testing.T) {
 	d := testDB(t)
 	addProject(t, d, "p1", "old-container")
 	var gotPrev atomic.Value
-	q := newQ(d, 2, func(ctx context.Context, cfg builder.Config, dep *db.Deployment) (builder.Result, error) {
+	q := newQ(t, d, 2, func(ctx context.Context, cfg builder.Config, dep *db.Deployment) (builder.Result, error) {
 		gotPrev.Store(cfg.PrevContainerID)
 		cfg.Log("stdout", "building…")
 		return builder.Result{ContainerID: "new-container", CommitSHA: "abc123", CommitMsg: "msg"}, nil
@@ -99,7 +107,7 @@ func TestSuccessfulDeployKeepsPrevContainerAndFlushesLogs(t *testing.T) {
 func TestFailedDeployKeepsContainerRef(t *testing.T) {
 	d := testDB(t)
 	addProject(t, d, "p1", "still-serving")
-	q := newQ(d, 1, func(context.Context, builder.Config, *db.Deployment) (builder.Result, error) {
+	q := newQ(t, d, 1, func(context.Context, builder.Config, *db.Deployment) (builder.Result, error) {
 		return builder.Result{}, errors.New("boom")
 	})
 	dep := newDep("p1")
@@ -117,7 +125,7 @@ func TestPanicInBuilderFailsDeploymentAndKeepsWorkerAlive(t *testing.T) {
 	d := testDB(t)
 	addProject(t, d, "p1", "c1")
 	addProject(t, d, "p2", "c2")
-	q := newQ(d, 1, func(_ context.Context, cfg builder.Config, _ *db.Deployment) (builder.Result, error) {
+	q := newQ(t, d, 1, func(_ context.Context, cfg builder.Config, _ *db.Deployment) (builder.Result, error) {
 		if cfg.ProjectID == "p1" {
 			panic("kaboom")
 		}
@@ -138,7 +146,7 @@ func TestOnlyOneDeployPerProject(t *testing.T) {
 	d := testDB(t)
 	addProject(t, d, "p1", "c1")
 	release := make(chan struct{})
-	q := newQ(d, 2, func(ctx context.Context, _ builder.Config, _ *db.Deployment) (builder.Result, error) {
+	q := newQ(t, d, 2, func(ctx context.Context, _ builder.Config, _ *db.Deployment) (builder.Result, error) {
 		<-release
 		return builder.Result{ContainerID: "n"}, nil
 	})
@@ -182,7 +190,7 @@ func TestOnlyOneDeployPerProject(t *testing.T) {
 
 func TestSubmitUnknownProject(t *testing.T) {
 	d := testDB(t)
-	q := newQ(d, 1, nil)
+	q := newQ(t, d, 1, nil)
 	if err := q.Submit(newDep("nope"), "", ""); !errors.Is(err, ErrNoProject) {
 		t.Fatalf("err = %v, want ErrNoProject", err)
 	}
@@ -228,7 +236,7 @@ func TestCloseWaitsForInFlightAndRejectsNewWork(t *testing.T) {
 	d := testDB(t)
 	addProject(t, d, "p1", "c1")
 	started := make(chan struct{})
-	q := newQ(d, 1, func(ctx context.Context, _ builder.Config, _ *db.Deployment) (builder.Result, error) {
+	q := newQ(t, d, 1, func(ctx context.Context, _ builder.Config, _ *db.Deployment) (builder.Result, error) {
 		close(started)
 		time.Sleep(150 * time.Millisecond)
 		return builder.Result{ContainerID: "n"}, nil
@@ -254,7 +262,7 @@ func TestCloseTimeoutCancelsRunningBuild(t *testing.T) {
 	d := testDB(t)
 	addProject(t, d, "p1", "c1")
 	started := make(chan struct{})
-	q := newQ(d, 1, func(ctx context.Context, _ builder.Config, _ *db.Deployment) (builder.Result, error) {
+	q := newQ(t, d, 1, func(ctx context.Context, _ builder.Config, _ *db.Deployment) (builder.Result, error) {
 		close(started)
 		<-ctx.Done()
 		return builder.Result{}, ctx.Err()
@@ -285,7 +293,7 @@ func TestRecoverStuckKeepsNewestPerProject(t *testing.T) {
 	_ = d.UpdateProjectStatusKeep("p1", "building")
 
 	var ran sync.Map
-	q := newQ(d, 1, func(_ context.Context, cfg builder.Config, dep *db.Deployment) (builder.Result, error) {
+	q := newQ(t, d, 1, func(_ context.Context, cfg builder.Config, dep *db.Deployment) (builder.Result, error) {
 		ran.Store(dep.ID, true)
 		return builder.Result{ContainerID: "n"}, nil
 	})
@@ -294,5 +302,36 @@ func TestRecoverStuckKeepsNewestPerProject(t *testing.T) {
 	waitDep(t, d, "dep-old", "failed")
 	if _, ok := ran.Load("dep-old"); ok {
 		t.Fatal("superseded deployment must not run")
+	}
+}
+
+// Observers (UI, poller) must never see a "successful" deployment while the
+// project still points at the old container / is "building".
+func TestSuccessIsNeverVisibleBeforeProjectIsUpdated(t *testing.T) {
+	d := testDB(t)
+	addProject(t, d, "p1", "old")
+	q := newQ(t, d, 1, func(context.Context, builder.Config, *db.Deployment) (builder.Result, error) {
+		return builder.Result{ContainerID: "new", CommitSHA: "sha"}, nil
+	})
+	for i := 0; i < 15; i++ {
+		dep := newDep("p1")
+		if err := q.Submit(dep, "", ""); err != nil {
+			t.Fatal(err)
+		}
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			cur, _ := d.GetDeploymentByID(dep.ID)
+			if cur != nil && cur.Status == "success" {
+				p, _ := d.GetProject("p1")
+				if p.Status != "running" || p.ContainerID != "new" {
+					t.Fatalf("deployment %d is success but project is %+v", i, p)
+				}
+				break
+			}
+			if cur != nil && cur.Status == "failed" {
+				t.Fatalf("deployment %d failed", i)
+			}
+		}
+		waitDep(t, d, dep.ID, "success")
 	}
 }

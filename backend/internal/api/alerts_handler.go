@@ -170,6 +170,7 @@ func (s *Server) setAlertState(state string) http.HandlerFunc {
 			return
 		}
 		s.hub.Broadcast("alert:update", alerts.ToView(*ev))
+		s.broadcastAlertCount()
 		writeJSON(w, http.StatusOK, alerts.ToView(*ev))
 	}
 }
@@ -180,7 +181,16 @@ func (s *Server) ackAllAlerts(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	s.broadcastAlertCount()
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "acknowledged": n})
+}
+
+// broadcastAlertCount pushes the real number of firing alerts so every open
+// dashboard's sidebar badge follows ack/resolve actions.
+func (s *Server) broadcastAlertCount() {
+	if n, err := s.db.CountFiringAlerts(); err == nil {
+		s.hub.Broadcast("alert:count", n)
+	}
 }
 
 // Mute: notifications are suppressed until the given time; events are still recorded.

@@ -50,7 +50,7 @@ export default function SBOMHistoryPage() {
 
   useEffect(() => {
     nodeApi.get<SBOM[]>("/security/sboms")
-      .then(({ data }) => setList(data))
+      .then(({ data }) => setList(Array.isArray(data) ? data : []))
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Could not load SBOMs"))
     nodeApi.get<{ syft: boolean }>("/security/status").then(({ data }) => setSyft(data.syft)).catch(() => {})
   }, [])

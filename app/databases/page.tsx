@@ -58,8 +58,9 @@ export default function DatabasesPage() {
 
   useEffect(() => {
     nodeApi.get<Database[]>("/api/docker/databases")
-      .then(({ data }) => {
-        if (data.length === 0) return
+      .then(({ data: raw }) => {
+        const data = Array.isArray(raw) ? raw : []
+        // An empty list must clear stale rows, not leave them on screen.
         setDatabases(data)
 
         data.forEach(db => {
@@ -92,9 +93,13 @@ export default function DatabasesPage() {
       .catch(err => setLoadError(err instanceof Error ? err.message : "Failed to load databases"))
       .finally(() => setLoaded(true))
 
+    let inFlight = false
     function pollConnections() {
+      if (inFlight) return // a slow backend must not stack overlapping polls
+      inFlight = true
       nodeApi.get<{ name: string; conns: number }[]>("/api/database/connections")
-        .then(({ data }) => {
+        .then(({ data: raw }) => {
+          const data = Array.isArray(raw) ? raw : []
           const total = data.reduce((s, d) => s + d.conns, 0)
           setTotalConns(total)
           setConnHistory(prev => [...prev.slice(-59), total])
@@ -104,14 +109,16 @@ export default function DatabasesPage() {
               const h = next[d.name] ?? []
               next[d.name] = [...h.slice(-19), d.conns]
             }
-            setDatabases(dbs => dbs.map(db => {
-              const found = data.find(d => d.name === db.name || d.name === db.host)
-              return found && found.conns > 0 ? { ...db, conns: found.conns } : db
-            }))
             return next
           })
+          // Separate, pure update — never call a setter inside another updater.
+          setDatabases(dbs => dbs.map(db => {
+            const found = data.find(d => d.name === db.name || d.name === db.host)
+            return found && found.conns > 0 ? { ...db, conns: found.conns } : db
+          }))
         })
         .catch(() => {})
+        .finally(() => { inFlight = false })
     }
 
     pollConnections()
@@ -286,7 +293,7 @@ export default function DatabasesPage() {
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             nodeApi.get<Database[]>("/api/docker/databases")
-              .then(({ data }) => { if (data.length > 0) setDatabases(data) })
+              .then(({ data }) => setDatabases(Array.isArray(data) ? data : []))
               .catch(() => {})
           }}
         />

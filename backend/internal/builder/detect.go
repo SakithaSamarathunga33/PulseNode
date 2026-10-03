@@ -29,7 +29,9 @@ func Detect(dir string) Method {
 // `config` and `up` all use this one name, so what is validated is what runs.
 func composeFileName(dir string) string {
 	for _, name := range []string{"docker-compose.yml", "docker-compose.yaml"} {
-		if fileExists(dir + "/" + name) {
+		// A committed symlink to a file outside the clone would make compose read
+		// (and its parse errors echo) a panel file; treat it as no compose file.
+		if fileExists(dir+"/"+name) && resolvedWithin(dir, filepath.Join(dir, name)) {
 			return name
 		}
 	}
@@ -42,6 +44,11 @@ func composeFileName(dir string) string {
 func DetectMonorepo(root string) (frontendDir, backendDir string, ok bool) {
 	fe := filepath.Join(root, "frontend")
 	be := filepath.Join(root, "backend")
+	// frontend/ or backend/ committed as a symlink to a host path (e.g. /workspace)
+	// would otherwise become the Docker build context.
+	if !resolvedWithin(root, fe) || !resolvedWithin(root, be) {
+		return "", "", false
+	}
 	if buildableDir(fe) && buildableDir(be) {
 		return fe, be, true
 	}
@@ -64,7 +71,10 @@ var buildableProjectFiles = []string{
 // buildableDir reports whether dir is a directory containing at least one
 // recognised build marker.
 func buildableDir(dir string) bool {
-	fi, err := os.Stat(dir)
+	fi, err := os.Lstat(dir)
+	if err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		return false // symlinked build dirs are never followed
+	}
 	if err != nil || !fi.IsDir() {
 		return false
 	}

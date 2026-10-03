@@ -56,20 +56,36 @@ export function AppSidebar() {
   }, [pathname]) // re-count after create/delete elsewhere in the app
 
   useEffect(() => {
+    let cancelled = false
+    // First paint: the real number of firing alerts (never a placeholder). Until
+    // it arrives, or if the request fails, no badge is shown.
+    const loadAlertCount = () => {
+      nodeApi.get<Alert[]>("/api/alerts/history?limit=1000")
+        .then(({ data }) => {
+          if (cancelled || !Array.isArray(data)) return
+          const firing = data.filter(a => a.state === "firing").length
+          setCounts(p => ({ ...p, alerts: firing }))
+        })
+        .catch(() => {})
+    }
+    loadAlertCount()
     try {
       const socket = getSocket()
       const onMetrics = (m: SystemMetrics) => setCpu(m.cpu)
-      const onAlert = (a: Alert) => {
-        if (a.state === "firing") setCounts(p => ({ ...p, alerts: (p.alerts ?? 0) + 1 }))
-      }
+      // The server sends the authoritative count after every change; new/updated
+      // alerts just trigger a re-read in case that frame was missed.
       const onAlertCount = (n: number) => { if (typeof n === "number") setCounts(p => ({ ...p, alerts: n })) }
       socket.on("system:metrics", onMetrics)
-      socket.on("alert:new", onAlert)
+      socket.on("alert:new", loadAlertCount)
+      socket.on("alert:update", loadAlertCount)
       socket.on("alert:count", onAlertCount)
       return () => {
-        socket.off("system:metrics", onMetrics); socket.off("alert:new", onAlert); socket.off("alert:count", onAlertCount)
+        cancelled = true
+        socket.off("system:metrics", onMetrics); socket.off("alert:new", loadAlertCount)
+        socket.off("alert:update", loadAlertCount); socket.off("alert:count", onAlertCount)
       }
     } catch { /* socket unavailable during SSR */ }
+    return () => { cancelled = true }
   }, [])
 
   const isActive = (href: string) => pathname === href || pathname?.startsWith(href + "/")

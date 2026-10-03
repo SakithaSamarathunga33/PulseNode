@@ -351,7 +351,32 @@ export default function AlertsPage() {
                 action={<Button onClick={() => setRuleDialog("new")}><Plus className="size-4" /> New rule</Button>}
               />
             ) : (
-              <Card className="overflow-x-auto p-0">
+              <>
+              <ul className="space-y-3 md:hidden" aria-label="Rules">
+                {rules.map(rule => (
+                  <li key={rule.id} className="space-y-2.5 rounded-xl border bg-card p-3.5 shadow-card">
+                    <div className="flex items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{rule.name}</span>
+                      <Pill tone={SEV[rule.severity]?.tone ?? "info"}>{SEV[rule.severity]?.label ?? rule.severity}</Pill>
+                    </div>
+                    <code className="block overflow-x-auto rounded bg-muted px-2 py-1 font-mono text-xs">{ruleExpr(rule)}</code>
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span className="mr-1 text-xs text-muted-foreground">Notifies</span>
+                      {rule.channelIds.length === 0
+                        ? <Pill tone="outline">all channels</Pill>
+                        : rule.channelIds.map(id => <Pill key={id} tone="outline">{channelName(id)}</Pill>)}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Switch checked={rule.enabled} onCheckedChange={v => toggleRule(rule, v)} aria-label={`Enable rule ${rule.name}`} />
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon-sm" aria-label={`Edit ${rule.name}`} onClick={() => setRuleDialog(rule)}><Pencil className="size-4" /></Button>
+                        <Button variant="ghost" size="icon-sm" aria-label={`Delete ${rule.name}`} onClick={() => setConfirm({ kind: "rule", id: rule.id, name: rule.name })}><Trash2 className="size-4 text-danger" /></Button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <Card className="hidden gap-0 overflow-x-auto py-0 md:block">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -388,6 +413,7 @@ export default function AlertsPage() {
                   </TableBody>
                 </Table>
               </Card>
+              </>
             )}
           </>
         )}
@@ -541,7 +567,7 @@ function RuleDialog({ value, channels, onClose, onSaved }: {
             </Field>
           </div>
           {metric?.percent ? (
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Field id="r-op" label="When">
                 <select id="r-op" className={selectCls} value={form.operator} onChange={e => set("operator", e.target.value)}>
                   <option value=">">above</option><option value=">=">at least</option><option value="<">below</option><option value="<=">at most</option>

@@ -20,7 +20,7 @@ export function MobileNav() {
   const current = routeInfo(pathname)?.href
   const moreActive = !!current && !PRIMARY.includes(current)
 
-  const tab = "relative flex flex-col items-center justify-center gap-1 text-[11px] font-medium"
+  const tab = "relative flex flex-col items-center justify-center gap-1 rounded-md text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
   return (
     <>
       <nav
@@ -37,7 +37,7 @@ export function MobileNav() {
             </Link>
           )
         })}
-        <button type="button" onClick={() => setMore(true)} className={cn(tab, moreActive || more ? "text-foreground" : "text-muted-foreground")} aria-haspopup="dialog">
+        <button type="button" onClick={() => setMore(true)} className={cn(tab, moreActive || more ? "text-foreground" : "text-muted-foreground")} aria-haspopup="dialog" aria-expanded={more} aria-controls="mobile-more-sheet">
           <span className={cn("absolute top-0 left-[30%] right-[30%] h-0.5 rounded-b bg-primary", moreActive ? "opacity-100" : "opacity-0")} />
           <Menu className="size-5" />
           More
@@ -45,14 +45,14 @@ export function MobileNav() {
       </nav>
 
       <Sheet open={more} onOpenChange={setMore}>
-        <SheetContent side="bottom" className="max-h-[80svh] gap-0 rounded-t-2xl">
+        <SheetContent id="mobile-more-sheet" side="bottom" className="max-h-[80svh] gap-0 rounded-t-2xl">
           <SheetHeader><SheetTitle>More</SheetTitle></SheetHeader>
           <div className="grid grid-cols-3 gap-2 overflow-y-auto p-4 pt-0 pb-6">
             {rest.map(item => (
               <Link
                 key={item.href} href={item.href} onClick={() => setMore(false)}
                 aria-current={current === item.href ? "page" : undefined}
-                className="flex min-h-[72px] flex-col items-start gap-2.5 rounded-xl border bg-card p-3 text-sm font-medium"
+                className="flex min-h-[72px] flex-col items-start gap-2.5 rounded-xl border bg-card p-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <item.icon className="size-[18px] text-muted-foreground" />
                 {item.label}

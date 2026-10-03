@@ -37,7 +37,7 @@ export default function NetworksPage() {
 
   function fetchNetworks() {
     nodeApi.get<DockerNetwork[]>("/api/docker/networks")
-      .then(({ data }) => { setNetworks(data); setLoadError(false) })
+      .then(({ data }) => { setNetworks(Array.isArray(data) ? data : []); setLoadError(false) })
       .catch(() => setLoadError(true))
       .finally(() => setLoaded(true))
   }
@@ -98,7 +98,30 @@ export default function NetworksPage() {
           ) : networks.length === 0 ? (
             <EmptyState className="m-4" icon={Network} title="No networks found" description="Docker did not report any networks." />
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <ul className="divide-y md:hidden" aria-label="Networks">
+              {networks.map(net => (
+                <li key={net.name} className="space-y-2 p-4">
+                  <div className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{net.name}</span>
+                    <Pill tone={driverTone(net.driver)}>{net.driver}</Pill>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                    <div><dt className="text-muted-foreground">Scope</dt><dd>{net.scope}</dd></div>
+                    <div><dt className="text-muted-foreground">Containers</dt><dd className="font-mono tabular-nums">{net.containers}</dd></div>
+                    <div><dt className="text-muted-foreground">Subnet</dt><dd className="font-mono">{net.subnet || "—"}</dd></div>
+                    <div><dt className="text-muted-foreground">Gateway</dt><dd className="font-mono">{net.gateway || "—"}</dd></div>
+                  </dl>
+                  {(net.attachable || net.internal) && (
+                    <div className="flex flex-wrap gap-1">
+                      {net.attachable && <Badge variant="outline" className="font-mono">attachable</Badge>}
+                      {net.internal && <Badge variant="outline" className="font-mono">internal</Badge>}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div className="hidden overflow-x-auto md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -132,6 +155,7 @@ export default function NetworksPage() {
                 </TableBody>
               </Table>
             </div>
+            </>
           )}
         </Card>
       </PageBody>

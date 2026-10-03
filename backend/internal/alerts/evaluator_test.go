@@ -279,23 +279,23 @@ func TestChannelRouting(t *testing.T) {
 func TestContainerDownFiresAndResolvesWhenBackOrRemoved(t *testing.T) {
 	rule := db.AlertRuleFull{ID: "r2", Name: "Container down", Metric: MetricContainerDown, Operator: ">", Severity: "warning", Enabled: true}
 	h := newHarness(t, rule)
-	h.cts = []ContainerState{{"web", "running"}, {"db", "exited"}, {"cache", "running"}}
+	h.cts = []ContainerState{{Name: "web", State: "running"}, {Name: "db", State: "exited"}, {Name: "cache", State: "running"}}
 	h.tick(0)
 	if len(h.store.events) != 1 || h.store.events[0].Target != "db" {
 		t.Fatalf("only the exited container should alert: %+v", h.store.events)
 	}
-	h.cts = []ContainerState{{"web", "running"}, {"db", "running"}}
+	h.cts = []ContainerState{{Name: "web", State: "running"}, {Name: "db", State: "running"}}
 	h.tick(15 * time.Second)
 	if h.store.events[0].State != "resolved" {
 		t.Fatalf("container back up should resolve: %v", h.states())
 	}
 
-	h.cts = []ContainerState{{"web", "running"}, {"db", "dead"}}
+	h.cts = []ContainerState{{Name: "web", State: "running"}, {Name: "db", State: "dead"}}
 	h.tick(15 * time.Second)
 	if len(h.store.events) != 2 {
 		t.Fatalf("second incident expected: %v", h.states())
 	}
-	h.cts = []ContainerState{{"web", "running"}} // db removed entirely
+	h.cts = []ContainerState{{Name: "web", State: "running"}} // db removed entirely
 	h.tick(15 * time.Second)
 	if h.store.events[1].State != "resolved" {
 		t.Fatalf("removed container must auto-resolve: %v", h.states())
@@ -303,7 +303,7 @@ func TestContainerDownFiresAndResolvesWhenBackOrRemoved(t *testing.T) {
 
 	rule.Target = "web"
 	h.store.rules[0] = rule
-	h.cts = []ContainerState{{"web", "exited"}, {"db", "exited"}}
+	h.cts = []ContainerState{{Name: "web", State: "exited"}, {Name: "db", State: "exited"}}
 	h.tick(15 * time.Second)
 	last := h.store.events[len(h.store.events)-1]
 	if last.Target != "web" || len(h.store.events) != 3 {

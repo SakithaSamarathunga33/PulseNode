@@ -70,7 +70,7 @@ export default function ScanHistoryPage() {
 
   const loadScans = useCallback(() => {
     nodeApi.get<ScanRow[]>("/security/scans")
-      .then(({ data }) => { setScans(data); setLoadError(null) })
+      .then(({ data }) => { setScans(Array.isArray(data) ? data : []); setLoadError(null) })
       .catch((e: unknown) => setLoadError(e instanceof Error ? e.message : "Could not load scans"))
   }, [])
 
@@ -188,7 +188,31 @@ export default function ScanHistoryPage() {
             action={list.length === 0 ? <Button onClick={() => setScanModalOpen(true)}>Scan now</Button> : undefined}
           />
         ) : (
-          <Card className="overflow-x-auto p-0">
+          <>
+          <ul className="space-y-3 md:hidden" aria-label="Scans">
+            {filteredScans.map(scan => (
+              <li key={scan.id}>
+                <button
+                  type="button"
+                  onClick={() => openSheet(scan)}
+                  className="w-full space-y-3 rounded-xl border bg-card p-3.5 text-left shadow-card outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label={`View report for ${scan.id}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Package className="size-3.5 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs" title={scan.image}>{scan.image}</span>
+                    <StatusPill status={scan.status} />
+                  </div>
+                  <VulnBar v={{ crit: scan.crit, high: scan.high, med: scan.med, low: scan.low }} />
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span className="font-mono">{scan.id}</span>
+                    <span>{scan.started} · <span className="font-mono tabular-nums">{scan.duration}</span></span>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <Card className="hidden gap-0 overflow-x-auto py-0 md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -238,6 +262,7 @@ export default function ScanHistoryPage() {
               </TableBody>
             </Table>
           </Card>
+          </>
         )}
       </PageBody>
 
@@ -256,7 +281,7 @@ export default function ScanHistoryPage() {
                   {selectedScan.started} · <span className="font-mono tabular-nums">{selectedScan.duration}</span>
                 </span>
               </div>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <SevTile label="CRIT" value={selectedScan.crit} tone="crit" />
                 <SevTile label="HIGH" value={selectedScan.high} tone="high" />
                 <SevTile label="MED" value={selectedScan.med} tone="med" />

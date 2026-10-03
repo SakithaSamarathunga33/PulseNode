@@ -129,6 +129,7 @@ func streamCmdEnv(extra []string, name string, args ...string) error {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Env = append(os.Environ(), extra...)
+	cmd.WaitDelay = 10 * time.Second // same reason as builder.runEnv: never hang on a held pipe
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err

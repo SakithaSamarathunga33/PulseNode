@@ -53,6 +53,11 @@ func (s *Server) securitySBOM(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeSecurityError(w http.ResponseWriter, err error) {
+	if errors.Is(err, security.ErrBusy) {
+		w.Header().Set("Retry-After", "30")
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		return
+	}
 	if errors.Is(err, security.ErrInvalidRef) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return

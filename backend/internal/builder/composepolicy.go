@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -68,6 +70,7 @@ type composeFile struct {
 	Volumes  map[string]struct {
 		Name       string            `json:"name"`
 		External   bool              `json:"external"`
+		Driver     string            `json:"driver"`
 		DriverOpts map[string]string `json:"driver_opts"`
 	} `json:"volumes"`
 	Networks map[string]struct {
@@ -76,14 +79,22 @@ type composeFile struct {
 		Driver   string `json:"driver"`
 	} `json:"networks"`
 	Secrets map[string]struct {
-		File string `json:"file"`
+		File        string `json:"file"`
+		Environment string `json:"environment"`
 	} `json:"secrets"`
 	Configs map[string]struct {
-		File string `json:"file"`
+		File        string `json:"file"`
+		Environment string `json:"environment"`
 	} `json:"configs"`
 }
 
 type composeService struct {
+	Image   string `json:"image"`
+	Logging *struct {
+		Driver string `json:"driver"`
+	} `json:"logging"`
+	ShmSize      json.RawMessage   `json:"shm_size"`
+	Deploy       json.RawMessage   `json:"deploy"`
 	Privileged   bool              `json:"privileged"`
 	Pid          string            `json:"pid"`
 	Cgroup       string            `json:"cgroup"`
@@ -115,6 +126,8 @@ type composeService struct {
 		Network            string            `json:"network"`
 		Privileged         bool              `json:"privileged"`
 		ExtraHosts         json.RawMessage   `json:"extra_hosts"`
+		Tags               []string          `json:"tags"`
+		CacheFrom          []string          `json:"cache_from"`
 	} `json:"build"`
 }
 
@@ -138,9 +151,45 @@ func composeViolations(raw []byte, dir, project string) []string {
 	if project != "" && cf.Name != "" && cf.Name != project {
 		add("compose project name must be %s, not %s", project, cf.Name)
 	}
-	for name, s := range cf.Services {
+	var rawTop map[string]json.RawMessage
+	_ = json.Unmarshal(raw, &rawTop)
+	for k := range rawTop {
+		if !topLevelAllowed[k] && !strings.HasPrefix(k, "x-") {
+			add("top-level %s is not allowed", k)
+		}
+	}
+	var rawServices map[string]map[string]json.RawMessage
+	_ = json.Unmarshal(rawTop["services"], &rawServices)
+
+	for _, name := range sortedKeys(cf.Services) {
+		s := cf.Services[name]
+		// ALLOW-LIST: any service option not known to be safe is rejected, so a
+		// compose feature added after this policy was written (use_api_socket,
+		// device_cgroup_rules, provider, runtime, gpus, post_start …) fails closed.
+		for _, k := range sortedKeys(rawServices[name]) {
+			if serviceAllowed[k] || serviceChecked[k] || strings.HasPrefix(k, "x-") || !meaningful(rawServices[name][k]) {
+				continue
+			}
+			add("%s: %s is not allowed (PulseNode only supports a safe subset of compose service options)", name, k)
+		}
 		if s.Privileged {
 			add("%s: privileged: true", name)
+		}
+		if s.Logging != nil {
+			switch s.Logging.Driver {
+			case "", "json-file", "local", "none":
+			default:
+				add("%s: logging driver %s", name, s.Logging.Driver)
+			}
+		}
+		if meaningful(s.ShmSize) {
+			if n, ok := parseBytes(s.ShmSize); !ok || n > maxShmBytes {
+				add("%s: shm_size above %d GiB or unreadable", name, maxShmBytes>>30)
+			}
+		}
+		out = append(out, deployViolations(name, s.Deploy)...)
+		if s.Image != "" && !imageAllowed(s.Image, project, s.Build != nil) {
+			add("%s: image %s (pn-* and pulsenode* images belong to PulseNode and other projects)", name, s.Image)
 		}
 		// Sharing a namespace with the host or another container (e.g. go-api,
 		// which holds the Docker socket) escapes the sandbox. Private namespaces
@@ -150,8 +199,11 @@ func composeViolations(raw []byte, dir, project string) []string {
 				add("%s: %s: %s", name, key, v)
 			}
 		}
-		if s.NetworkMode == "host" || strings.HasPrefix(s.NetworkMode, "container:") {
-			add("%s: network_mode: %s", name, s.NetworkMode)
+		// Only "no network" or sharing another service of THIS project. A bare
+		// network name (pulsenode_default, vps-monitor_proxy, bridge) would put the
+		// service on the panel's or another app's network.
+		if m := s.NetworkMode; m != "" && m != "none" && !strings.HasPrefix(m, "service:") {
+			add("%s: network_mode: %s (only none or service:<name> is allowed)", name, m)
 		}
 		// Publishing host ports would squat on the host (80/443/8080 …) or expose
 		// internals directly; traffic reaches the app through Traefik instead.
@@ -215,6 +267,35 @@ func composeViolations(raw []byte, dir, project string) []string {
 			}
 		}
 		if b := s.Build; b != nil {
+			var rawBuild map[string]json.RawMessage
+			_ = json.Unmarshal(rawServices[name]["build"], &rawBuild)
+			for _, k := range sortedKeys(rawBuild) {
+				if !buildAllowed[k] && meaningful(rawBuild[k]) {
+					add("%s: build.%s is not allowed", name, k)
+				}
+			}
+			for _, t := range b.Tags {
+				if !imageAllowed(t, project, true) {
+					add("%s: build tag %s must start with %s", name, t, project)
+				}
+			}
+			for _, c := range b.CacheFrom {
+				if strings.Contains(c, "src=") || strings.Contains(c, "type=local") {
+					add("%s: build.cache_from %s", name, c)
+				}
+			}
+			if d := b.Dockerfile; d != "" && !isRemoteContext(b.Context) && !strings.Contains(d, "://") {
+				df := d
+				if !filepath.IsAbs(df) {
+					df = filepath.Join(b.Context, df)
+					if !filepath.IsAbs(df) {
+						df = filepath.Join(dir, df)
+					}
+				}
+				if !resolvedWithin(dir, df) {
+					add("%s: build.dockerfile outside the repository: %s", name, d)
+				}
+			}
 			if b.Privileged {
 				add("%s: build.privileged: true", name)
 			}
@@ -235,6 +316,9 @@ func composeViolations(raw []byte, dir, project string) []string {
 		}
 	}
 	for name, v := range cf.Volumes {
+		if v.Driver != "" && v.Driver != "local" {
+			add("volume %s: driver %s", name, v.Driver)
+		}
 		if v.DriverOpts["device"] != "" || strings.Contains(v.DriverOpts["o"], "bind") {
 			add("volume %s: driver_opts bind-mounts a host path", name)
 		}
@@ -255,14 +339,23 @@ func composeViolations(raw []byte, dir, project string) []string {
 			add("network %s: driver %s", name, n.Driver)
 		}
 	}
-	for name, s := range cf.Secrets {
+	// `environment:` sources read a variable of the compose CLI's own environment.
+	for _, name := range sortedKeys(cf.Secrets) {
+		s := cf.Secrets[name]
 		if s.File != "" && !resolvedWithin(dir, s.File) {
 			add("secret %s: file outside the repository: %s", name, s.File)
 		}
+		if s.Environment != "" {
+			add("secret %s: environment source %s", name, s.Environment)
+		}
 	}
-	for name, c := range cf.Configs {
+	for _, name := range sortedKeys(cf.Configs) {
+		c := cf.Configs[name]
 		if c.File != "" && !resolvedWithin(dir, c.File) {
 			add("config %s: file outside the repository: %s", name, c.File)
+		}
+		if c.Environment != "" {
+			add("config %s: environment source %s", name, c.Environment)
 		}
 	}
 	return out
@@ -294,4 +387,135 @@ func resolvedWithin(dir, p string) bool {
 		return lexicallyWithin(realDir, real)
 	}
 	return lexicallyWithin(dir, p)
+}
+
+// Service/top-level/build options known to be safe. Everything else is rejected
+// (see composeViolations); options with their own value checks are in serviceChecked.
+var (
+	topLevelAllowed = setOf("name", "version", "services", "networks", "volumes", "secrets", "configs")
+	serviceAllowed  = setOf("name", "image", "build", "command", "entrypoint", "environment", "env_file",
+		"expose", "volumes", "networks", "depends_on", "healthcheck", "restart", "user", "working_dir",
+		"labels", "deploy", "stop_signal", "stop_grace_period", "tty", "stdin_open", "init", "hostname",
+		"logging", "tmpfs", "read_only", "shm_size", "profiles", "pull_policy", "platform", "links",
+		"cap_drop", "mem_limit", "mem_reservation", "cpus", "cpu_shares", "pids_limit", "secrets",
+		"configs", "scale")
+	serviceChecked = setOf("privileged", "pid", "cgroup", "ipc", "uts", "userns_mode", "network_mode",
+		"cap_add", "devices", "security_opt", "cgroup_parent", "ports", "sysctls", "ulimits",
+		"extra_hosts", "volumes_from")
+	buildAllowed = setOf("context", "dockerfile", "dockerfile_inline", "args", "target", "labels", "tags",
+		"platforms", "pull", "no_cache", "cache_from", "additional_contexts", "network", "privileged",
+		"extra_hosts", "secrets", "shm_size")
+)
+
+const maxShmBytes = 2 << 30
+
+func setOf(keys ...string) map[string]bool {
+	m := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		m[k] = true
+	}
+	return m
+}
+
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// meaningful reports whether a JSON value sets anything (compose output carries
+// null, false, 0, "", [] and {} for options the file never mentioned).
+func meaningful(raw json.RawMessage) bool {
+	switch strings.TrimSpace(string(raw)) {
+	case "", "null", "false", "0", `""`, "{}", "[]":
+		return false
+	}
+	return true
+}
+
+// parseBytes reads a compose size: a number of bytes or a string like 64m / 1g.
+func parseBytes(raw json.RawMessage) (int64, bool) {
+	s := strings.ToLower(strings.Trim(strings.TrimSpace(string(raw)), `"`))
+	mult := int64(1)
+	for suffix, m := range map[string]int64{"kb": 1 << 10, "mb": 1 << 20, "gb": 1 << 30, "k": 1 << 10, "m": 1 << 20, "g": 1 << 30, "b": 1} {
+		if strings.HasSuffix(s, suffix) {
+			s, mult = strings.TrimSuffix(s, suffix), m
+			break
+		}
+	}
+	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
+	if err != nil || n < 0 {
+		return 0, false
+	}
+	return n * mult, true
+}
+
+// deployViolations allows only resource limits, replicas and the restart policy
+// of the compose `deploy` block (never device reservations or placement).
+func deployViolations(service string, raw json.RawMessage) []string {
+	if !meaningful(raw) {
+		return nil
+	}
+	var d map[string]json.RawMessage
+	if json.Unmarshal(raw, &d) != nil {
+		return []string{service + ": deploy is not readable"}
+	}
+	var out []string
+	for _, k := range sortedKeys(d) {
+		switch k {
+		case "replicas", "restart_policy", "mode":
+		case "resources":
+			var r map[string]json.RawMessage
+			_ = json.Unmarshal(d[k], &r)
+			for _, rk := range sortedKeys(r) {
+				switch rk {
+				case "limits":
+				case "reservations":
+					var res map[string]json.RawMessage
+					_ = json.Unmarshal(r[rk], &res)
+					if meaningful(res["devices"]) {
+						out = append(out, service+": deploy.resources.reservations.devices")
+					}
+				default:
+					if meaningful(r[rk]) {
+						out = append(out, fmt.Sprintf("%s: deploy.resources.%s is not allowed", service, rk))
+					}
+				}
+			}
+		default:
+			if meaningful(d[k]) {
+				out = append(out, fmt.Sprintf("%s: deploy.%s is not allowed", service, k))
+			}
+		}
+	}
+	return out
+}
+
+// imageAllowed keeps repos from running or overwriting images that belong to
+// PulseNode (pulsenode-*) or to other projects (pn-<slug>:<sha> rollback images).
+// An image built here (hasBuild) must be named after this project; one that is
+// only pulled may be anything except those local names.
+func imageAllowed(ref, project string, hasBuild bool) bool {
+	r := strings.ToLower(strings.TrimSpace(ref))
+	for _, p := range []string{"docker.io/library/", "index.docker.io/library/", "registry-1.docker.io/library/", "library/"} {
+		r = strings.TrimPrefix(r, p)
+	}
+	owned := r == project
+	for _, sep := range []string{"-", "/", ":", "@"} {
+		owned = owned || strings.HasPrefix(r, project+sep)
+	}
+	if hasBuild {
+		return owned
+	}
+	seg := r
+	if i := strings.IndexAny(seg, "/:@"); i >= 0 {
+		seg = seg[:i]
+	}
+	if strings.HasPrefix(seg, "pn-") || strings.HasPrefix(seg, "pulsenode") {
+		return owned
+	}
+	return true
 }

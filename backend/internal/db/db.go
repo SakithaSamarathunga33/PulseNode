@@ -204,6 +204,15 @@ CREATE TABLE IF NOT EXISTS container_heartbeats (
   checked_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_heartbeats_name_time ON container_heartbeats(container_name, checked_at);
+
+-- Hot lookups: per-deployment log reads and "last line" lookups, project/status
+-- filters, audit listing and alert counting. The DB has a single connection, so
+-- a table scan on any of these stalls every API request.
+CREATE INDEX IF NOT EXISTS idx_deployment_logs_dep ON deployment_logs(deployment_id, id);
+CREATE INDEX IF NOT EXISTS idx_deployments_project ON deployments(project_id, status);
+CREATE INDEX IF NOT EXISTS idx_deployments_status ON deployments(status);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_alert_history_state ON alert_history(state, resolved_at);
 `)
 	if err != nil {
 		return err
@@ -471,7 +480,10 @@ func (d *DB) ClaimProjectForDeploy(id string) (prev string, claimed bool, err er
 	if _, err := tx.Exec(`UPDATE projects SET status='building', updated_at=CURRENT_TIMESTAMP WHERE id=?`, id); err != nil {
 		return "", false, err
 	}
-	return prev, true, tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return prev, false, err // the claim was not persisted
+	}
+	return prev, true, nil
 }
 
 // ResetStuckProjects fixes projects left in building/queued by a crash when no
@@ -614,6 +626,30 @@ func (d *DB) UpdateDeploymentStatus(id, status string, startedAt, finishedAt *ti
 	return err
 }
 
+// CompleteDeployment records a successful deploy in one transaction: the project
+// first points at the new container (and baseline commit), then the deployment is
+// marked "success". Observers therefore never see a successful deployment on a
+// project that is still "building", and a crash cannot split the two writes.
+func (d *DB) CompleteDeployment(depID, projectID, containerID, commitSHA string, startedAt, finishedAt time.Time) error {
+	tx, err := d.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`UPDATE projects SET status='running', container_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`, containerID, projectID); err != nil {
+		return err
+	}
+	if commitSHA != "" {
+		if _, err := tx.Exec(`UPDATE projects SET last_commit_sha=? WHERE id=?`, commitSHA, projectID); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`UPDATE deployments SET status='success', started_at=?, finished_at=? WHERE id=?`, startedAt, finishedAt, depID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 // UpdateDeploymentCommit records the commit SHA and message a deployment built.
 func (d *DB) UpdateDeploymentCommit(id, sha, msg string) error {
 	_, err := d.Exec(`UPDATE deployments SET commit_sha=?, commit_msg=? WHERE id=?`, sha, msg, id)
@@ -667,18 +703,24 @@ func (d *DB) AppendLog(deploymentID, stream, line string) error {
 // DB has a single connection, so per-line writes would starve API requests
 // during chatty builds. Close flushes whatever is left.
 type LogWriter struct {
-	d    *DB
-	dep  string
-	mu   sync.Mutex
-	buf  [][2]string
-	stop chan struct{}
-	done chan struct{}
-	once sync.Once
+	d   *DB
+	dep string
+	mu  sync.Mutex // guards buf
+	// flushMu is held across "take the buffer" + "insert it", so two flushes can
+	// never commit out of order and interleave lines.
+	flushMu sync.Mutex
+	buf     [][2]string
+	stop    chan struct{}
+	done    chan struct{}
+	once    sync.Once
 }
 
 const (
 	logFlushEvery = 250 * time.Millisecond
 	logFlushLines = 100
+	// logRetainMax bounds the lines kept for retry after a failed insert; beyond
+	// it the oldest are dropped.
+	logRetainMax = 5000
 )
 
 func (d *DB) NewLogWriter(deploymentID string) *LogWriter {
@@ -708,12 +750,21 @@ func (w *LogWriter) Add(stream, line string) {
 	full := len(w.buf) >= logFlushLines
 	w.mu.Unlock()
 	if full {
-		w.Flush()
+		w.flush(false) // skip if a flush is already running; it (or the ticker) drains the rest
 	}
 }
 
 // Flush writes everything buffered so far.
-func (w *LogWriter) Flush() {
+func (w *LogWriter) Flush() { w.flush(true) }
+
+func (w *LogWriter) flush(wait bool) {
+	if wait {
+		w.flushMu.Lock()
+	} else if !w.flushMu.TryLock() {
+		return
+	}
+	defer w.flushMu.Unlock()
+
 	w.mu.Lock()
 	rows := w.buf
 	w.buf = nil
@@ -722,7 +773,16 @@ func (w *LogWriter) Flush() {
 		return
 	}
 	if err := w.d.insertLogs(w.dep, rows); err != nil {
-		log.Printf("[db] deployment %s: dropped %d log lines: %v", w.dep, len(rows), err)
+		// Keep the batch (ahead of anything added meanwhile) for the next flush.
+		w.mu.Lock()
+		w.buf = append(rows, w.buf...)
+		dropped := 0
+		if over := len(w.buf) - logRetainMax; over > 0 {
+			w.buf = w.buf[over:]
+			dropped = over
+		}
+		w.mu.Unlock()
+		log.Printf("[db] deployment %s: log insert failed (%d lines kept for retry, %d dropped): %v", w.dep, len(rows)-dropped, dropped, err)
 	}
 }
 
@@ -758,12 +818,17 @@ func (d *DB) insertLogs(deploymentID string, rows [][2]string) error {
 // than the given ages so those append-only tables stay bounded. Timestamps are
 // compared with SQLite's own clock to match the CURRENT_TIMESTAMP defaults.
 func (d *DB) PruneOld(logsAge, auditAge, alertsAge time.Duration) error {
-	days := func(a time.Duration) string { return fmt.Sprintf("-%d days", int(a.Hours()/24)) }
+	if logsAge <= 0 || auditAge <= 0 || alertsAge <= 0 {
+		return errors.New("db: retention ages must be positive")
+	}
+	hours := func(a time.Duration) string { return fmt.Sprintf("-%d hours", int(a.Hours())+1) }
 	var firstErr error
 	for _, q := range []struct{ sql, age string }{
-		{`DELETE FROM deployment_logs WHERE ts < datetime('now', ?)`, days(logsAge)},
-		{`DELETE FROM audit_log WHERE created_at < datetime('now', ?)`, days(auditAge)},
-		{`DELETE FROM alert_history WHERE fired_at < datetime('now', ?)`, days(alertsAge)},
+		{`DELETE FROM deployment_logs WHERE ts < datetime('now', ?)`, hours(logsAge)},
+		{`DELETE FROM audit_log WHERE created_at < datetime('now', ?)`, hours(auditAge)},
+		// Only closed alerts: a still-firing or acknowledged alert must outlive
+		// retention, or it would fire (and notify) a second time.
+		{`DELETE FROM alert_history WHERE state='resolved' AND COALESCE(resolved_at, fired_at) < datetime('now', ?)`, hours(alertsAge)},
 	} {
 		if _, err := d.Exec(q.sql, q.age); err != nil && firstErr == nil {
 			firstErr = err

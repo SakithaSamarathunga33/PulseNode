@@ -1,3 +1,10 @@
+# json-file log rotation for every panel service (Docker's default never rotates).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   caddy:
     image: caddy:2-alpine
@@ -12,6 +19,8 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     restart: unless-stopped
+    stop_grace_period: 15s
+    logging: *logging
     networks:
       - default
     security_opt:
@@ -38,6 +47,14 @@ services:
     depends_on:
       - go-api
     restart: unless-stopped
+    stop_grace_period: 15s
+    logging: *logging
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/login || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks:
       - default
     security_opt:
@@ -86,10 +103,18 @@ services:
       GIT_CONFIG_COUNT: "1"
       GIT_CONFIG_KEY_0: safe.directory
       GIT_CONFIG_VALUE_0: /workspace
+      # Soft Go heap limit, ~80% of PULSENODE_API_MEMORY below. If you lower the
+      # container limit, lower this too (e.g. 256M -> 200MiB). Also caps scanners:
+      # trivy/syft children get PULSENODE_SCANNER_MEMLIMIT (default 400MiB).
+      GOMEMLIMIT: ${PULSENODE_API_GOMEMLIMIT:-600MiB}
+      PULSENODE_SCANNER_MEMLIMIT: ${PULSENODE_SCANNER_MEMLIMIT:-400MiB}
+      TRIVY_CACHE_DIR: /var/cache/trivy
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - pn-go-data:/var/lib/pulsenode
       - pn-sqlite-data:/data
+      # Trivy vulnerability DB (can reach ~1 GB): its own volume, not the one holding secrets.
+      - pn-trivy-cache:/var/cache/trivy
       - ${PULSENODE_INSTALL_DIR:-.}:/workspace
     # go-api is root-equivalent on the host by design: it holds the Docker
     # socket and shares the host PID namespace (process list/kill). Protect it
@@ -98,18 +123,31 @@ services:
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
+    # Lets a running build drain and the database checkpoint before Docker SIGKILLs
+    # (the app waits up to ~60s: http 10s + deploy queue 45s + background loops).
+    stop_grace_period: 70s
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks:
       - default
     deploy:
       resources:
         limits:
-          cpus: "0.50"
-          memory: 128M
+          # go-api runs git, nixpacks, docker compose, backups and trivy/syft scans in
+          # this one cgroup, so 128M got it OOM-killed. Override on small hosts.
+          cpus: ${PULSENODE_API_CPUS:-0.50}
+          memory: ${PULSENODE_API_MEMORY:-768M}
         reservations:
           memory: 32M
 
 volumes:
   pn-go-data:
+  pn-trivy-cache:
   pn-sqlite-data:
   caddy-data:
   caddy-config:

@@ -2,7 +2,10 @@ package security
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -142,5 +145,77 @@ func TestParseCycloneDX(t *testing.T) {
 	}
 	if sum.Format != "CycloneDX 1.5" || sum.Packages != 3 || sum.Licenses != 2 || sum.Ecosystem["other"] != 1 {
 		t.Fatalf("got %+v", sum)
+	}
+}
+
+func TestOnlyOneScanAtATime(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	run := func(ctx context.Context, name string, args ...string) ([]byte, string, error) {
+		close(started)
+		<-release
+		return []byte(`{"Results":[]}`), "", nil
+	}
+	s := newTestService(t, map[string]bool{"trivy": true, "syft": true}, run)
+	done := make(chan error, 1)
+	go func() { _, err := s.Scan(context.Background(), "nginx:alpine"); done <- err }()
+	<-started
+
+	if _, err := s.Scan(context.Background(), "redis:7"); !errors.Is(err, ErrBusy) {
+		t.Fatalf("second scan must be refused with ErrBusy, got %v", err)
+	}
+	if _, err := s.SBOM(context.Background(), "redis:7", ""); !errors.Is(err, ErrBusy) {
+		t.Fatalf("SBOM during a scan must be refused with ErrBusy, got %v", err)
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	// Slot is free again.
+	s.run = func(context.Context, string, ...string) ([]byte, string, error) {
+		return []byte(`{"Results":[]}`), "", nil
+	}
+	if _, err := s.Scan(context.Background(), "redis:7"); err != nil {
+		t.Fatalf("slot must be released after the scan: %v", err)
+	}
+}
+
+func TestPurgeFakeHistoryOnce(t *testing.T) {
+	dir := t.TempDir()
+	scans := []map[string]any{
+		{"id": "scan_1", "image": "fake", "scanner": "Trivy", "duration": "23s", "status": "done", "crit": 2},
+		{"id": "scan_2", "image": "real-old", "scanner": "Trivy", "duration": "12.3s", "status": "done"},
+		{"id": "scan_3", "image": "real-new", "scanner": "Trivy", "duration": "4.0s", "status": "done", "ts": 1},
+	}
+	sboms := []map[string]any{
+		{"image": "fake", "format": "SPDX 2.3", "packages": 200},
+		{"image": "real", "format": "SPDX 2.3", "packages": 90, "status": "done", "ts": 1},
+	}
+	write := func(name string, v any) {
+		b, _ := json.Marshal(v)
+		if err := os.WriteFile(filepath.Join(dir, name), b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("scans.json", scans)
+	write("sboms.json", sboms)
+
+	s := &Service{dir: dir}
+	s.purgeFakeHistory()
+	if got := s.Scans(); len(got) != 2 || got[0]["id"] != "scan_2" || got[1]["id"] != "scan_3" {
+		t.Fatalf("only the whole-second, ts-less scan is fake; got %v", got)
+	}
+	if got := s.SBOMs(); len(got) != 1 || got[0]["image"] != "real" {
+		t.Fatalf("SBOM without status is fake; got %v", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "scans.json.bak")); err != nil {
+		t.Fatal("original must be kept as .bak")
+	}
+
+	// Marker present: later entries are never touched, even if they look old.
+	write("scans.json", []map[string]any{{"id": "x", "duration": "9s"}})
+	s.purgeFakeHistory()
+	if got := s.Scans(); len(got) != 1 {
+		t.Fatalf("purge must run only once, got %v", got)
 	}
 }

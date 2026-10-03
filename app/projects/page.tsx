@@ -4,11 +4,12 @@ import { API_BASE } from "@/lib/api"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import {
-  Plus, FolderGit2, GitBranch, Globe, Hammer, ChevronDown, Boxes, Server,
+  Plus, FolderGit2, GitBranch, Globe, Hammer, ChevronDown, Boxes, Server, AlertCircle, RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { EmptyState } from "@/components/pn/EmptyState"
@@ -158,12 +159,16 @@ function RepoGroup({ repoUrl, members }: { repoUrl: string; members: Project[] }
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading]   = useState(true)
+  const [error, setError]       = useState(false)
 
   const fetchProjects = async () => {
     try {
       const r = await fetch(`${GO_API}/api/projects`)
-      if (r.ok) setProjects(await r.json())
-    } catch { /* ignore */ }
+      if (!r.ok) throw new Error(String(r.status))
+      const data: unknown = await r.json()
+      setProjects(Array.isArray(data) ? (data as Project[]) : [])
+      setError(false)
+    } catch { setError(true) }
     finally { setLoading(false) }
   }
 
@@ -204,6 +209,17 @@ export default function ProjectsPage() {
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" aria-busy="true">
             {[0, 1, 2].map(i => <Skeleton key={i} className="h-28 rounded-xl" />)}
           </div>
+        ) : error && projects.length === 0 ? (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertTitle>Could not load projects</AlertTitle>
+            <AlertDescription className="flex flex-wrap items-center gap-3">
+              The request to the PulseNode API failed.
+              <Button variant="outline" size="sm" onClick={() => { setLoading(true); fetchProjects() }}>
+                <RefreshCw className="size-3.5" />Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
         ) : projects.length === 0 ? (
           <EmptyState
             icon={FolderGit2}

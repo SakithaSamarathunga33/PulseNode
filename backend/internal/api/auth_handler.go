@@ -129,24 +129,30 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "login not configured"})
 		return
 	}
-	if tooManyAttempts(w, body.Username) {
+	// Attempts are counted against the real account only; a made-up username can
+	// never succeed, so it is only counted per IP (see loginLimiter).
+	account, ip := unknownAccount, clientIP(r)
+	if user.Username == body.Username {
+		account = user.Username
+	}
+	if tooManyAttempts(w, account, ip) {
 		return
 	}
 	// Always run bcrypt so a wrong username takes as long as a wrong password.
 	pwOK := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(body.Password)) == nil
-	if user.Username != body.Username || !pwOK {
-		loginGuard.fail(body.Username)
+	if account == unknownAccount || !pwOK {
+		loginGuard.fail(account, ip)
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
 		return
 	}
-	loginGuard.reset(body.Username)
+	loginGuard.success(account, ip)
 	s.issueSession(w, r, user, time.Now().Unix())
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
-// tooManyAttempts answers 429 and returns true while key is locked out.
-func tooManyAttempts(w http.ResponseWriter, key string) bool {
-	wait, locked := loginGuard.locked(key)
+// tooManyAttempts answers 429 and returns true while account/ip must wait.
+func tooManyAttempts(w http.ResponseWriter, account, ip string) bool {
+	wait, locked := loginGuard.check(account, ip)
 	if !locked {
 		return false
 	}
@@ -208,25 +214,27 @@ func (s *Server) authSetup(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "db error"})
 		return
 	}
-	guardKey := "setup-token"
+	// Checking the current password is password guessing, so it spends the same
+	// budget as /login (same account key). The first-run setup token has its own.
+	guardKey, ip := "setup-token", clientIP(r)
 	if existing != nil {
-		guardKey = "setup:" + existing.Username
+		guardKey = existing.Username
 	}
-	if tooManyAttempts(w, guardKey) {
+	if tooManyAttempts(w, guardKey, ip) {
 		return
 	}
 	if existing != nil {
 		if bcrypt.CompareHashAndPassword([]byte(existing.PasswordHash), []byte(body.CurrentPassword)) != nil {
-			loginGuard.fail(guardKey)
+			loginGuard.fail(guardKey, ip)
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Current password is incorrect"})
 			return
 		}
 	} else if !s.insecureNoAuth && !s.checkSetupToken(body.SetupToken) {
-		loginGuard.fail(guardKey)
+		loginGuard.fail(guardKey, ip)
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid setup token"})
 		return
 	}
-	loginGuard.reset(guardKey)
+	loginGuard.success(guardKey, ip)
 	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), 12)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to hash password"})

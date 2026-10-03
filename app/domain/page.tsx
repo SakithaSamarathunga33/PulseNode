@@ -8,7 +8,7 @@ import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
 import { EmptyState } from "@/components/pn/EmptyState"
 import { Pill } from "@/components/dashboard/Pill"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -76,6 +76,7 @@ export default function DomainPage() {
   const [newDomain, setNewDomain] = useState("")
   const [checkDomain, setCheckDomain] = useState("")
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [saving, setSaving] = useState(false)
   const [busyHost, setBusyHost] = useState("")
   const [checking, setChecking] = useState(false)
@@ -84,20 +85,34 @@ export default function DomainPage() {
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
 
   const loadDomains = async () => {
-    const r = await fetch(`${GO_API}/api/domains`, { cache: "no-store" })
-    if (r.ok) setData(await r.json())
+    try {
+      const r = await fetch(`${GO_API}/api/domains`, { cache: "no-store" })
+      if (!r.ok) throw new Error(String(r.status))
+      const d: Partial<DomainsResponse> | null = await r.json()
+      setData({
+        domains: Array.isArray(d?.domains) ? d.domains : [],
+        expectedIp: d?.expectedIp ?? "",
+        aliases: Array.isArray(d?.aliases) ? d.aliases : [],
+      })
+      setLoadError(false)
+    } catch { setLoadError(true) }
   }
 
   const loadInUse = async () => {
-    const r = await fetch(`${GO_API}/api/domains/in-use`, { cache: "no-store" })
-    if (r.ok) {
+    try {
+      const r = await fetch(`${GO_API}/api/domains/in-use`, { cache: "no-store" })
+      if (!r.ok) throw new Error(String(r.status))
       const d = await r.json()
-      setInUse(d.hosts ?? [])
-    }
+      setInUse(Array.isArray(d?.hosts) ? d.hosts : [])
+    } catch { setLoadError(true) }
   }
+
+  const reload = () => { setLoadError(false); Promise.all([loadDomains(), loadInUse()]) }
 
   useEffect(() => {
     Promise.all([loadDomains(), loadInUse()]).finally(() => setLoading(false))
+    // loaders only touch state setters and a module constant
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const save = async (host: string) => {
@@ -179,6 +194,16 @@ export default function DomainPage() {
         description="Save the domains you use, verify their DNS, and see what each container is serving."
       />
       <PageBody>
+        {loadError && (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertTitle>Could not load your domains</AlertTitle>
+            <AlertDescription className="flex flex-wrap items-center gap-3">
+              The request to the PulseNode API failed.
+              <Button variant="outline" size="sm" onClick={reload}><RefreshCw className="size-3.5" />Retry</Button>
+            </AlertDescription>
+          </Alert>
+        )}
         {message && (
           <Alert variant="destructive"><AlertCircle /><AlertDescription>{message}</AlertDescription></Alert>
         )}
@@ -267,7 +292,21 @@ export default function DomainPage() {
               <p className="font-mono text-sm tabular-nums">{expectedIp || "Unknown"}</p>
             </div>
             {aliases.length > 0 && (
-              <div className="overflow-x-auto rounded-lg border">
+              <>
+              <ul className="divide-y rounded-lg border md:hidden" aria-label="DNS records">
+                {aliases.map(alias => (
+                  <li key={alias} className="flex items-center gap-3 px-3 py-2.5">
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <p className="font-mono text-xs break-all">{alias}</p>
+                      <p className="font-mono text-xs text-muted-foreground tabular-nums">A · {expectedIp || "Unknown"}</p>
+                    </div>
+                    <IconTip label="Copy IP">
+                      <Button variant="ghost" size="icon-sm" onClick={() => copy(expectedIp)} disabled={!expectedIp} aria-label={`Copy IP for ${alias}`}><Copy /></Button>
+                    </IconTip>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden overflow-x-auto rounded-lg border md:block">
                 <Table>
                   <TableHeader>
                     <TableRow><TableHead>Name</TableHead><TableHead>Type</TableHead><TableHead>Value</TableHead><TableHead className="w-10"><span className="sr-only">Copy</span></TableHead></TableRow>
@@ -288,6 +327,7 @@ export default function DomainPage() {
                   </TableBody>
                 </Table>
               </div>
+              </>
             )}
           </CardContent>
         </Card>

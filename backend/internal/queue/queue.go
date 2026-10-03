@@ -362,12 +362,12 @@ func (q *Queue) runDeployment(depID string) {
 	if res.ImageTag != "" {
 		q.logErr("record image", q.db.UpdateDeploymentImage(depID, res.ImageTag))
 	}
-	finished := time.Now()
-	q.logErr("mark deployment success", q.db.UpdateDeploymentStatus(depID, "success", &startedAt, &finished))
-	q.logErr("mark project running", q.db.UpdateProjectStatus(proj.ID, "running", res.ContainerID))
-	// Seed/refresh the baseline commit so the poller only fires on newer commits.
-	if res.CommitSHA != "" {
-		q.logErr("update baseline commit", q.db.UpdateProjectCommit(proj.ID, res.CommitSHA))
+	// Project first, deployment status last, in ONE transaction: nothing can
+	// observe a "successful" deployment on a project still "building", and a
+	// crash cannot leave the two disagreeing.
+	if err := q.db.CompleteDeployment(depID, proj.ID, res.ContainerID, res.CommitSHA, startedAt, time.Now()); err != nil {
+		fail("✕ Deployed, but recording the result failed: " + err.Error())
+		return
 	}
 	emit("system", "=== Deployment Successful ===")
 }

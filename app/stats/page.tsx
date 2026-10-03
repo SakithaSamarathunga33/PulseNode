@@ -269,7 +269,7 @@ export default function StatsPage() {
                 {host.disk.pct}% <span className="text-sm font-normal text-muted-foreground">used</span>
               </p>
               <ProgressBar value={host.disk.pct} className="h-3" />
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {[
                   { label: "Used", val: host.disk.used },
                   { label: "Free", val: host.disk.free },

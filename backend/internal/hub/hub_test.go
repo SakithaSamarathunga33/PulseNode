@@ -61,12 +61,52 @@ func TestConcurrentBroadcastDeliversToClients(t *testing.T) {
 
 	_ = c.SetReadDeadline(time.Now().Add(3 * time.Second))
 	got := 0
-	for got < senders*each+1 { // +1 for the initial alert:count frame
+	for got < senders*each { // no OpenAlertCount set → no alert:count frame on connect
 		var ev Event
 		if err := c.ReadJSON(&ev); err != nil {
 			t.Fatalf("read after %d frames: %v", got, err)
 		}
 		got++
+	}
+}
+
+// A new websocket gets the REAL firing-alert count, never a hard-coded zero.
+func TestConnectSendsRealAlertCount(t *testing.T) {
+	h := New()
+	h.OpenAlertCount = func() int { return 3 }
+	srv := httptest.NewServer(http.HandlerFunc(h.ServeWebSocket))
+	defer srv.Close()
+	c := dial(t, srv)
+	defer c.Close()
+	_ = c.SetReadDeadline(time.Now().Add(3 * time.Second))
+	var ev struct {
+		Type string
+		Data float64
+	}
+	if err := c.ReadJSON(&ev); err != nil {
+		t.Fatal(err)
+	}
+	if ev.Type != "alert:count" || ev.Data != 3 {
+		t.Fatalf("first frame = %+v, want alert:count 3", ev)
+	}
+}
+
+// Without a source for the count the hub says nothing rather than inventing one.
+func TestConnectWithoutCountSourceSendsNoAlertCount(t *testing.T) {
+	h := New()
+	srv := httptest.NewServer(http.HandlerFunc(h.ServeWebSocket))
+	defer srv.Close()
+	c := dial(t, srv)
+	defer c.Close()
+	waitClients(t, h, 1)
+	h.Broadcast("probe", 1)
+	_ = c.SetReadDeadline(time.Now().Add(3 * time.Second))
+	var ev Event
+	if err := c.ReadJSON(&ev); err != nil {
+		t.Fatal(err)
+	}
+	if ev.Type != "probe" {
+		t.Fatalf("first frame = %q, want probe (no alert:count)", ev.Type)
 	}
 }
 

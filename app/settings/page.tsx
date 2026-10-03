@@ -7,7 +7,7 @@ import {
 } from "lucide-react"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { Pill } from "@/components/dashboard/Pill"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -61,6 +61,7 @@ export default function SettingsPage() {
   const [version,      setVersion]      = useState<VersionInfo | null>(null)
   const [status,       setStatus]       = useState<UpdateStatus | null>(null)
   const [checking,     setChecking]     = useState(false)
+  const [loadError,    setLoadError]    = useState(false)
   const [updating,     setUpdating]     = useState(false)
   const [countdown,    setCountdown]    = useState(0)
   const [reconnecting, setReconnecting] = useState(false)
@@ -87,7 +88,8 @@ export default function SettingsPage() {
     try {
       const { data } = await nodeApi.get<VersionInfo>("/api/system/version")
       setVersion(data)
-    } catch { /* ignore */ }
+      setLoadError(false)
+    } catch { setLoadError(true) }
     finally { setChecking(false) }
   }, [])
 
@@ -102,7 +104,7 @@ export default function SettingsPage() {
     try {
       const { data } = await nodeApi.get<AuthStatus>("/api/auth/status")
       setAuthStatus(data)
-    } catch { /* ignore */ }
+    } catch { setLoadError(true) }
   }, [])
 
   useEffect(() => { fetchVersion() }, [fetchVersion])
@@ -238,6 +240,18 @@ export default function SettingsPage() {
     <>
       <PageHeader icon={Settings} title="Settings" description="System configuration and updates" />
       <PageBody className="max-w-6xl">
+        {loadError && !updating && (
+          <Alert variant="destructive">
+            <AlertTriangle />
+            <AlertTitle>Could not reach the PulseNode API</AlertTitle>
+            <AlertDescription className="flex flex-wrap items-center gap-3">
+              Version and account details may be missing or out of date.
+              <Button variant="outline" size="sm" onClick={() => { setLoadError(false); fetchVersion(); fetchAuthStatus() }}>
+                <RefreshCw className="size-3.5" />Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
           {/* Left column: Version + Updates */}
           <div className="space-y-5">

@@ -854,6 +854,9 @@ func (cfg Config) runEnv(ctx context.Context, dir string, extraEnv []string, nam
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	cmd.Env = buildEnv(extraEnv)
+	// A grandchild (buildx, git helper) can keep the output pipe open after the
+	// context kills the command; without WaitDelay Wait would block forever.
+	cmd.WaitDelay = 10 * time.Second
 	// Plain writers (not StdoutPipe + goroutines): os/exec then owns the copy
 	// goroutines and Wait() returns only after every byte was delivered, so the
 	// tail of the output — usually the error message — is never lost.

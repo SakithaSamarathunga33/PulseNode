@@ -68,6 +68,14 @@ func run() error {
 
 	collector := proc.NewCollector(60, 3*time.Second)
 	events := hub.New()
+	// New websockets get the real number of firing alerts (sidebar badge).
+	events.OpenAlertCount = func() int {
+		n, err := database.CountFiringAlerts()
+		if err != nil {
+			log.Warn().Err(err).Msg("alert count unavailable")
+		}
+		return n
+	}
 	jobQueue := queue.New(database, events, 2)
 	jobQueue.RecoverStuck()
 
@@ -119,7 +127,11 @@ func run() error {
 				cs, err := dockerClient.Containers(ctx)
 				out := make([]alerts.ContainerState, 0, len(cs))
 				for _, c := range cs {
-					out = append(out, alerts.ContainerState{Name: c.Name, State: c.State})
+					out = append(out, alerts.ContainerState{
+						Name: c.Name, State: c.State,
+						CleanExit: c.State == "exited" && c.ExitCode == 0,
+						OneOff:    c.OneOff,
+					})
 				}
 				return out, err
 			},

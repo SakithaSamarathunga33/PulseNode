@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Box, Cpu, MemoryStick, Activity, ArrowUp, ArrowDown, ChevronsUpDown, AlertCircle, Flame } from "lucide-react"
 import { nodeApi } from "@/lib/api"
 import type { Container } from "@/lib/types"
@@ -143,7 +143,12 @@ export default function RuntimePage() {
   const [heartbeats, setHeartbeats] = useState<ContainerHeartbeats[]>([])
   const [range, setRange]           = useState<Range>("24h")
 
+  // One request in flight per poll: a slow backend must not stack requests or
+  // let an older response overwrite a newer one.
+  const statsBusy = useRef(false)
   function fetchStats() {
+    if (statsBusy.current) return
+    statsBusy.current = true
     nodeApi.get<ContainerStat[]>("/api/docker/container-stats")
       .then(({ data }) => {
         if (Array.isArray(data)) {
@@ -153,23 +158,28 @@ export default function RuntimePage() {
         }
       })
       .catch(() => setError(true))
-      .finally(() => setLoading(false))
+      .finally(() => { statsBusy.current = false; setLoading(false) })
   }
 
   useEffect(() => {
     fetchStats()
     const id = setInterval(() => { if (!document.hidden) fetchStats() }, 3000)
     return () => clearInterval(id)
+    // fetchStats only uses state setters and a ref, so it is stable for this effect
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Uptime tab — current container list (for live status/uptime label), polled
   // frequently since it's cheap and drives the status dot.
   useEffect(() => {
+    let busy = false
     function fetchAll() {
+      if (busy) return
+      busy = true
       nodeApi.get<Container[]>("/api/docker/containers")
         .then(({ data }) => { if (Array.isArray(data)) setAllContainers(data) })
         .catch(() => {})
-        .finally(() => setAllLoaded(true))
+        .finally(() => { busy = false; setAllLoaded(true) })
     }
     fetchAll()
     const id = setInterval(() => { if (!document.hidden) fetchAll() }, 5000)
@@ -180,14 +190,19 @@ export default function RuntimePage() {
   // minute server-side), refetched when the range changes or on that same
   // cadence since more frequent polling wouldn't reveal new data anyway.
   useEffect(() => {
+    let busy = false
+    let stale = false // set on cleanup so a response for an old range is dropped
     function fetchHeartbeats() {
+      if (busy) return
+      busy = true
       nodeApi.get<ContainerHeartbeats[]>(`/api/docker/heartbeats?since=${range}`)
-        .then(({ data }) => { if (Array.isArray(data)) setHeartbeats(data) })
+        .then(({ data }) => { if (!stale && Array.isArray(data)) setHeartbeats(data) })
         .catch(() => {})
+        .finally(() => { busy = false })
     }
     fetchHeartbeats()
     const id = setInterval(() => { if (!document.hidden) fetchHeartbeats() }, 60000)
-    return () => clearInterval(id)
+    return () => { stale = true; clearInterval(id) }
   }, [range])
 
   const sorted = [...containers].sort((a, b) => {

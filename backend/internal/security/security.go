@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -27,6 +28,10 @@ const (
 // ErrUnavailable is returned when the scanner binary is not installed. Callers
 // surface it as status "unavailable" — scan numbers are never made up.
 var ErrUnavailable = errors.New("scanner not installed")
+
+// ErrBusy is returned when another scan or SBOM is already running. Scanners
+// are memory hungry, so only one runs at a time.
+var ErrBusy = errors.New("another scan or SBOM is already running; try again when it finishes")
 
 // ErrInvalidRef is returned for an image reference that is empty or not a valid ref.
 var ErrInvalidRef = errors.New("invalid image reference")
@@ -44,7 +49,12 @@ type Service struct {
 	mu       sync.Mutex
 	lookPath func(string) (string, error)
 	run      Runner
+	running  atomic.Bool // single-flight guard shared by Scan and SBOM
 }
+
+// acquire claims the single scanner slot; the caller must release() it.
+func (s *Service) acquire() bool { return s.running.CompareAndSwap(false, true) }
+func (s *Service) release()      { s.running.Store(false) }
 
 func New() *Service {
 	dir := os.Getenv("PULSENODE_DATA_DIR")
@@ -52,11 +62,27 @@ func New() *Service {
 		dir = "/var/lib/pulsenode"
 	}
 	_ = os.MkdirAll(dir, 0o755)
-	return &Service{dir: dir, lookPath: exec.LookPath, run: execRunner}
+	s := &Service{dir: dir, lookPath: exec.LookPath, run: execRunner}
+	s.purgeFakeHistory()
+	// The Trivy cache used to live in the data volume next to the secrets; it now
+	// has its own volume (TRIVY_CACHE_DIR). Reclaim the old copy in the background.
+	go os.RemoveAll(filepath.Join(dir, "trivy-cache"))
+	return s
+}
+
+// scannerMemLimit is the soft Go memory limit applied to trivy/syft child
+// processes so their garbage collector works harder instead of growing past the
+// container limit. Override with PULSENODE_SCANNER_MEMLIMIT (e.g. "1GiB").
+func scannerMemLimit() string {
+	if v := strings.TrimSpace(os.Getenv("PULSENODE_SCANNER_MEMLIMIT")); v != "" {
+		return v
+	}
+	return "400MiB"
 }
 
 func execRunner(ctx context.Context, name string, args ...string) ([]byte, string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = append(os.Environ(), "GOMEMLIMIT="+scannerMemLimit())
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -108,9 +134,14 @@ func (s *Service) Scan(ctx context.Context, target string) (map[string]any, erro
 		return result, nil
 	}
 
+	if !s.acquire() {
+		return nil, ErrBusy
+	}
+	defer s.release()
+
 	ctx, cancel := context.WithTimeout(ctx, scanTimeout)
 	defer cancel()
-	out, stderr, err := s.run(ctx, "trivy", "image", "--format", "json", "--quiet", "--scanners", "vuln", target)
+	out, stderr, err := s.run(ctx, "trivy", "image", "--format", "json", "--quiet", "--no-progress", "--skip-version-check", "--scanners", "vuln", target)
 	result["duration"] = fmt.Sprintf("%.1fs", time.Since(start).Seconds())
 	if err != nil {
 		result["status"] = StatusFailed
@@ -180,6 +211,11 @@ func (s *Service) SBOM(ctx context.Context, target string, format string) (map[s
 		result["message"] = "Syft is not installed in this PulseNode image. Update PulseNode to get the built-in SBOM generator."
 		return result, nil
 	}
+
+	if !s.acquire() {
+		return nil, ErrBusy
+	}
+	defer s.release()
 
 	ctx, cancel := context.WithTimeout(ctx, scanTimeout)
 	defer cancel()
@@ -344,4 +380,57 @@ func (s *Service) prepend(name string, item map[string]any) {
 	if os.WriteFile(tmp, data, 0o644) == nil {
 		_ = os.Rename(tmp, filepath.Join(s.dir, name))
 	}
+}
+
+const purgeMarker = ".fake-history-purged"
+
+var fakeDuration = regexp.MustCompile(`^\d+s$`)
+
+// purgeFakeHistory removes entries written by the old scanner that made up its
+// numbers, once (a marker file records it ran). They are distinguishable: the old
+// fake scan reported a whole-second duration ("23s") while a real run always has
+// a decimal ("23.4s") and every current entry carries "ts"; old SBOMs never had
+// a "status" field, which current ones always do. The originals are kept as
+// <name>.json.bak.
+func (s *Service) purgeFakeHistory() {
+	marker := filepath.Join(s.dir, purgeMarker)
+	if _, err := os.Stat(marker); err == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.purgeList("scans.json", func(it map[string]any) bool {
+		_, hasTS := it["ts"]
+		d, _ := it["duration"].(string)
+		return !hasTS && fakeDuration.MatchString(d)
+	})
+	s.purgeList("sboms.json", func(it map[string]any) bool {
+		_, hasStatus := it["status"]
+		return !hasStatus
+	})
+	_ = os.WriteFile(marker, []byte("1\n"), 0o600)
+}
+
+func (s *Service) purgeList(name string, fake func(map[string]any) bool) {
+	path := filepath.Join(s.dir, name)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	var items []map[string]any
+	if json.Unmarshal(data, &items) != nil {
+		return
+	}
+	kept := make([]map[string]any, 0, len(items))
+	for _, it := range items {
+		if !fake(it) {
+			kept = append(kept, it)
+		}
+	}
+	if len(kept) == len(items) {
+		return
+	}
+	_ = os.WriteFile(path+".bak", data, 0o600)
+	out, _ := json.MarshalIndent(kept, "", "  ")
+	_ = os.WriteFile(path, out, 0o600)
 }

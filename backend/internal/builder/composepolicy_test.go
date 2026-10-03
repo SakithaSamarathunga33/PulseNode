@@ -203,7 +203,7 @@ func TestComposeViolationsRejectsTakeoverAndNetworkAbuse(t *testing.T) {
 
 func TestComposeViolationsAllowsEmptyOptionalFields(t *testing.T) {
 	dir := t.TempDir()
-	raw := `{"name": "pn-build-1", "services": {"web": {"image": "nginx", "ports": null, "sysctls": {}, "ulimits": null, "extra_hosts": [],
+	raw := `{"name": "pn-build-1", "services": {"web": {"image": "pn-build-1-web:latest", "ports": null, "sysctls": {}, "ulimits": null, "extra_hosts": [],
 	  "build": {"context": "` + dir + `", "network": "default"}}},
 	  "networks": {"default": {"name": "pn-build-1_default"}},
 	  "volumes": {"data": {"name": "pn-build-1_data"}}}`
@@ -299,5 +299,176 @@ func TestRunEnvKeepsOutputTail(t *testing.T) {
 		if !strings.Contains(joined, want) {
 			t.Errorf("missing %.40q in output", want)
 		}
+	}
+}
+
+func TestComposeAllowListRejectsUnknownServiceOptions(t *testing.T) {
+	dir := t.TempDir()
+	raw := `{"services": {"app": {
+	  "image": "alpine",
+	  "use_api_socket": true,
+	  "device_cgroup_rules": ["b *:* rwm"],
+	  "runtime": "nvidia", "gpus": "all",
+	  "provider": {"type": "evil"},
+	  "post_start": [{"command": "id", "privileged": true}],
+	  "container_name": "pulsenode-go-api-1",
+	  "dns": ["10.0.0.1"], "external_links": ["panel_db_1"],
+	  "network_mode": "pulsenode_default",
+	  "logging": {"driver": "syslog"},
+	  "shm_size": "4g",
+	  "deploy": {"resources": {"reservations": {"devices": [{"capabilities": ["gpu"]}]}}, "placement": {"constraints": ["x"]}}
+	}}, "include": ["../other.yml"]}`
+	got := strings.Join(composeViolations([]byte(raw), dir, "pn-build-1"), "\n")
+	for _, want := range []string{
+		"app: use_api_socket is not allowed", "app: device_cgroup_rules is not allowed",
+		"app: runtime is not allowed", "app: gpus is not allowed", "app: provider is not allowed",
+		"app: post_start is not allowed", "app: container_name is not allowed",
+		"app: dns is not allowed", "app: external_links is not allowed",
+		"network_mode: pulsenode_default", "logging driver syslog", "shm_size above",
+		"reservations.devices", "deploy.placement is not allowed", "top-level include is not allowed",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing violation %q in:\n%s", want, got)
+		}
+	}
+}
+
+func TestComposeRejectsForeignImagesAndBuildOptions(t *testing.T) {
+	dir := t.TempDir()
+	raw := `{"services": {
+	  "a": {"image": "pulsenode-go-api:latest"},
+	  "b": {"image": "docker.io/library/pn-other-app:3f9a2c1"},
+	  "c": {"image": "pn-other-app:3f9a2c1"},
+	  "d": {"image": "nginx", "build": {"context": "` + dir + `"}},
+	  "e": {"build": {"context": "` + dir + `", "tags": ["pn-other-app:abc"], "entitlements": ["security.insecure"],
+	        "ssh": ["default"], "cache_to": ["type=registry,ref=evil/x"], "cache_from": ["type=local,src=/workspace"],
+	        "dockerfile": "/workspace/.env.local"}}
+	}}`
+	got := strings.Join(composeViolations([]byte(raw), dir, "pn-build-1"), "\n")
+	for _, want := range []string{
+		"a: image pulsenode-go-api", "b: image docker.io/library/pn-other-app", "c: image pn-other-app",
+		"d: image nginx", "e: build tag pn-other-app", "e: build.entitlements is not allowed",
+		"e: build.ssh is not allowed", "e: build.cache_to is not allowed", "e: build.cache_from",
+		"e: build.dockerfile outside the repository",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing violation %q in:\n%s", want, got)
+		}
+	}
+}
+
+func TestComposeAllowsImagesOwnedByTheProject(t *testing.T) {
+	dir := t.TempDir()
+	raw := `{"services": {
+	  "web": {"build": {"context": "` + dir + `", "tags": ["pn-build-1-web:v2"]}, "image": "pn-build-1-web:v2"},
+	  "db": {"image": "postgres:16"},
+	  "cache": {"image": "ghcr.io/acme/pn-tools:1"}
+	}}`
+	if v := composeViolations([]byte(raw), dir, "pn-build-1"); len(v) > 0 {
+		t.Fatalf("own / public images rejected: %v", v)
+	}
+}
+
+func TestComposeRejectsSecretsFromEnvironmentAndCustomDrivers(t *testing.T) {
+	dir := t.TempDir()
+	raw := `{"services": {"a": {"image": "alpine"}},
+	  "secrets": {"jwt": {"environment": "JWT_SECRET"}},
+	  "configs": {"c": {"environment": "AES_KEY"}},
+	  "volumes": {"v": {"name": "pn-build-1_v", "driver": "rexray/s3fs"}}}`
+	got := strings.Join(composeViolations([]byte(raw), dir, "pn-build-1"), "\n")
+	for _, want := range []string{"secret jwt: environment source", "config c: environment source", "volume v: driver rexray/s3fs"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing violation %q in:\n%s", want, got)
+		}
+	}
+}
+
+// A realistic web + db + redis stack, as `docker compose config --format json`
+// would print it, must keep working under the allow-list.
+func TestComposeRealisticStackPasses(t *testing.T) {
+	dir := t.TempDir()
+	raw := `{
+	  "name": "pn-build-1",
+	  "services": {
+	    "web": {
+	      "build": {"context": "` + dir + `", "dockerfile": "Dockerfile", "target": "prod", "args": {"NODE_ENV": "production"}, "network": "default"},
+	      "command": ["node", "server.js"],
+	      "depends_on": {"db": {"condition": "service_healthy", "required": true}, "cache": {"condition": "service_started", "required": true}},
+	      "env_file": [{"path": "` + filepath.Join(dir, ".env") + `", "required": true}],
+	      "environment": {"DATABASE_URL": "postgres://app@db/app", "PORT": "3000"},
+	      "expose": ["3000"],
+	      "healthcheck": {"test": ["CMD", "wget", "-qO-", "http://localhost:3000/health"], "interval": "30s", "timeout": "5s", "retries": 3},
+	      "networks": {"default": null},
+	      "restart": "unless-stopped",
+	      "labels": {"com.example.team": "web"},
+	      "deploy": {"resources": {"limits": {"cpus": 0.5, "memory": "536870912"}}, "replicas": 1},
+	      "init": true, "stop_grace_period": "30s", "user": "1000:1000", "working_dir": "/app",
+	      "logging": {"driver": "json-file", "options": {"max-size": "10m"}},
+	      "volumes": [{"type": "volume", "source": "uploads", "target": "/app/uploads", "volume": {}}],
+	      "ports": null, "privileged": false, "cap_add": null, "devices": null, "sysctls": {}
+	    },
+	    "db": {
+	      "image": "postgres:16-alpine",
+	      "environment": {"POSTGRES_PASSWORD": "x"},
+	      "healthcheck": {"test": ["CMD-SHELL", "pg_isready -U app"], "interval": "10s"},
+	      "networks": {"default": null}, "restart": "unless-stopped", "shm_size": "134217728",
+	      "volumes": [{"type": "volume", "source": "pgdata", "target": "/var/lib/postgresql/data", "volume": {}}]
+	    },
+	    "cache": {"image": "redis:7-alpine", "command": ["redis-server", "--appendonly", "yes"], "networks": {"default": null}, "tmpfs": ["/tmp"], "read_only": true}
+	  },
+	  "networks": {"default": {"name": "pn-build-1_default", "ipam": {}}},
+	  "volumes": {"uploads": {"name": "pn-build-1_uploads"}, "pgdata": {"name": "pn-build-1_pgdata"}}
+	}`
+	if v := composeViolations([]byte(raw), dir, "pn-build-1"); len(v) > 0 {
+		t.Fatalf("realistic compose stack rejected: %v", v)
+	}
+}
+
+func TestDetectIgnoresSymlinkedComposeFileAndDirs(t *testing.T) {
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "docker-compose.yml"), []byte("services: {}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "Dockerfile"), []byte("FROM scratch"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	repo := t.TempDir()
+	if err := os.Symlink(filepath.Join(outside, "docker-compose.yml"), filepath.Join(repo, "docker-compose.yml")); err != nil {
+		t.Fatal(err)
+	}
+	if got := composeFileName(repo); got != "" {
+		t.Fatalf("compose file symlinked outside the repo must be ignored, got %q", got)
+	}
+
+	mono := t.TempDir()
+	if err := os.Mkdir(filepath.Join(mono, "backend"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mono, "backend", "Dockerfile"), []byte("FROM scratch"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(mono, "frontend")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, ok := DetectMonorepo(mono); ok {
+		t.Fatal("a frontend/ symlinked outside the repo must not make a monorepo")
+	}
+
+	// A symlink that stays inside the repo is still not followed as a build dir.
+	inner := t.TempDir()
+	for _, d := range []string{"real", "backend"} {
+		if err := os.Mkdir(filepath.Join(inner, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(inner, d, "Dockerfile"), []byte("FROM scratch"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(filepath.Join(inner, "real"), filepath.Join(inner, "frontend")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, ok := DetectMonorepo(inner); ok {
+		t.Fatal("symlinked build directories must not be followed")
 	}
 }

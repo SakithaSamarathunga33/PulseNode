@@ -34,7 +34,7 @@ func (s *Server) databaseMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var items []metricItem
+	items := []metricItem{} // never nil: a nil slice would serialize as "metrics": null
 
 	// ── Container-level stats (CPU + RAM) via Docker stats API ────────────────
 	stat, statErr := s.docker.FetchOneStat(ctx, containerName)

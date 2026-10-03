@@ -69,7 +69,7 @@ export default function ImagesPage() {
 
   const fetchImages = useCallback(() => {
     nodeApi.get<DockerImage[]>("/api/docker/images")
-      .then(({ data }) => { setImages(data); setLoadError(false) })
+      .then(({ data }) => { setImages(Array.isArray(data) ? data : []); setLoadError(false) })
       .catch(() => setLoadError(true))
       .finally(() => setLoaded(true))
   }, [])
@@ -180,7 +180,31 @@ export default function ImagesPage() {
             action={images.length === 0 ? <Button onClick={() => setPullOpen(true)}>Pull image</Button> : undefined}
           />
         ) : (
-          <Card className="overflow-x-auto p-0">
+          <>
+          <ul className="space-y-3 md:hidden" aria-label="Images">
+            {filtered.map((img, i) => (
+              <li key={`${img.id}-${img.repo}-${img.tag}-${i}`} className="space-y-3 rounded-xl border bg-card p-3.5 shadow-card">
+                <div className="flex items-center gap-2">
+                  <RegistryIcon repo={img.repo} />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium" title={img.repo}>{img.repo}</span>
+                  <Badge variant="secondary" className="font-mono text-[11px]">{img.tag}</Badge>
+                </div>
+                <VulnBar v={img.vulns} />
+                <dl className="grid grid-cols-3 gap-2 text-xs">
+                  <div><dt className="text-muted-foreground">Size</dt><dd className="font-mono tabular-nums">{img.size}</dd></div>
+                  <div><dt className="text-muted-foreground">Layers</dt><dd className="font-mono tabular-nums">{img.layers}</dd></div>
+                  <div><dt className="text-muted-foreground">Created</dt><dd>{img.created}</dd></div>
+                </dl>
+                <div className="flex items-center justify-between gap-2">
+                  <Pill tone={img.used > 0 ? "ok" : "outline"} dot={img.used > 0}>
+                    {img.used > 0 ? `${img.used} container${img.used > 1 ? "s" : ""}` : "unused"}
+                  </Pill>
+                  <span className="font-mono text-[11px] text-muted-foreground">{img.id.replace("sha256:", "").slice(0, 12)}…</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <Card className="hidden gap-0 overflow-x-auto py-0 md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -223,6 +247,7 @@ export default function ImagesPage() {
               </TableBody>
             </Table>
           </Card>
+          </>
         )}
       </PageBody>
 

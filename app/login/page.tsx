@@ -1,7 +1,7 @@
 "use client"
 
 import { API_BASE } from "@/lib/api"
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AlertCircle, Loader2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -37,10 +37,16 @@ function LoginForm() {
   const [error,    setError]    = useState("")
   const [loading,  setLoading]  = useState(false)
   const [checking, setChecking] = useState(true)
+  const [unreachable, setUnreachable] = useState(false)
 
-  useEffect(() => {
+  const checkStatus = useCallback(() => {
+    setChecking(true)
+    setUnreachable(false)
     fetch(`${GO_API}/api/auth/status`, { cache: "no-store" })
-      .then(r => r.json() as Promise<AuthStatus>)
+      .then(r => {
+        if (!r.ok) throw new Error(String(r.status))
+        return r.json() as Promise<AuthStatus>
+      })
       .then(d => {
         if (!d.enabled || d.loggedIn) {
           router.replace(safeNext(params.get("next")))
@@ -49,8 +55,10 @@ function LoginForm() {
           setChecking(false)
         }
       })
-      .catch(() => setChecking(false))
+      .catch(() => { setUnreachable(true); setChecking(false) })
   }, [router, params])
+
+  useEffect(() => { checkStatus() }, [checkStatus])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -109,13 +117,24 @@ function LoginForm() {
         <BorderBeam size={120} duration={8} borderWidth={2} colorFrom="var(--primary)" colorTo="var(--chart-5)" />
         <CardHeader className="items-center text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logodark-removebg-preview.png" alt="PulseNode" className="mx-auto h-16 w-auto" />
+          <img src="/logodark-removebg-preview.png" alt="PulseNode" className="theme-logo-dark mx-auto h-16 w-auto" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-removebg-preview.png" alt="PulseNode" className="theme-logo-light mx-auto h-16 w-auto" />
           <h1 className="sr-only">{setup ? "Create your PulseNode admin account" : "Sign in to PulseNode"}</h1>
           <CardDescription className="pt-2">
             {setup ? "Create your admin account" : "Sign in to your dashboard"}
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {unreachable ? (
+            <div className="space-y-4">
+              <Alert variant="destructive" role="alert">
+                <AlertCircle />
+                <AlertDescription>Server unreachable. Check that PulseNode is running, then try again.</AlertDescription>
+              </Alert>
+              <Button type="button" size="lg" variant="outline" className="w-full" onClick={checkStatus}>Retry</Button>
+            </div>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             {setup && (
               <div className="space-y-1.5">
@@ -186,6 +205,7 @@ function LoginForm() {
               {setup ? "Create account & sign in" : "Sign in"}
             </Button>
           </form>
+          )}
         </CardContent>
       </Card>
     </main>

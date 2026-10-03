@@ -302,7 +302,30 @@ export default function ProcessesPage() {
             </div>
 
             <Card className="gap-0 py-0">
-              <div className="overflow-x-auto">
+              <ul className="divide-y md:hidden" aria-label="Processes">
+                {sorted.map(proc => (
+                  <li key={proc.pid} className="space-y-2.5 p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs tabular-nums text-muted-foreground">PID {proc.pid}</span>
+                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{proc.user}</span>
+                      {proc.state === "R" ? <Pill tone="ok" dot>Running</Pill> : <Pill tone="outline">Sleep</Pill>}
+                    </div>
+                    <CommandCell proc={proc} max="max-w-full" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <UsageCell pct={(proc.cpu / 15) * 100} label={`CPU ${proc.cpu.toFixed(1)}`} />
+                      <UsageCell
+                        pct={proc.memMb != null ? Math.min(100, (proc.memMb / 500) * 100) : (proc.mem / 10) * 100}
+                        label={proc.memMb != null ? `MEM ${proc.memMb}M` : `MEM ${proc.mem.toFixed(1)}%`}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs text-muted-foreground">RES {proc.res}</span>
+                      <ProcessActions proc={proc} onRequest={requestAction} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden overflow-x-auto md:block">
                 <Table>
                   <TableHeader>
                     <TableRow>

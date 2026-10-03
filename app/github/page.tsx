@@ -2,7 +2,7 @@
 
 import { API_BASE } from "@/lib/api"
 import { useState, useEffect, useCallback } from "react"
-import { Key, Unlink, ExternalLink, ChevronRight, Shield, Webhook, GitBranch, Loader2, Check, Eye, EyeOff, AlertCircle } from "lucide-react"
+import { Key, Unlink, ExternalLink, ChevronRight, Shield, Webhook, GitBranch, Loader2, Check, Eye, EyeOff, AlertCircle, RefreshCw } from "lucide-react"
 import { GitHubDark } from "developer-icons"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -10,13 +10,14 @@ import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
 import { CopyField } from "@/components/github/SecretField"
 import { Pill } from "@/components/dashboard/Pill"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useTimeouts } from "@/lib/use-timeouts"
 
 const GO_API = API_BASE
 
@@ -27,6 +28,8 @@ export default function GitHubPage() {
   const [account, setAccount]             = useState<Account | null>(null)
   const [oauthSettings, setOAuthSettings] = useState<OAuthSettings | null>(null)
   const [loading, setLoading]             = useState(true)
+  const [loadError, setLoadError]         = useState(false)
+  const later = useTimeouts()
 
   const [patValue, setPatValue]           = useState("")
   const [patLoading, setPatLoading]       = useState(false)
@@ -44,17 +47,20 @@ export default function GitHubPage() {
   const fetchAccount = useCallback(async () => {
     try {
       const r = await fetch(`${GO_API}/api/github/account`)
+      if (!r.ok) throw new Error(String(r.status))
       setAccount((await r.json()) ?? null)
-    } catch { setAccount(null) }
+      setLoadError(false)
+    } catch { setAccount(null); setLoadError(true) }
   }, [])
 
   const fetchOAuthSettings = useCallback(async () => {
     try {
       const r = await fetch(`${GO_API}/api/github/oauth-settings`)
+      if (!r.ok) throw new Error(String(r.status))
       const d: OAuthSettings = await r.json()
       setOAuthSettings(d)
       setClientId(d.clientId ?? "")
-    } catch { setOAuthSettings(null) }
+    } catch { setOAuthSettings(null); setLoadError(true) }
   }, [])
 
   const fetchWebhook = useCallback(async () => {
@@ -77,8 +83,11 @@ export default function GitHubPage() {
   const webhookUrl = typeof window !== "undefined" ? `${window.location.origin}${GO_API}/api/github/webhook` : ""
 
   const connectOAuth = async () => {
-    const r = await fetch(`${GO_API}/api/github/auth-url`)
-    window.location.href = (await r.json()).url
+    try {
+      const r = await fetch(`${GO_API}/api/github/auth-url`)
+      if (!r.ok) throw new Error(String(r.status))
+      window.location.href = (await r.json()).url
+    } catch { toast.error("Could not start the GitHub sign-in. Check that the PulseNode API is reachable.") }
   }
 
   const connectPAT = async () => {
@@ -99,23 +108,28 @@ export default function GitHubPage() {
   }
 
   const disconnect = async () => {
-    await fetch(`${GO_API}/api/github/account`, { method: "DELETE" })
-    setAccount(null)
+    try {
+      const r = await fetch(`${GO_API}/api/github/account`, { method: "DELETE" })
+      if (!r.ok) throw new Error(String(r.status))
+      setAccount(null)
+    } catch { toast.error("Could not disconnect the GitHub account.") }
   }
 
   const saveOAuthSettings = async () => {
     setOauthSaving(true)
     try {
-      await fetch(`${GO_API}/api/github/oauth-settings`, {
+      const r = await fetch(`${GO_API}/api/github/oauth-settings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientId, clientSecret }),
       })
+      if (!r.ok) throw new Error(String(r.status))
       setClientSecret("")
       setOauthSaved(true)
       await fetchOAuthSettings()
-      setTimeout(() => setOauthSaved(false), 3000)
-    } finally { setOauthSaving(false) }
+      later(() => setOauthSaved(false), 3000)
+    } catch { toast.error("Could not save the OAuth settings.") }
+    finally { setOauthSaving(false) }
   }
 
   if (loading) {
@@ -141,6 +155,18 @@ export default function GitHubPage() {
         actions={account && <Pill tone="ok" dot>Connected</Pill>}
       />
       <PageBody>
+        {loadError && (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertTitle>Could not load the GitHub connection</AlertTitle>
+            <AlertDescription className="flex flex-wrap items-center gap-3">
+              The request to the PulseNode API failed, so the account state below may be wrong.
+              <Button variant="outline" size="sm" onClick={() => { setLoadError(false); fetchAccount(); fetchOAuthSettings() }}>
+                <RefreshCw className="size-3.5" />Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
         {/* Account */}
         {account ? (
           <Card>

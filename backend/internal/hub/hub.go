@@ -46,6 +46,10 @@ type Hub struct {
 	// browsers only (any present Origin is rejected). Set from the app's
 	// configured origins at startup.
 	AllowedOrigins []string
+	// OpenAlertCount, when set, reports how many alerts are firing; a new
+	// websocket is sent that real number on connect. Set it before serving.
+	// When nil no alert:count frame is sent (never a made-up zero).
+	OpenAlertCount func() int
 }
 
 func New() *Hub {
@@ -207,7 +211,9 @@ func (h *Hub) ServeWebSocket(w http.ResponseWriter, r *http.Request) {
 		_ = conn.Close()
 	}()
 
-	c.send <- Event{Type: "alert:count", Data: 0}
+	if h.OpenAlertCount != nil {
+		c.send <- Event{Type: "alert:count", Data: h.OpenAlertCount()}
+	}
 
 	// Clients only listen; reading exists to process control frames, enforce the
 	// pong deadline (dead peers are detected) and bound anything a client sends.

@@ -285,7 +285,7 @@ func TestPruneOld(t *testing.T) {
 	d := newTestDB(t)
 	_, _ = d.Exec(`INSERT INTO deployment_logs (deployment_id, stream, line, ts) VALUES ('d','stdout','old', datetime('now','-40 days')), ('d','stdout','new', datetime('now'))`)
 	_, _ = d.Exec(`INSERT INTO audit_log (action, created_at) VALUES ('old', datetime('now','-100 days')), ('new', datetime('now'))`)
-	_, _ = d.Exec(`INSERT INTO alert_history (rule_id,rule_name,metric,value,severity,fired_at) VALUES ('r','r','cpu',1,'warning', datetime('now','-100 days')), ('r','r','cpu',1,'warning', datetime('now'))`)
+	_, _ = d.Exec(`INSERT INTO alert_history (rule_id,rule_name,metric,value,severity,state,fired_at,resolved_at) VALUES ('r','r','cpu',1,'warning','resolved', datetime('now','-100 days'), datetime('now','-100 days')), ('r','r','cpu',1,'warning','resolved', datetime('now'), datetime('now'))`)
 	if err := d.PruneOld(30*24*time.Hour, 90*24*time.Hour, 90*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}

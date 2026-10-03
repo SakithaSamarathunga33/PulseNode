@@ -31,6 +31,7 @@ const (
 	defaultInterval = 15 * time.Second
 	historyKeep     = 30 * 24 * time.Hour
 	maxSeenDeploys  = 1000
+	maxScanDeploys  = 1000 // most failed deployments scanned per tick
 )
 
 // Store is the slice of *db.DB the evaluator needs.
@@ -57,7 +58,16 @@ type Broadcaster interface {
 type HostSample struct{ CPU, Memory, Disk float64 }
 
 // ContainerState is a container's name and Docker state ("running", "exited", …).
-type ContainerState struct{ Name, State string }
+// CleanExit marks an "exited" container that stopped with code 0 and OneOff a
+// compose `run` container: both are finished jobs, not outages.
+type ContainerState struct {
+	Name, State       string
+	CleanExit, OneOff bool
+}
+
+// countStore is implemented by stores that can count firing alerts; the evaluator
+// then broadcasts alert:count (the sidebar badge) whenever the count may change.
+type countStore interface{ CountFiringAlerts() (int, error) }
 
 // Deps wires the evaluator to the rest of the app.
 type Deps struct {
@@ -79,6 +89,7 @@ type Evaluator struct {
 	wg sync.WaitGroup // in-flight notifications
 
 	pending     map[string]time.Time // rule|target -> breach start
+	touched     map[string]bool      // keys evaluated this tick (to prune pending)
 	seenDeploys map[string]bool
 	primed      bool
 	lastPrune   time.Time
@@ -94,7 +105,7 @@ func New(d Deps) *Evaluator {
 	if d.Interval <= 0 {
 		d.Interval = defaultInterval
 	}
-	return &Evaluator{d: d, pending: map[string]time.Time{}, seenDeploys: map[string]bool{}}
+	return &Evaluator{d: d, pending: map[string]time.Time{}, touched: map[string]bool{}, seenDeploys: map[string]bool{}}
 }
 
 // Start runs the evaluator until ctx is cancelled. Call it in its own goroutine.
@@ -127,6 +138,7 @@ func (e *Evaluator) Tick(ctx context.Context) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	now := e.d.Now()
+	e.touched = map[string]bool{}
 
 	rules, err := e.d.Store.ListAlertRulesFull()
 	if err != nil {
@@ -185,7 +197,7 @@ func (e *Evaluator) Tick(ctx context.Context) {
 					continue
 				}
 				seen[c.Name] = true
-				down := isDown(c.State)
+				down := isDown(c)
 				v := 0.0
 				if down {
 					v = 1
@@ -205,6 +217,15 @@ func (e *Evaluator) Tick(ctx context.Context) {
 		}
 	}
 
+	// Forget breach timers for anything not evaluated this tick (container gone,
+	// rule disabled/removed, no sample): otherwise they leak, and a returning
+	// target would fire instantly off a stale start time.
+	for k := range e.pending {
+		if !e.touched[k] {
+			delete(e.pending, k)
+		}
+	}
+
 	e.checkDeploys(ctx, rules, now)
 
 	if now.Sub(e.lastPrune) > time.Hour {
@@ -215,10 +236,15 @@ func (e *Evaluator) Tick(ctx context.Context) {
 	}
 }
 
-func isDown(state string) bool {
-	switch state {
-	case "exited", "dead", "restarting":
+// isDown: restarting/dead containers and containers that exited abnormally. A
+// container that exited with code 0, or a compose one-off, finished its job and
+// is not an outage.
+func isDown(c ContainerState) bool {
+	switch c.State {
+	case "dead", "restarting":
 		return true
+	case "exited":
+		return !c.CleanExit && !c.OneOff
 	}
 	return false
 }
@@ -247,6 +273,7 @@ func Compare(v float64, op string, threshold float64) bool {
 // to one observation.
 func (e *Evaluator) process(ctx context.Context, r db.AlertRuleFull, o observation, now time.Time) {
 	key := r.ID + "|" + o.Target
+	e.touched[key] = true
 	if !o.Breach {
 		delete(e.pending, key)
 		e.resolve(ctx, r, o.Target)
@@ -303,7 +330,24 @@ func (e *Evaluator) record(ctx context.Context, r db.AlertRuleFull, ev db.AlertE
 	if e.d.Hub != nil {
 		e.d.Hub.Broadcast("alert:new", ToView(ev))
 	}
+	if ev.State == "firing" {
+		e.broadcastCount()
+	}
 	e.notify(ctx, r, ev, "firing")
+}
+
+// broadcastCount pushes the real number of firing alerts (sidebar badge).
+func (e *Evaluator) broadcastCount() {
+	cs, ok := e.d.Store.(countStore)
+	if !ok || e.d.Hub == nil {
+		return
+	}
+	n, err := cs.CountFiringAlerts()
+	if err != nil {
+		log.Warn().Err(err).Msg("alerts: could not count firing alerts")
+		return
+	}
+	e.d.Hub.Broadcast("alert:count", n)
 }
 
 func (e *Evaluator) resolve(ctx context.Context, r db.AlertRuleFull, target string) {
@@ -318,6 +362,7 @@ func (e *Evaluator) resolve(ctx context.Context, r db.AlertRuleFull, target stri
 	if e.d.Hub != nil {
 		e.d.Hub.Broadcast("alert:update", ToView(*ev))
 	}
+	e.broadcastCount()
 	e.notify(ctx, r, *ev, "resolved")
 }
 
@@ -375,15 +420,51 @@ func (e *Evaluator) notify(ctx context.Context, r db.AlertRuleFull, ev db.AlertE
 	}
 }
 
-// checkDeploys raises one event per newly failed deployment for deploy.failed
-// rules. The first pass only records what already failed so a restart does not
-// replay old failures.
+// checkDeploys raises one informational event per newly failed deployment for
+// deploy.failed rules. The first pass only records what already failed so a
+// restart (or enabling the rule) does not replay old failures. It does not touch
+// the database at all while no enabled rule watches deploy.failed.
+//
+// Failures are one-shot facts, not an ongoing condition, so they are stored
+// already resolved: they notify and show in history but never inflate the open
+// alert count.
 func (e *Evaluator) checkDeploys(ctx context.Context, rules []db.AlertRuleFull, now time.Time) {
-	failed, err := e.d.Store.RecentFailedDeployments(50)
-	if err != nil {
-		log.Warn().Err(err).Msg("alerts: could not read failed deployments")
+	watched := false
+	for _, r := range rules {
+		if r.Enabled && r.Metric == MetricDeployFailed {
+			watched = true
+			break
+		}
+	}
+	if !watched {
+		e.primed = false // re-prime when a rule is (re)enabled, ignoring what failed meanwhile
 		return
 	}
+
+	// Page through newest-first until we hit something already seen, so a burst
+	// of more than one page of failures between ticks is not lost.
+	var failed []db.FailedDeployment
+	limit := 50
+	for {
+		var err error
+		failed, err = e.d.Store.RecentFailedDeployments(limit)
+		if err != nil {
+			log.Warn().Err(err).Msg("alerts: could not read failed deployments")
+			return
+		}
+		allNew := len(failed) == limit && e.primed
+		for _, f := range failed {
+			if e.seenDeploys[f.ID] {
+				allNew = false
+				break
+			}
+		}
+		if !allNew || limit >= maxScanDeploys {
+			break
+		}
+		limit *= 4
+	}
+
 	if !e.primed {
 		for _, f := range failed {
 			e.seenDeploys[f.ID] = true
@@ -397,7 +478,8 @@ func (e *Evaluator) checkDeploys(ctx context.Context, rules []db.AlertRuleFull, 
 			e.seenDeploys[f.ID] = true
 		}
 	}
-	for _, f := range failed {
+	for i := len(failed) - 1; i >= 0; i-- { // oldest first
+		f := failed[i]
 		if e.seenDeploys[f.ID] {
 			continue
 		}
@@ -408,7 +490,7 @@ func (e *Evaluator) checkDeploys(ctx context.Context, rules []db.AlertRuleFull, 
 			}
 			e.record(ctx, r, db.AlertEventFull{
 				RuleID: r.ID, RuleName: r.Name, Metric: r.Metric, Value: 1, Severity: r.Severity,
-				State: "firing", Target: f.Project,
+				State: "resolved", Target: f.Project,
 				Message: describe(r, observation{Target: f.Project, Detail: f.Reason}),
 			})
 		}

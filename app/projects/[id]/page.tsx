@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import {
   Play, Trash2, Globe, GitBranch, ChevronLeft, Terminal, History, Settings2, ExternalLink,
-  Save, Zap, RotateCcw, Webhook, Server, Square, RotateCw, Box, Loader2, AlertCircle, FolderGit2,
+  Save, Zap, RotateCcw, Webhook, Server, Square, RotateCw, Box, Loader2, AlertCircle, RefreshCw, FolderGit2,
   Clock, ScrollText,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -226,18 +226,30 @@ export default function ProjectDetailPage() {
   const [saving, setSaving]     = useState(false)
   const [settingsErr, setSettingsErr] = useState("")
 
+  // "notfound" = the API answered 404; "error" = the request itself failed.
+  // Only consulted while no project is loaded, so a failed background refresh
+  // never replaces a page that already rendered.
+  const [loadErr, setLoadErr] = useState<"notfound" | "error" | null>(null)
+
   const fetchProject = useCallback(async () => {
-    const r = await fetch(`${GO_API}/api/projects/${id}`)
-    if (r.ok) setProject(await r.json())
+    try {
+      const r = await fetch(`${GO_API}/api/projects/${id}`)
+      if (r.status === 404) { setLoadErr("notfound"); return }
+      if (!r.ok) throw new Error(String(r.status))
+      setProject(await r.json())
+      setLoadErr(null)
+    } catch { setLoadErr(prev => prev ?? "error") }
   }, [id])
 
   const fetchDeployments = useCallback(async () => {
-    const r = await fetch(`${GO_API}/api/projects/${id}/deployments`)
-    if (r.ok) {
-      const deps: Deployment[] = await r.json()
+    try {
+      const r = await fetch(`${GO_API}/api/projects/${id}/deployments`)
+      if (!r.ok) return
+      const data: unknown = await r.json()
+      const deps: Deployment[] = Array.isArray(data) ? (data as Deployment[]) : []
       setDeployments(deps)
       if (deps[0]) setActiveDep(deps[0].ID)
-    }
+    } catch { /* deployments stay empty; the page shows its empty state */ }
   }, [id])
 
   // Load historical logs from JSON endpoint
@@ -245,7 +257,7 @@ export default function ProjectDetailPage() {
     setLogs([])
     try {
       const { data } = await nodeApi.get<LogLine[]>(`/api/projects/${id}/deployments/${depID}/logs`)
-      setLogs(data)
+      setLogs(Array.isArray(data) ? data : [])
     } catch { /* ignore */ }
   }, [id])
 
@@ -463,6 +475,25 @@ export default function ProjectDetailPage() {
       </>
     )
   }
+  if (!project && loadErr === "error") {
+    return (
+      <>
+        <PageHeader icon={FolderGit2} title="Could not load project" description={<BackLink />} />
+        <PageBody>
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertTitle>Could not load this project</AlertTitle>
+            <AlertDescription className="flex flex-wrap items-center gap-3">
+              The request to the PulseNode API failed.
+              <Button variant="outline" size="sm" onClick={() => { setLoading(true); setLoadErr(null); Promise.all([fetchProject(), fetchDeployments()]).finally(() => setLoading(false)) }}>
+                <RefreshCw className="size-3.5" />Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </PageBody>
+      </>
+    )
+  }
   if (!project) {
     return (
       <>
@@ -533,7 +564,7 @@ export default function ProjectDetailPage() {
             </>
           }
         >
-          <TabsList>
+          <TabsList className="max-w-full overflow-x-auto">
             <TabsTrigger value="settings"><Settings2 className="size-4" />Settings</TabsTrigger>
             <TabsTrigger value="logs"><Terminal className="size-4" />Logs</TabsTrigger>
             <TabsTrigger value="history"><History className="size-4" />History</TabsTrigger>

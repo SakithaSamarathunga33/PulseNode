@@ -146,8 +146,11 @@ func scanEvent(row rowScanner) (*AlertEventFull, error) {
 
 func (d *DB) InsertAlertEventFull(e *AlertEventFull) (int64, error) {
 	d.ensureAlertSchema()
-	res, err := d.Exec(`INSERT INTO alert_history (rule_id,rule_name,metric,value,severity,state,target,message) VALUES (?,?,?,?,?,?,?,?)`,
-		e.RuleID, e.RuleName, e.Metric, e.Value, e.Severity, e.State, e.Target, e.Message)
+	q := `INSERT INTO alert_history (rule_id,rule_name,metric,value,severity,state,target,message) VALUES (?,?,?,?,?,?,?,?)`
+	if e.State == "resolved" { // informational event: closed on arrival, so it ages out normally
+		q = `INSERT INTO alert_history (rule_id,rule_name,metric,value,severity,state,target,message,resolved_at) VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`
+	}
+	res, err := d.Exec(q, e.RuleID, e.RuleName, e.Metric, e.Value, e.Severity, e.State, e.Target, e.Message)
 	if err != nil {
 		return 0, err
 	}
@@ -259,30 +262,38 @@ type FailedDeployment struct {
 	Reason  string
 }
 
+// CountFiringAlerts is the number of alerts still firing (not acknowledged or
+// resolved); it backs the sidebar badge.
+func (d *DB) CountFiringAlerts() (int, error) {
+	d.ensureAlertSchema()
+	var n int
+	err := d.QueryRow(`SELECT COUNT(*) FROM alert_history WHERE state='firing'`).Scan(&n)
+	return n, err
+}
+
 // RecentFailedDeployments returns the newest failed deployments with the last log
-// line as the reason. The caller dedupes by ID.
+// line as the reason, in one query (the reason is an index lookup on
+// deployment_logs(deployment_id,id)). The caller dedupes by ID.
 func (d *DB) RecentFailedDeployments(limit int) ([]FailedDeployment, error) {
-	rows, err := d.Query(`SELECT d.id, p.name FROM deployments d JOIN projects p ON p.id=d.project_id WHERE d.status='failed' ORDER BY d.rowid DESC LIMIT ?`, limit)
+	rows, err := d.Query(`
+SELECT d.id, p.name,
+       COALESCE((SELECT l.line FROM deployment_logs l WHERE l.deployment_id = d.id ORDER BY l.id DESC LIMIT 1), '')
+FROM deployments d JOIN projects p ON p.id = d.project_id
+WHERE d.status = 'failed'
+ORDER BY d.rowid DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	out := []FailedDeployment{}
 	for rows.Next() {
 		var f FailedDeployment
-		if err := rows.Scan(&f.ID, &f.Project); err != nil {
-			rows.Close()
+		if err := rows.Scan(&f.ID, &f.Project, &f.Reason); err != nil {
 			return nil, err
 		}
 		out = append(out, f)
 	}
-	rows.Close() // single-connection pool: release before issuing more queries
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	for i := range out {
-		_ = d.QueryRow(`SELECT line FROM deployment_logs WHERE deployment_id=? ORDER BY id DESC LIMIT 1`, out[i].ID).Scan(&out[i].Reason)
-	}
-	return out, nil
+	return out, rows.Err()
 }
 
 // ── Notification channels (extras) ────────────────────────────────────────────

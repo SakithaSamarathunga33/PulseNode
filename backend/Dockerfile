@@ -52,8 +52,10 @@ WORKDIR /app
 ENV GO_PORT=4002
 ENV PULSENODE_DATA_DIR=/var/lib/pulsenode
 ENV DATABASE_PATH=/data/pulsenode.db
-# Trivy vulnerability DB lives on the persistent data volume so it is not re-downloaded on every restart.
-ENV TRIVY_CACHE_DIR=/var/lib/pulsenode/trivy-cache
+# Trivy vulnerability DB: its own volume (pn-trivy-cache in docker-compose.yml), kept apart from the
+# data volume that holds aes-key/jwt-secret, so it is not re-downloaded on every restart.
+ENV TRIVY_CACHE_DIR=/var/cache/trivy
+RUN mkdir -p /var/cache/trivy
 ENV SYFT_CHECK_FOR_APP_UPDATE=false
 COPY --from=builder /out/pulsenode /usr/local/bin/pulsenode
 EXPOSE 4002

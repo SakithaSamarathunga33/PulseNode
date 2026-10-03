@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"strconv"
 	"archive/tar"
 	"bytes"
 	"context"
@@ -19,7 +20,7 @@ type Client struct{ http *http.Client }
 
 type portBinding struct { PrivatePort int `json:"PrivatePort"`; PublicPort int `json:"PublicPort"`; Type string `json:"Type"` }
 
-type Container struct { ID string `json:"id"`; Name string `json:"name"`; Image string `json:"image"`; State string `json:"state"`; Uptime string `json:"uptime"`; CPU int `json:"cpu"`; RAM int `json:"ram"`; Ports string `json:"ports"`; Created string `json:"created"`; Node string `json:"node"` }
+type Container struct { ID string `json:"id"`; Name string `json:"name"`; Image string `json:"image"`; State string `json:"state"`; Uptime string `json:"uptime"`; CPU int `json:"cpu"`; RAM int `json:"ram"`; Ports string `json:"ports"`; Created string `json:"created"`; Node string `json:"node"`; ExitCode int `json:"-"`; OneOff bool `json:"-"` }
 type Image struct { Repo string `json:"repo"`; Tag string `json:"tag"`; ID string `json:"id"`; Size string `json:"size"`; Created string `json:"created"`; Used int `json:"used"`; Layers int `json:"layers"`; Vulns map[string]int `json:"vulns"` }
 type Network struct { Name string `json:"name"`; Driver string `json:"driver"`; Scope string `json:"scope"`; Subnet string `json:"subnet"`; Gateway string `json:"gateway"`; Containers int `json:"containers"`; Attachable bool `json:"attachable"`; Internal bool `json:"internal"` }
 type Database struct { Name string `json:"name"`; ContainerID string `json:"containerId"`; Engine string `json:"engine"`; Version string `json:"version"`; Host string `json:"host"`; Port int `json:"port"`; Size string `json:"size"`; Conns int `json:"conns"`; MaxConns int `json:"maxConns"`; QPS int `json:"qps"`; Slow int `json:"slow"`; State string `json:"state"` }
@@ -36,11 +37,20 @@ func New() (*Client, error) {
 }
 
 func (c *Client) Containers(ctx context.Context) ([]Container, error) {
-	var raw []struct { ID string `json:"Id"`; Names []string `json:"Names"`; Image string `json:"Image"`; State string `json:"State"`; Status string `json:"Status"`; Created int64 `json:"Created"`; Ports []portBinding `json:"Ports"` }
+	var raw []struct { ID string `json:"Id"`; Names []string `json:"Names"`; Image string `json:"Image"`; State string `json:"State"`; Status string `json:"Status"`; Created int64 `json:"Created"`; Ports []portBinding `json:"Ports"`; Labels map[string]string `json:"Labels"` }
 	if err := c.do(ctx, http.MethodGet, "/containers/json?all=true", nil, &raw); err != nil { return nil, err }
 	out := make([]Container, 0, len(raw))
-	for _, item := range raw { name := ""; if len(item.Names)>0 { name = strings.TrimPrefix(item.Names[0], "/") }; out = append(out, Container{ID: shortID(item.ID), Name: name, Image: item.Image, State: item.State, Uptime: item.Status, Ports: formatPorts(item.Ports), Created: time.Unix(item.Created,0).Format("Jan 2"), Node: "primary"}) }
+	for _, item := range raw { name := ""; if len(item.Names)>0 { name = strings.TrimPrefix(item.Names[0], "/") }; out = append(out, Container{ID: shortID(item.ID), Name: name, Image: item.Image, State: item.State, Uptime: item.Status, Ports: formatPorts(item.Ports), Created: time.Unix(item.Created,0).Format("Jan 2"), Node: "primary", ExitCode: exitCodeOf(item.State, item.Status), OneOff: strings.EqualFold(item.Labels["com.docker.compose.oneoff"], "true")}) }
 	return out, nil
+}
+
+// exitCodeOf reads the exit code from a stopped container's Status ("Exited (0) 3 hours ago"); -1 when unknown or not exited.
+var exitedRe = regexp.MustCompile(`^Exited \((-?\d+)\)`)
+
+func exitCodeOf(state, status string) int {
+	if state != "exited" { return -1 }
+	if m := exitedRe.FindStringSubmatch(status); m != nil { if n, err := strconv.Atoi(m[1]); err == nil { return n } }
+	return -1
 }
 
 // ContainersWithLabels lists all containers with their raw labels, used for
