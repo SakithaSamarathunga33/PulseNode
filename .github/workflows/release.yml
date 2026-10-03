@@ -195,14 +195,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Trivy image scan
-        uses: aquasecurity/trivy-action@v0.33.1
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.name }}:${{ needs.version.outputs.tag }}
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          format: table
-          exit-code: '0'
+      # Installed directly (same pinned release + SHA-256 as backend/Dockerfile) instead of via
+      # trivy-action, whose own installer fetched a Trivy release that no longer downloads.
+      - name: Install Trivy
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-all-errors -o /tmp/trivy.tgz \
+            https://github.com/aquasecurity/trivy/releases/download/v0.75.0/trivy_0.75.0_Linux-64bit.tar.gz
+          echo "c6e65abddb348e25f10549df887045629cf28cc72453cd1c63acb717316b3f3f  /tmp/trivy.tgz" | sha256sum -c -
+          sudo tar -xzf /tmp/trivy.tgz -C /usr/local/bin trivy
+          trivy --version
+
+      - name: Trivy image scan (report-only)
+        run: |
+          trivy image --no-progress --severity CRITICAL,HIGH --ignore-unfixed --exit-code 0 \
+            "${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.name }}:${{ needs.version.outputs.tag }}"
 
   # 6) Only now create the tag and the GitHub release (the tag points at the commit that
   #    was built and tested).
