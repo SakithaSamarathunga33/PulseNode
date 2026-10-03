@@ -2,17 +2,17 @@
 
 import { API_BASE } from "@/lib/api"
 import { useState, useEffect, useCallback } from "react"
-import { Key, Unlink, ExternalLink, ChevronRight, Shield, Webhook, GitBranch, Loader2, Check, Eye, EyeOff, AlertCircle, RefreshCw } from "lucide-react"
+import { Key, Unlink, ExternalLink, ChevronRight, Webhook, GitBranch, Loader2, Check, Clock, Eye, EyeOff, AlertCircle, RefreshCw, Zap } from "lucide-react"
 import { GitHubDark } from "developer-icons"
 import Link from "next/link"
 import { toast } from "sonner"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
+import { Segmented } from "@/components/pn/Segmented"
 import { CopyField } from "@/components/github/SecretField"
 import { Pill } from "@/components/dashboard/Pill"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -34,6 +34,7 @@ export default function GitHubPage() {
   const [patValue, setPatValue]           = useState("")
   const [patLoading, setPatLoading]       = useState(false)
   const [patError, setPatError]           = useState("")
+  const [patType, setPatType]             = useState<"classic" | "fine">("classic")
 
   const [clientId, setClientId]           = useState("")
   const [clientSecret, setClientSecret]   = useState("")
@@ -132,10 +133,12 @@ export default function GitHubPage() {
     finally { setOauthSaving(false) }
   }
 
+  const DESC = "Repository access, deploy webhooks and OAuth configuration for GitHub deployments."
+
   if (loading) {
     return (
       <>
-        <PageHeader icon={GitBranch} title="GitHub" description="Connect your GitHub account to deploy projects from private and public repositories." />
+        <PageHeader icon={GitBranch} title="GitHub" description={DESC} />
         <PageBody>
           <Skeleton className="h-40 w-full rounded-xl" />
           <Skeleton className="h-64 w-full rounded-xl" />
@@ -145,16 +148,15 @@ export default function GitHubPage() {
   }
 
   const callbackUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/go/api/github/callback`
+  const oauthDirty = clientSecret.length > 0 || clientId !== (oauthSettings?.clientId ?? "")
+  const scopes = patType === "classic"
+    ? [["repo", "full scope"]]
+    : [["Contents", "Read"], ["Metadata", "Read"], ["Webhooks", "Read/Write"]]
 
   return (
     <>
-      <PageHeader
-        icon={GitBranch}
-        title="GitHub"
-        description="Connect your GitHub account to deploy projects from private and public repositories."
-        actions={account && <Pill tone="ok" dot>Connected</Pill>}
-      />
-      <PageBody>
+      <PageHeader icon={GitBranch} title="GitHub" description={DESC} />
+      <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
         {loadError && (
           <Alert variant="destructive">
             <AlertCircle />
@@ -167,72 +169,94 @@ export default function GitHubPage() {
             </AlertDescription>
           </Alert>
         )}
-        {/* Account */}
+
+        {/* Connection */}
         {account ? (
-          <Card>
-            <CardContent className="flex flex-wrap items-center gap-4">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={account.avatarUrl} alt={`${account.login} avatar`} className="size-12 rounded-full border" />
-              <div className="min-w-0 flex-1 basis-40">
-                <p className="truncate font-medium">{account.login}</p>
-                <p className="text-sm text-muted-foreground">
-                  Connected via {account.tokenType === "pat" ? "Personal Access Token" : "GitHub OAuth"}
+          <section aria-label="Connection" className="overflow-hidden rounded-xl border bg-card shadow-card">
+            <div className="flex flex-wrap items-center gap-4 px-5 py-[18px]">
+              <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-xl border bg-muted">
+                {account.avatarUrl
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={account.avatarUrl} alt={`${account.login} avatar`} className="size-full object-cover" />
+                  : <GitHubDark size={24} className="theme-dark-surface-icon" />}
+              </span>
+              <div className="min-w-[200px] flex-1 space-y-1">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <span className="font-mono text-[17px] font-semibold">{account.login}</span>
+                  <Pill tone="ok" dot>Connected</Pill>
+                </div>
+                <p className="text-[13px] text-muted-foreground">
+                  Authenticated via{" "}
+                  <b className="font-medium text-foreground">{account.tokenType === "pat" ? "Personal access token" : "OAuth app"}</b>
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button nativeButton={false} render={<Link href="/projects/new" />}>
-                  Deploy a project <ChevronRight />
-                </Button>
-                <Button variant="outline" onClick={() => setConfirmDisconnect(true)}>
+                <Button variant="destructive" onClick={() => setConfirmDisconnect(true)}>
                   <Unlink /> Disconnect
                 </Button>
+                <Button nativeButton={false} render={<Link href="/projects/new" />}>
+                  <Zap /> Deploy project
+                </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {oauthSettings?.configured && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><GitHubDark size={16} className="theme-dark-surface-icon" /> Connect with GitHub OAuth</CardTitle>
-                  <CardDescription>Authorize PulseNode to access your GitHub repositories.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button className="w-full" onClick={connectOAuth}>
-                    <GitHubDark size={15} /> Continue with GitHub
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
+          <section aria-label="Connect GitHub" className="overflow-hidden rounded-xl border bg-card shadow-card">
+            <div className="flex items-start gap-4 border-b px-[22px] pt-[22px] pb-[18px]">
+              <span className="grid size-[52px] shrink-0 place-items-center rounded-xl border bg-muted">
+                <GitHubDark size={26} className="theme-dark-surface-icon" />
+              </span>
+              <div className="space-y-1">
+                <h2 className="text-lg font-semibold">Connect GitHub</h2>
+                <p className="max-w-[560px] text-[13px] text-muted-foreground">
+                  PulseNode reads repositories, clones on deploy, and registers push webhooks. Choose how it authenticates.
+                </p>
+              </div>
+            </div>
 
-            <Card className={oauthSettings?.configured ? "" : "lg:col-span-2"}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Key className="size-4" /> Personal Access Token</CardTitle>
-                <CardDescription>
-                  Create a token at{" "}
-                  <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-primary underline underline-offset-2">
-                    github.com/settings/tokens <ExternalLink className="size-3" />
-                  </a>.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Alert>
-                  <AlertCircle />
-                  <AlertDescription className="space-y-2">
-                    <p>
-                      <span className="font-medium text-foreground">Classic token</span> (recommended, simplest): enable the{" "}
-                      <code className="rounded bg-muted px-1 font-mono text-xs">repo</code> scope. It covers reading and cloning
-                      private repos and auto-installing the deploy webhook.
+            <div className="grid gap-px bg-border md:grid-cols-2">
+              <div className="flex flex-col gap-3 bg-card px-[22px] py-5">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">OAuth app</span>
+                  <Pill tone="info">Recommended</Pill>
+                </div>
+                <p className="text-[13px] leading-relaxed text-muted-foreground">
+                  Sign in with GitHub and grant access to selected organizations. Tokens refresh automatically.
+                </p>
+                <Button className="w-fit" onClick={connectOAuth} disabled={!oauthSettings?.configured}>
+                  <GitHubDark size={14} /> Continue with GitHub
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  {oauthSettings?.configured
+                    ? "OAuth app is configured. You will be sent to GitHub to approve access."
+                    : "Requires a Client ID and Secret under OAuth settings below."}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 bg-card px-[22px] py-5">
+                <span className="text-sm font-semibold">Personal access token</span>
+                <Segmented<"classic" | "fine">
+                  aria-label="Token type"
+                  value={patType}
+                  onChange={v => { setPatType(v); setPatError("") }}
+                  options={[{ value: "classic", label: "Classic" }, { value: "fine", label: "Fine-grained" }]}
+                  className="w-fit"
+                />
+                <div className="space-y-1.5 rounded-lg border bg-muted/40 px-3 py-2.5">
+                  <p className="text-xs text-muted-foreground">Required permissions</p>
+                  {scopes.map(([k, v]) => (
+                    <p key={k} className="flex justify-between gap-2.5 font-mono text-xs">
+                      <span>{k}</span><span className="text-success">{v}</span>
                     </p>
-                    <p className="font-medium text-foreground">Fine-grained token (per-repo access)</p>
-                    <ul className="list-disc space-y-0.5 pl-4">
-                      <li><span className="text-foreground">Contents</span>: Read-only (clone the repo)</li>
-                      <li><span className="text-foreground">Metadata</span>: Read-only (mandatory, auto-selected)</li>
-                      <li><span className="text-foreground">Webhooks</span>: Read and write (auto-install push deploys)</li>
-                    </ul>
-                  </AlertDescription>
-                </Alert>
+                  ))}
+                  <p className="pt-1 text-xs text-muted-foreground">
+                    Create one at{" "}
+                    <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-primary underline underline-offset-2">
+                      github.com/settings/tokens <ExternalLink className="size-3" />
+                    </a>
+                  </p>
+                </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="pat">Token</Label>
                   <div className="flex gap-2">
@@ -240,7 +264,8 @@ export default function GitHubPage() {
                       id="pat"
                       type={showPat ? "text" : "password"}
                       autoComplete="off"
-                      placeholder="ghp_xxxxxxxxxxxx"
+                      spellCheck={false}
+                      placeholder={patType === "classic" ? "ghp_••••••••••••••••••••" : "github_pat_••••••••••••••••••••"}
                       value={patValue}
                       onChange={e => setPatValue(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && connectPAT()}
@@ -253,97 +278,101 @@ export default function GitHubPage() {
                     </Button>
                   </div>
                 </div>
-                {patError && (
-                  <Alert variant="destructive"><AlertCircle /><AlertDescription>{patError}</AlertDescription></Alert>
-                )}
-                <Button className="w-full" onClick={connectPAT} disabled={patLoading || !patValue.trim()}>
-                  {patLoading && <Loader2 className="animate-spin" />}
+                {patError && <p role="alert" className="text-xs text-danger">{patError}</p>}
+                <Button variant="outline" className="w-fit" onClick={connectPAT} disabled={patLoading || !patValue.trim()}>
+                  {patLoading ? <Loader2 className="animate-spin" /> : <Key />}
                   {patLoading ? "Validating…" : "Connect"}
                 </Button>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </div>
+          </section>
         )}
+
+        {/* Webhook (manual fallback) */}
+        <section aria-labelledby="gh-wh" className="rounded-xl border bg-card shadow-card">
+          <div className="space-y-0.5 border-b px-[18px] py-3.5">
+            <h2 id="gh-wh" className="flex items-center gap-2 text-sm font-semibold"><Webhook className="size-[15px]" /> Manual webhook</h2>
+            <p className="text-xs text-muted-foreground">
+              PulseNode installs the webhook itself when you create a project. Use this only when automatic registration is not possible,
+              e.g. repositories you do not administer: <span className="font-mono">Settings, Webhooks, Add webhook</span>.
+            </p>
+          </div>
+          <div className="space-y-3 px-[18px] py-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <CopyField id="wh-url" label="Payload URL" value={webhookUrl} />
+              <CopyField id="wh-secret" label="Secret" value={webhookSecret} secret />
+            </div>
+            <ul className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
+              <li className="inline-flex items-center gap-1.5"><Check className="size-3" />Content type <code className="font-mono text-foreground">application/json</code></li>
+              <li className="inline-flex items-center gap-1.5"><Check className="size-3" />Events: <code className="font-mono text-foreground">push</code> only</li>
+              <li className="inline-flex items-center gap-1.5"><Clock className="size-3" />The poller stays on as a fallback</li>
+            </ul>
+          </div>
+        </section>
 
         {/* OAuth App Settings */}
         <Collapsible>
-          <Card>
-            <CardHeader>
-              <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-                <Shield className="size-4" />
-                <CardTitle>OAuth App Settings</CardTitle>
-                {oauthSettings?.configured && <Pill tone="ok">Configured</Pill>}
-                <ChevronRight className="ml-auto size-4 text-muted-foreground transition-transform group-data-[panel-open]:rotate-90" aria-hidden />
-              </CollapsibleTrigger>
-            </CardHeader>
+          <section aria-label="OAuth settings" className="rounded-xl border bg-card">
+            <CollapsibleTrigger className="group flex w-full items-center gap-2.5 rounded-xl px-[18px] py-3.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+              <ChevronRight className="size-[15px] text-muted-foreground transition-transform group-data-[panel-open]:rotate-90" aria-hidden />
+              <span className="flex-1 text-sm font-semibold">OAuth settings</span>
+              {oauthSettings?.configured && <Pill tone="ok" dot>Configured</Pill>}
+              <span className="text-xs text-muted-foreground">Advanced</span>
+            </CollapsibleTrigger>
             <CollapsibleContent>
-              <CardContent className="grid gap-6 md:grid-cols-[1fr_16rem]">
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
+              <div className="grid gap-6 border-t px-[18px] py-4 md:grid-cols-2">
+                <div className="space-y-3">
+                  <p className="text-[13px] text-muted-foreground">
                     Create an OAuth App at{" "}
                     <a href="https://github.com/settings/developers" target="_blank" rel="noopener noreferrer"
                       className="text-primary underline underline-offset-2">github.com/settings/developers</a>{" "}
-                    and set the callback URL to
+                    and set its callback URL to:
                   </p>
                   <CopyField id="oauth-callback" label="Callback URL" value={callbackUrl} />
                   <div className="space-y-1.5">
                     <Label htmlFor="client-id">Client ID</Label>
-                    <Input id="client-id" placeholder="Iv1.xxxxxxxxxxxx" value={clientId} onChange={e => setClientId(e.target.value)} className="font-mono" />
+                    <Input id="client-id" placeholder="Iv1.xxxxxxxxxxxx" spellCheck={false} value={clientId} onChange={e => setClientId(e.target.value)} className="font-mono" />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="client-secret">
-                      Client Secret{oauthSettings?.hasSecret && <Pill tone="ok" className="ml-2">Already set</Pill>}
+                      Client Secret{oauthSettings?.hasSecret && <span className="ml-1.5 font-normal text-muted-foreground">(already set)</span>}
                     </Label>
                     <Input
                       id="client-secret"
                       type="password"
                       autoComplete="off"
-                      placeholder={oauthSettings?.hasSecret ? "Leave blank to keep existing" : "xxxxxxxxxxxxxxxxxxxx"}
+                      spellCheck={false}
+                      placeholder={oauthSettings?.hasSecret ? "Leave blank to keep the current secret" : "Paste client secret"}
                       value={clientSecret}
                       onChange={e => setClientSecret(e.target.value)}
                       className="font-mono"
                     />
                   </div>
-                  <Button onClick={saveOAuthSettings} disabled={oauthSaving}>
+                  <Button variant="outline" onClick={saveOAuthSettings} disabled={oauthSaving || !oauthDirty}>
                     {oauthSaving ? <Loader2 className="animate-spin" /> : oauthSaved ? <Check /> : null}
-                    {oauthSaved ? "Saved" : oauthSaving ? "Saving…" : "Save OAuth Settings"}
+                    {oauthSaved ? "Saved" : oauthSaving ? "Saving…" : "Save settings"}
                   </Button>
                 </div>
-                <div className="space-y-2 rounded-lg border bg-muted/40 p-4">
-                  <p className="text-sm font-medium">How OAuth works</p>
-                  <ol className="list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
-                    <li>Save your Client ID &amp; Secret</li>
-                    <li>Click &quot;Continue with GitHub&quot; in the Account section</li>
-                    <li>Authorize PulseNode on GitHub</li>
-                    <li>You&apos;re redirected back and connected</li>
+                <div className="space-y-2.5">
+                  <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">How OAuth works</p>
+                  <ol className="space-y-2.5">
+                    {[
+                      "Create an OAuth app in GitHub, Settings, Developer settings.",
+                      "Set its callback URL to the value on the left.",
+                      "Paste the Client ID and Client Secret and save.",
+                      "Click “Continue with GitHub” and approve access for your organizations.",
+                    ].map((t, i) => (
+                      <li key={t} className="flex gap-2.5 text-[13px] leading-relaxed text-muted-foreground">
+                        <span className="grid size-5 shrink-0 place-items-center rounded-[5px] bg-muted font-mono text-[11px] font-semibold">{i + 1}</span>
+                        <span>{t}</span>
+                      </li>
+                    ))}
                   </ol>
                 </div>
-              </CardContent>
+              </div>
             </CollapsibleContent>
-          </Card>
+          </section>
         </Collapsible>
-
-        {/* Webhook (manual fallback) */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Webhook className="size-4" /> Deploy webhook (manual)</CardTitle>
-            <CardDescription>
-              PulseNode installs this webhook automatically on a repo when you create a project from it. Use the details below
-              only to add it by hand (e.g. if the token lacked admin rights): <span className="font-mono">Settings, Webhooks, Add webhook</span>.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <CopyField id="wh-url" label="Payload URL" value={webhookUrl} />
-              <CopyField id="wh-secret" label="Secret" value={webhookSecret} secret />
-            </div>
-            <ul className="list-disc space-y-1 pl-4 text-sm text-muted-foreground">
-              <li>Content type: <code className="rounded bg-muted px-1 font-mono text-xs">application/json</code></li>
-              <li>Events: just the push event</li>
-              <li>The poller stays on as a fallback, so webhooks are optional but faster.</li>
-            </ul>
-          </CardContent>
-        </Card>
       </PageBody>
 
       <ConfirmDialog
@@ -351,8 +380,8 @@ export default function GitHubPage() {
         onOpenChange={setConfirmDisconnect}
         icon={Unlink}
         title="Disconnect GitHub?"
-        description="PulseNode will no longer be able to clone private repos or install webhooks until you reconnect."
-        target={account?.login}
+        items={account ? [{ primary: account.login, secondary: account.tokenType === "pat" ? "Personal access token" : "OAuth app" }] : undefined}
+        note="Auto deploys stop until you reconnect, and private repos can't be cloned. Existing deployments keep running."
         confirmLabel="Disconnect"
         onConfirm={async () => { await disconnect(); setConfirmDisconnect(false); toast.success("GitHub disconnected") }}
       />

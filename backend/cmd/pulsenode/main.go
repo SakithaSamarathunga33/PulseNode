@@ -16,6 +16,7 @@ import (
 
 	"pulsenode/backend/internal/alerts"
 	"pulsenode/backend/internal/api"
+	"pulsenode/backend/internal/backups"
 	"pulsenode/backend/internal/db"
 	"pulsenode/backend/internal/docker"
 	"pulsenode/backend/internal/hub"
@@ -27,6 +28,15 @@ func main() {
 	// `pulsenode updater` is the detached self-update helper (see api/update_sidecar.go).
 	if len(os.Args) > 1 && os.Args[1] == "updater" {
 		os.Exit(api.RunUpdater())
+	}
+	// Offline disaster-recovery helpers: no database or running panel needed.
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "restore-panel":
+			os.Exit(backups.RunRestoreCLI(os.Args[2:], os.Stdout, os.Stderr))
+		case "verify-backup":
+			os.Exit(backups.RunVerifyCLI(os.Args[2:], os.Stdout, os.Stderr))
+		}
 	}
 	// run() returns instead of calling log.Fatal so its deferred cleanup (DB
 	// close, WAL checkpoint) always executes.
@@ -142,6 +152,7 @@ func run() error {
 		})
 	})
 	spawn(func() { pruneDaily(ctx, database) })
+	spawn(func() { server.RunBackups(ctx) })
 
 	httpServer := &http.Server{
 		Addr:              ":" + port,

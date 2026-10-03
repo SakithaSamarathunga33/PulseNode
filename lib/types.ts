@@ -9,7 +9,6 @@ export interface Container {
   ports: string
   created: string
   node?: string
-  coolify?: CoolifyMeta
 }
 
 export interface ContainerStats {
@@ -100,7 +99,6 @@ export interface Database {
   tables?: DBTable[]
   slowQueries?: SlowQuery[]
   activeConns?: DBConnection[]
-  coolify?: CoolifyMeta
 }
 
 export interface DBTable {
@@ -163,58 +161,6 @@ export interface AlertRule {
   channels: string[]
   enabled: boolean
   sev: "bad" | "warn" | "info"
-}
-
-export interface CoolifyMeta {
-  applicationId: string
-  projectName: string
-  appName: string
-  type: "application" | "database" | "service"
-}
-
-export interface CoolifyProject {
-  id: string
-  name: string
-  apps: CoolifyApp[]
-  databases: CoolifyDatabase[]
-  services: CoolifyService[]
-}
-
-export interface CoolifyApp {
-  id: string
-  name: string
-  domains: string[]
-  status: "running" | "stopped" | "building" | "error"
-  lastDeployed: string
-  branch: string
-  containerName: string
-}
-
-export interface CoolifyDatabase {
-  id: string
-  name: string
-  engine: string
-  status: string
-  size: string
-  conns: number
-}
-
-export interface CoolifyService {
-  id: string
-  name: string
-  type: string
-  status: string
-  ports: string[]
-}
-
-export interface CoolifyDeployment {
-  id: string
-  appName: string
-  branch: string
-  status: "success" | "failed" | "running"
-  duration: string
-  triggeredBy: string
-  timestamp: string
 }
 
 export interface SparkData {

@@ -1,16 +1,18 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { toast } from "sonner"
 import {
-  ShieldCheck, Package, Play, Eye, CheckCircle2, XCircle, Loader2, ScanSearch, AlertCircle, CircleSlash,
+  ShieldCheck, ShieldAlert, AlertTriangle, AlertCircle, Info, Package, Play, Eye, Download, RotateCcw,
+  CheckCircle2, XCircle, Loader2, ScanSearch, CircleSlash,
 } from "lucide-react"
 import { nodeApi } from "@/lib/api"
 import type { Scan } from "@/lib/types"
+import { useSlashFocus } from "@/lib/use-slash-focus"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { SearchInput } from "@/components/pn/SearchInput"
 import { EmptyState } from "@/components/pn/EmptyState"
-import { StatCard } from "@/components/dashboard/StatCard"
+import { SummaryStrip } from "@/components/pn/SummaryStrip"
 import { Pill } from "@/components/dashboard/Pill"
 import { VulnBar } from "@/components/dashboard/VulnBar"
 import { Button } from "@/components/ui/button"
@@ -19,12 +21,9 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog"
-import {
-  Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
-} from "@/components/ui/sheet"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 type ScanRow = Omit<Scan, "status"> & { status: Scan["status"] | "unavailable"; message?: string }
@@ -32,7 +31,7 @@ type ScanRow = Omit<Scan, "status"> & { status: Scan["status"] | "unavailable"; 
 function StatusPill({ status }: { status: ScanRow["status"] }) {
   switch (status) {
     case "done":
-      return <Pill tone="ok"><CheckCircle2 className="size-3" />Done</Pill>
+      return <Pill tone="ok"><CheckCircle2 className="size-3" />Succeeded</Pill>
     case "failed":
       return <Pill tone="bad"><XCircle className="size-3" />Failed</Pill>
     case "unavailable":
@@ -46,15 +45,43 @@ function StatusPill({ status }: { status: ScanRow["status"] }) {
 
 function SevTile({ label, value, tone }: { label: string; value: number; tone: "crit" | "high" | "med" | "low" }) {
   return (
-    <div
-      className="rounded-lg p-3 text-center"
-      style={{ background: `var(--sev-${tone}-bg)`, color: `var(--sev-${tone}-fg)` }}
-    >
-      <p className="text-xl font-bold tabular-nums">{value}</p>
-      <p className="mt-0.5 text-xs font-semibold tracking-wider">{label}</p>
+    <div className="rounded-lg px-3 py-2.5" style={{ background: `var(--sev-${tone}-bg)`, color: `var(--sev-${tone}-fg)` }}>
+      <p className="text-[11px] font-bold tracking-wider">{label}</p>
+      <p className="text-[22px] leading-tight font-semibold tabular-nums">{value}</p>
     </div>
   )
 }
+
+const total = (s: ScanRow) => s.crit + s.high + s.med + s.low
+
+/** Row actions: view report, download the recorded result, re-scan the image. */
+function RowActions({ scan, busy, onView, onDownload, onRescan }: {
+  scan: ScanRow; busy: boolean
+  onView: () => void; onDownload: () => void; onRescan: () => void
+}) {
+  const btn = (label: string, icon: React.ReactNode, onClick: () => void, disabled?: boolean) => (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button variant="ghost" size="icon-sm" aria-label={`${label} ${scan.id}`} disabled={disabled}
+            onClick={e => { e.stopPropagation(); onClick() }} />
+        }
+      >
+        {icon}
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+  return (
+    <div className="flex justify-end gap-0.5">
+      {btn("View report", <Eye className="size-4" />, onView)}
+      {btn("Download JSON", <Download className="size-4" />, onDownload)}
+      {btn("Re-scan", <RotateCcw className="size-4" />, onRescan, busy)}
+    </div>
+  )
+}
+
+const STICKY = "sticky right-0 bg-card shadow-[-1px_0_0_var(--border)]"
 
 export default function ScanHistoryPage() {
   const [selectedScan, setSelectedScan] = useState<ScanRow | null>(null)
@@ -65,11 +92,14 @@ export default function ScanHistoryPage() {
   const [scanner, setScanner] = useState<{ trivy: boolean; syft: boolean } | null>(null)
   const [scanModalOpen, setScanModalOpen] = useState(false)
   const [scanTarget, setScanTarget] = useState("")
-  const [scanning, setScanning] = useState(false)
+  /** Image currently being scanned (the server runs one scan at a time). */
+  const [scanning, setScanning] = useState<string | null>(null)
   const [scanError, setScanError] = useState<string | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  useSlashFocus(searchRef)
 
   const loadScans = useCallback(() => {
-    nodeApi.get<ScanRow[]>("/security/scans")
+    return nodeApi.get<ScanRow[]>("/security/scans")
       .then(({ data }) => { setScans(Array.isArray(data) ? data : []); setLoadError(null) })
       .catch((e: unknown) => setLoadError(e instanceof Error ? e.message : "Could not load scans"))
   }, [])
@@ -80,53 +110,67 @@ export default function ScanHistoryPage() {
   }, [loadScans])
 
   useEffect(() => {
-    if (!scanModalOpen) { setScanTarget(""); setScanError(null); setScanning(false) }
+    if (!scanModalOpen) { setScanTarget(""); setScanError(null) }
   }, [scanModalOpen])
 
-  async function runScan() {
-    if (!scanTarget.trim()) return
-    setScanning(true)
+  /** Runs one scan. Resolves true when it produced a result; surfaces failures via toast or the dialog. */
+  async function runScan(image: string, fromDialog: boolean) {
+    const target = image.trim()
+    if (!target || scanning) return
+    setScanning(target)
     setScanError(null)
     try {
-      const res = await nodeApi.post<ScanRow>("/security/scan", { target: scanTarget.trim() })
-      if (res.status === "unavailable") {
-        setScanError(res.message ?? "The scanner is not available in this PulseNode image.")
+      const res = await nodeApi.post<ScanRow>("/security/scan", { target })
+      if (res.status === "unavailable" || res.status === "failed") {
+        const msg = res.message ?? (res.status === "unavailable" ? "The scanner is not available in this PulseNode image." : "The scan failed.")
+        if (fromDialog) setScanError(msg); else toast.error(`Scan of ${target}: ${msg}`)
+        if (res.status === "failed") void loadScans()
         return
       }
-      if (res.status === "failed") {
-        setScanError(res.message ?? "The scan failed.")
-        loadScans()
-        return
-      }
-      toast.success(`Scan finished for ${scanTarget.trim()}`)
-      setScanModalOpen(false)
-      loadScans()
+      toast.success(`Scan finished for ${target}`)
+      if (fromDialog) setScanModalOpen(false)
+      void loadScans()
     } catch (e: unknown) {
-      setScanError(e instanceof Error ? e.message : "scan failed")
+      const msg = e instanceof Error ? e.message : "scan failed"
+      if (fromDialog) setScanError(msg); else toast.error(`Scan of ${target}: ${msg}`)
     } finally {
-      setScanning(false)
+      setScanning(null)
     }
+  }
+
+  function download(scan: ScanRow) {
+    const blob = new Blob([JSON.stringify(scan, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${scan.id}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(`${scan.id}.json downloaded`)
   }
 
   const list = useMemo(() => scans ?? [], [scans])
   const succeeded = list.filter(s => s.status === "done").length
-  const failed    = list.filter(s => s.status === "failed").length
+  const failed = list.filter(s => s.status === "failed").length
 
-  const totalCrit = list.filter(s => s.status === "done").reduce((a, s) => a + s.crit, 0)
-  const totalHigh = list.filter(s => s.status === "done").reduce((a, s) => a + s.high, 0)
-  const totalMed  = list.filter(s => s.status === "done").reduce((a, s) => a + s.med, 0)
-  const totalLow  = list.filter(s => s.status === "done").reduce((a, s) => a + s.low, 0)
+  // Open findings = the newest finished scan of each image (the list is newest first).
+  const open = useMemo(() => {
+    const latest = new Map<string, ScanRow>()
+    for (const s of list) if (s.status === "done" && !latest.has(s.image)) latest.set(s.image, s)
+    const rows = [...latest.values()]
+    const sum = (k: "crit" | "high" | "med" | "low") => rows.reduce((a, s) => a + s[k], 0)
+    const affected = (k: "crit" | "high" | "med" | "low") => rows.filter(s => s[k] > 0).length
+    return { crit: sum("crit"), high: sum("high"), med: sum("med"), low: sum("low"), ac: affected("crit"), ah: affected("high"), am: affected("med"), al: affected("low") }
+  }, [list])
 
-  const filteredScans = useMemo(() => list.filter(s =>
-    !search ||
-    s.id.toLowerCase().includes(search.toLowerCase()) ||
-    s.image.toLowerCase().includes(search.toLowerCase())
-  ), [list, search])
+  const filteredScans = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return list.filter(s => !q || s.id.toLowerCase().includes(q) || s.image.toLowerCase().includes(q))
+  }, [list, search])
 
-  function openSheet(scan: ScanRow) {
-    setSelectedScan(scan)
-    setSheetOpen(true)
-  }
+  function openSheet(scan: ScanRow) { setSelectedScan(scan); setSheetOpen(true) }
+
+  const runningRow = scanning && (!search || scanning.toLowerCase().includes(search.trim().toLowerCase())) ? scanning : null
 
   return (
     <>
@@ -135,15 +179,17 @@ export default function ScanHistoryPage() {
         title="Scan History"
         description={
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="tabular-nums">{list.length} scans</span>
-            <Pill tone="ok" dot>{succeeded} succeeded</Pill>
-            <Pill tone={failed > 0 ? "bad" : "outline"} dot={failed > 0}>{failed} failed</Pill>
+            <span><b className="font-semibold text-foreground tabular-nums">{list.length}</b> scans</span>
+            <span aria-hidden className="text-border">·</span>
+            <span><b className="font-semibold text-success tabular-nums">{succeeded}</b> succeeded</span>
+            <span aria-hidden className="text-border">·</span>
+            <span><b className={failed > 0 ? "font-semibold text-danger tabular-nums" : "font-semibold text-foreground tabular-nums"}>{failed}</b> failed</span>
           </span>
         }
         actions={
-          <Button onClick={() => setScanModalOpen(true)}>
-            <Play className="size-4" />
-            Scan now
+          <Button onClick={() => setScanModalOpen(true)} disabled={!!scanning}>
+            {scanning ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
+            {scanning ? "Scanning…" : "Scan now"}
           </Button>
         }
       />
@@ -152,7 +198,10 @@ export default function ScanHistoryPage() {
           <Alert variant="destructive">
             <AlertCircle />
             <AlertTitle>Could not load scan history</AlertTitle>
-            <AlertDescription>{loadError}</AlertDescription>
+            <AlertDescription className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {loadError}
+              <Button variant="outline" size="xs" onClick={() => void loadScans()}>Retry</Button>
+            </AlertDescription>
           </Alert>
         )}
         {scanner && !scanner.trivy && (
@@ -162,136 +211,175 @@ export default function ScanHistoryPage() {
             <AlertDescription>This PulseNode image has no Trivy, so scans cannot run. Update PulseNode to get the built-in scanner. No results are ever estimated.</AlertDescription>
           </Alert>
         )}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard label="Critical" value={totalCrit} tone="bad" sub="across all scans" />
-          <StatCard label="High" value={totalHigh} tone="warn" sub="across all scans" />
-          <StatCard label="Medium" value={totalMed} tone="info" sub="across all scans" />
-          <StatCard label="Low" value={totalLow} tone="ok" sub="across all scans" />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <SearchInput
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search scans…"
-            aria-label="Search scans"
-          />
-        </div>
 
         {scans === null && !loadError ? (
-          <Skeleton className="h-48 rounded-xl" />
-        ) : filteredScans.length === 0 ? (
-          <EmptyState
-            icon={ScanSearch}
-            title={list.length === 0 ? "No scans yet" : "No scans match your search"}
-            description={list.length === 0 ? "Run a scan to check an image for vulnerabilities." : "Try a different scan ID or image."}
-            action={list.length === 0 ? <Button onClick={() => setScanModalOpen(true)}>Scan now</Button> : undefined}
-          />
+          <Skeleton className="h-[112px] rounded-xl" />
         ) : (
-          <>
-          <ul className="space-y-3 md:hidden" aria-label="Scans">
-            {filteredScans.map(scan => (
-              <li key={scan.id}>
-                <button
-                  type="button"
-                  onClick={() => openSheet(scan)}
-                  className="w-full space-y-3 rounded-xl border bg-card p-3.5 text-left shadow-card outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label={`View report for ${scan.id}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Package className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="min-w-0 flex-1 truncate font-mono text-xs" title={scan.image}>{scan.image}</span>
-                    <StatusPill status={scan.status} />
-                  </div>
-                  <VulnBar v={{ crit: scan.crit, high: scan.high, med: scan.med, low: scan.low }} />
-                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span className="font-mono">{scan.id}</span>
-                    <span>{scan.started} · <span className="font-mono tabular-nums">{scan.duration}</span></span>
-                  </div>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <Card className="hidden gap-0 overflow-x-auto py-0 md:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Scan ID</TableHead>
-                  <TableHead>Image</TableHead>
-                  <TableHead>Scanner</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Started</TableHead>
-                  <TableHead className="text-right">Duration</TableHead>
-                  <TableHead>Findings</TableHead>
-                  <TableHead className="w-10"><span className="sr-only">Actions</span></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredScans.map(scan => (
-                  <TableRow
-                    key={scan.id}
-                    className="cursor-pointer"
-                    onClick={() => openSheet(scan)}
-                  >
-                    <TableCell className="font-mono text-xs text-muted-foreground">{scan.id}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Package className="size-3.5 shrink-0 text-muted-foreground" />
-                        <span className="max-w-[220px] truncate font-mono text-xs" title={scan.image}>{scan.image}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell><Pill tone="outline">{scan.scanner}</Pill></TableCell>
-                    <TableCell><StatusPill status={scan.status} /></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{scan.started}</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">{scan.duration}</TableCell>
-                    <TableCell>
-                      <VulnBar v={{ crit: scan.crit, high: scan.high, med: scan.med, low: scan.low }} />
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`View report for ${scan.id}`}
-                        onClick={e => { e.stopPropagation(); openSheet(scan) }}
-                      >
-                        <Eye className="size-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-          </>
+          <SummaryStrip
+            aria-label="Open findings by severity"
+            items={[
+              { label: "Critical", icon: ShieldAlert, value: open.crit, meta: `${open.ac} images affected`, tone: open.crit > 0 ? "bad" : undefined },
+              { label: "High", icon: AlertTriangle, value: open.high, meta: `${open.ah} images affected`, tone: open.high > 0 ? "warn" : undefined },
+              { label: "Medium", icon: Info, value: open.med, meta: `${open.am} images affected` },
+              { label: "Low", icon: Info, value: open.low, meta: `${open.al} images affected` },
+            ]}
+          />
         )}
+
+        <section aria-labelledby="sh-table" className="min-w-0 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="sh-table" className="text-lg font-semibold">Scans</h2>
+            <div className="relative w-full max-w-[280px]">
+              <SearchInput
+                ref={searchRef}
+                className="max-w-none"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search image or scan ID"
+                aria-label="Search scans"
+              />
+              <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border bg-muted px-1.5 font-mono text-[11px] text-muted-foreground sm:block">/</kbd>
+            </div>
+          </div>
+
+          {scans === null && !loadError ? (
+            <Skeleton className="h-48 rounded-xl" />
+          ) : filteredScans.length === 0 && !runningRow ? (
+            <EmptyState
+              icon={ScanSearch}
+              title={list.length === 0 ? "No scans yet" : "No scans match your search"}
+              description={list.length === 0 ? "Run a scan to check an image for vulnerabilities." : "Try a different scan ID or image."}
+              action={list.length === 0 ? <Button onClick={() => setScanModalOpen(true)}>Scan now</Button> : undefined}
+            />
+          ) : (
+            <>
+              <ul className="space-y-3 md:hidden" aria-label="Scans">
+                {runningRow && (
+                  <li className="space-y-2 rounded-xl border bg-card p-3.5 shadow-card">
+                    <div className="flex items-center gap-2">
+                      <Package className="size-3.5 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate font-mono text-xs" title={runningRow}>{runningRow}</span>
+                      <StatusPill status="running" />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Scanning…</p>
+                  </li>
+                )}
+                {filteredScans.map(scan => (
+                  <li key={scan.id} className="space-y-3 rounded-xl border bg-card p-3.5 shadow-card">
+                    <div className="flex items-center gap-2">
+                      <Package className="size-3.5 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate font-mono text-xs" title={scan.image}>{scan.image}</span>
+                      <StatusPill status={scan.status} />
+                    </div>
+                    {total(scan) > 0
+                      ? <VulnBar v={{ crit: scan.crit, high: scan.high, med: scan.med, low: scan.low }} />
+                      : <p className="text-xs text-muted-foreground">{scan.status === "done" ? "No findings" : scan.message ?? "—"}</p>}
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <span className="font-mono">{scan.id}</span>
+                      <span>{scan.started} · <span className="font-mono tabular-nums">{scan.duration}</span></span>
+                    </div>
+                    <RowActions scan={scan} busy={!!scanning}
+                      onView={() => openSheet(scan)} onDownload={() => download(scan)} onRescan={() => void runScan(scan.image, false)} />
+                  </li>
+                ))}
+              </ul>
+
+              <Card className="hidden gap-0 overflow-hidden py-0 md:block">
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[1080px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Scan ID</TableHead>
+                        <TableHead>Image</TableHead>
+                        <TableHead>Scanner</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Started</TableHead>
+                        <TableHead className="text-right">Duration</TableHead>
+                        <TableHead>Findings</TableHead>
+                        <TableHead className={`${STICKY} text-right`}>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {runningRow && (
+                        <TableRow className="h-[50px]">
+                          <TableCell className="font-mono text-xs text-muted-foreground">—</TableCell>
+                          <TableCell><span className="font-mono text-xs">{runningRow}</span></TableCell>
+                          <TableCell className="text-xs text-muted-foreground">Trivy</TableCell>
+                          <TableCell><StatusPill status="running" /></TableCell>
+                          <TableCell className="text-muted-foreground">just now</TableCell>
+                          <TableCell className="text-right text-muted-foreground">—</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">Scanning…</TableCell>
+                          <TableCell className={STICKY} />
+                        </TableRow>
+                      )}
+                      {filteredScans.map(scan => (
+                        <TableRow key={scan.id} className="h-[50px] cursor-pointer" onClick={() => openSheet(scan)}>
+                          <TableCell className="font-mono text-xs text-muted-foreground">{scan.id}</TableCell>
+                          <TableCell>
+                            <span className="block max-w-[320px] truncate font-mono text-xs" title={scan.image}>{scan.image}</span>
+                          </TableCell>
+                          <TableCell className="text-xs whitespace-nowrap text-muted-foreground">{scan.scanner}</TableCell>
+                          <TableCell><StatusPill status={scan.status} /></TableCell>
+                          <TableCell className="whitespace-nowrap text-muted-foreground">{scan.started}</TableCell>
+                          <TableCell className="text-right font-mono tabular-nums text-muted-foreground">{scan.duration}</TableCell>
+                          <TableCell>
+                            {total(scan) > 0
+                              ? <VulnBar v={{ crit: scan.crit, high: scan.high, med: scan.med, low: scan.low }} />
+                              : <span className="block max-w-[220px] truncate text-xs text-muted-foreground" title={scan.message}>
+                                  {scan.status === "done" ? "No findings" : scan.message ?? "—"}
+                                </span>}
+                          </TableCell>
+                          <TableCell className={STICKY}>
+                            <RowActions scan={scan} busy={!!scanning}
+                              onView={() => openSheet(scan)} onDownload={() => download(scan)} onRescan={() => void runScan(scan.image, false)} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </Card>
+            </>
+          )}
+        </section>
       </PageBody>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="overflow-y-auto sm:max-w-md">
           <SheetHeader>
-            <SheetTitle className="font-mono text-sm">Scan report · {selectedScan?.id ?? "—"}</SheetTitle>
-            <SheetDescription className="truncate font-mono text-xs">{selectedScan?.image}</SheetDescription>
+            <SheetTitle>Scan report</SheetTitle>
+            <SheetDescription className="space-y-0.5">
+              <span className="block font-mono text-xs">{selectedScan?.id ?? "—"}</span>
+              <span className="block truncate font-mono text-xs" title={selectedScan?.image}>{selectedScan?.image}</span>
+            </SheetDescription>
           </SheetHeader>
           {selectedScan && (
             <div className="space-y-4 px-4 pb-4">
               <div className="flex flex-wrap items-center gap-2">
                 <StatusPill status={selectedScan.status} />
-                <Pill tone="outline">{selectedScan.scanner}</Pill>
                 <span className="text-xs text-muted-foreground">
-                  {selectedScan.started} · <span className="font-mono tabular-nums">{selectedScan.duration}</span>
+                  {selectedScan.scanner} · {selectedScan.started} · <span className="font-mono tabular-nums">{selectedScan.duration}</span>
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <SevTile label="CRIT" value={selectedScan.crit} tone="crit" />
+              <div className="grid grid-cols-2 gap-2">
+                <SevTile label="CRITICAL" value={selectedScan.crit} tone="crit" />
                 <SevTile label="HIGH" value={selectedScan.high} tone="high" />
-                <SevTile label="MED" value={selectedScan.med} tone="med" />
+                <SevTile label="MEDIUM" value={selectedScan.med} tone="med" />
                 <SevTile label="LOW" value={selectedScan.low} tone="low" />
               </div>
               {selectedScan.message && (
                 <Alert variant={selectedScan.status === "failed" ? "destructive" : "default"}>
-                  <AlertDescription className="break-words font-mono text-xs">{selectedScan.message}</AlertDescription>
+                  <AlertDescription className="font-mono text-xs break-words">{selectedScan.message}</AlertDescription>
                 </Alert>
               )}
+              <p className="text-xs text-muted-foreground">PulseNode keeps the severity counts of each scan, not the individual CVEs. Re-scan to refresh them.</p>
+              <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+                <Button variant="outline" disabled={!!scanning}
+                  onClick={() => { setSheetOpen(false); void runScan(selectedScan.image, false) }}>
+                  <RotateCcw className="size-4" />Re-scan
+                </Button>
+                <Button onClick={() => download(selectedScan)}><Download className="size-4" />Export report</Button>
+              </div>
             </div>
           )}
         </SheetContent>
@@ -300,8 +388,8 @@ export default function ScanHistoryPage() {
       <Dialog open={scanModalOpen} onOpenChange={setScanModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Scan image</DialogTitle>
-            <DialogDescription>Enter a container image to scan for vulnerabilities.</DialogDescription>
+            <DialogTitle>Scan an image</DialogTitle>
+            <DialogDescription>Trivy checks OS packages and language dependencies against current advisories. Only one scan runs at a time.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <Label htmlFor="scan-target">Image reference</Label>
@@ -310,7 +398,7 @@ export default function ScanHistoryPage() {
               autoFocus
               value={scanTarget}
               onChange={e => setScanTarget(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") runScan() }}
+              onKeyDown={e => { if (e.key === "Enter") void runScan(scanTarget, true) }}
               placeholder="nginx:latest"
               className="font-mono"
             />
@@ -322,9 +410,9 @@ export default function ScanHistoryPage() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setScanModalOpen(false)}>Cancel</Button>
-            <Button onClick={runScan} disabled={scanning || !scanTarget.trim()}>
+            <Button onClick={() => void runScan(scanTarget, true)} disabled={!!scanning || !scanTarget.trim()}>
               {scanning && <Loader2 className="size-4 animate-spin" />}
-              Scan
+              Start scan
             </Button>
           </DialogFooter>
         </DialogContent>

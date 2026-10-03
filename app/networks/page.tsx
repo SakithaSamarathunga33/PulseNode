@@ -1,27 +1,22 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { AlertCircle, Boxes, Download, Network, RefreshCw, Upload } from "lucide-react"
+import { useState, useEffect, useCallback, useMemo } from "react"
+import { Activity, AlertCircle, ArrowDownLeft, ArrowUpRight, Boxes, Network, RefreshCw, ShieldOff } from "lucide-react"
 import { nodeApi } from "@/lib/api"
 import { getSocket } from "@/lib/socket"
 import type { DockerNetwork, SystemMetrics } from "@/lib/types"
-import { StatCard } from "@/components/dashboard/StatCard"
-import { Pill } from "@/components/dashboard/Pill"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Skeleton } from "@/components/ui/skeleton"
+import { LiveBadge } from "@/components/pn/LiveBadge"
 import { EmptyState } from "@/components/pn/EmptyState"
+import { SummaryStrip } from "@/components/pn/SummaryStrip"
 import { NetChart } from "@/components/networks/NetChart"
-import { Badge } from "@/components/ui/badge"
+import {
+  NetworkCards, NetworkTable, isSystem, sortValue, type Sort, type SortKey,
+} from "@/components/networks/NetworkTable"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-
-function driverTone(d: string): "acc" | "warn" | "outline" {
-  if (d === "bridge") return "acc"
-  if (d === "host")   return "warn"
-  return "outline"
-}
+import { Skeleton } from "@/components/ui/skeleton"
 
 function pushCapped(arr: number[], val: number, max = 60) {
   return arr.length >= max ? [...arr.slice(-(max - 1)), val] : [...arr, val]
@@ -33,29 +28,39 @@ export default function NetworksPage() {
   const [loadError, setLoadError] = useState(false)
   const [rxHist,    setRxHist]    = useState<number[]>([0, 0])
   const [txHist,    setTxHist]    = useState<number[]>([0, 0])
-  const [rxRate,    setRxRate]    = useState(0)
+  const [sort,      setSort]      = useState<Sort>({ key: "containers", dir: -1 })
 
-  function fetchNetworks() {
+  const fetchNetworks = useCallback(() => {
     nodeApi.get<DockerNetwork[]>("/api/docker/networks")
       .then(({ data }) => { setNetworks(Array.isArray(data) ? data : []); setLoadError(false) })
       .catch(() => setLoadError(true))
       .finally(() => setLoaded(true))
-  }
+  }, [])
 
   useEffect(() => {
     fetchNetworks()
-
     const socket = getSocket()
     const onMetrics = (m: SystemMetrics) => {
       setRxHist(prev => pushCapped(prev, m.netIn))
       setTxHist(prev => pushCapped(prev, m.netOut))
-      setRxRate(Math.round(m.netIn))
     }
     socket.on("system:metrics", onMetrics)
     return () => { socket.off("system:metrics", onMetrics) }
-  }, [])
+  }, [fetchNetworks])
+
+  const onSort = (key: SortKey) =>
+    setSort(s => ({ key, dir: s.key === key ? (s.dir === 1 ? -1 : 1) : key === "containers" ? -1 : 1 }))
+
+  const rows = useMemo(() => {
+    const get = sortValue[sort.key]
+    return [...networks].sort((a, b) => { const x = get(a), y = get(b); return (x > y ? 1 : x < y ? -1 : 0) * sort.dir })
+  }, [networks, sort])
 
   const totalContainers = networks.reduce((s, n) => s + n.containers, 0)
+  const userDefined = networks.filter(n => !isSystem(n)).length
+  const internal = networks.filter(n => n.internal).length
+  const attachable = networks.filter(n => n.attachable).length
+  const rxRate = Math.round(rxHist[rxHist.length - 1] ?? 0)
   const txRate = Math.round(txHist[txHist.length - 1] ?? 0)
 
   return (
@@ -63,11 +68,14 @@ export default function NetworksPage() {
       <PageHeader
         icon={Network}
         title="Networks"
-        description={`${networks.length} networks · ${totalContainers} container attachments`}
+        description="Docker networks, host throughput and container attachments."
         actions={
-          <Button variant="outline" size="sm" onClick={fetchNetworks}>
-            <RefreshCw className="size-3.5" /> Refresh
-          </Button>
+          <>
+            <LiveBadge>Live</LiveBadge>
+            <Button variant="outline" size="sm" onClick={fetchNetworks}>
+              <RefreshCw className="size-3.5" />Refresh
+            </Button>
+          </>
         }
       />
       <PageBody className="motion-safe:animate-in motion-safe:fade-in-0 duration-300">
@@ -75,89 +83,48 @@ export default function NetworksPage() {
           <Alert variant="destructive">
             <AlertCircle />
             <AlertTitle>Could not load networks</AlertTitle>
-            <AlertDescription>The Docker API did not respond. The list may be out of date.</AlertDescription>
+            <AlertDescription className="flex flex-wrap items-center gap-3">
+              The Docker API did not respond. The list may be out of date.
+              <Button size="sm" variant="outline" onClick={fetchNetworks}><RefreshCw className="size-3.5" />Retry</Button>
+            </AlertDescription>
           </Alert>
         )}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard label="Networks" icon={Network} value={networks.length} tone="acc" />
-          <StatCard label="Container attachments" icon={Boxes} value={totalContainers} tone="acc" />
-          <StatCard label="Ingress" icon={Download} value={rxRate} unit="KB/s" tone="info" spark={rxHist} />
-          <StatCard label="Egress" icon={Upload} value={txRate} unit="KB/s" tone="info" spark={txHist} />
-        </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <NetChart data={rxHist} color="var(--chart-1)" title="Ingress (RX)" current={rxRate} />
-          <NetChart data={txHist} color="var(--chart-3)" title="Egress (TX)" current={txRate} />
-        </div>
+        {!loaded ? (
+          <Skeleton className="h-[112px] rounded-xl" />
+        ) : (
+          <SummaryStrip
+            items={[
+              { label: "Networks", icon: Network, value: networks.length, meta: `${userDefined} user-defined · ${networks.length - userDefined} system` },
+              { label: "Attachments", icon: Boxes, value: totalContainers, unit: "containers", meta: `across ${networks.filter(n => n.containers > 0).length} networks` },
+              { label: "Throughput", icon: Activity, value: rxRate + txRate, unit: "KB/s", meta: `↓ ${rxRate}  ↑ ${txRate} KB/s` },
+              { label: "Isolated", icon: ShieldOff, value: internal, unit: "internal", meta: `${attachable} attachable` },
+            ]}
+          />
+        )}
 
-        <Card className="gap-0 py-0">
+        <section aria-label="Throughput" className="grid grid-cols-1 gap-4 min-[1000px]:grid-cols-2">
+          <NetChart data={rxHist} color="var(--chart-3)" title="Ingress" icon={ArrowDownLeft} current={rxRate} />
+          <NetChart data={txHist} color="var(--chart-1)" title="Egress" icon={ArrowUpRight} current={txRate} />
+        </section>
+
+        <section aria-labelledby="nw-list" className="space-y-3">
+          <h2 id="nw-list" className="text-lg font-semibold">Docker networks</h2>
           {!loaded ? (
-            <div className="space-y-3 p-4">
+            <div className="space-y-3 rounded-xl border bg-card p-4">
               {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
             </div>
-          ) : networks.length === 0 ? (
-            <EmptyState className="m-4" icon={Network} title="No networks found" description="Docker did not report any networks." />
+          ) : rows.length === 0 ? (
+            <EmptyState icon={Network} title="No networks found" description="Docker did not report any networks." />
           ) : (
             <>
-            <ul className="divide-y md:hidden" aria-label="Networks">
-              {networks.map(net => (
-                <li key={net.name} className="space-y-2 p-4">
-                  <div className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{net.name}</span>
-                    <Pill tone={driverTone(net.driver)}>{net.driver}</Pill>
-                  </div>
-                  <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-                    <div><dt className="text-muted-foreground">Scope</dt><dd>{net.scope}</dd></div>
-                    <div><dt className="text-muted-foreground">Containers</dt><dd className="font-mono tabular-nums">{net.containers}</dd></div>
-                    <div><dt className="text-muted-foreground">Subnet</dt><dd className="font-mono">{net.subnet || "—"}</dd></div>
-                    <div><dt className="text-muted-foreground">Gateway</dt><dd className="font-mono">{net.gateway || "—"}</dd></div>
-                  </dl>
-                  {(net.attachable || net.internal) && (
-                    <div className="flex flex-wrap gap-1">
-                      {net.attachable && <Badge variant="outline" className="font-mono">attachable</Badge>}
-                      {net.internal && <Badge variant="outline" className="font-mono">internal</Badge>}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <div className="hidden overflow-x-auto md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-4">Name</TableHead>
-                    <TableHead>Driver</TableHead>
-                    <TableHead>Scope</TableHead>
-                    <TableHead>Subnet</TableHead>
-                    <TableHead>Gateway</TableHead>
-                    <TableHead className="text-right">Containers</TableHead>
-                    <TableHead className="pr-4">Flags</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {networks.map(net => (
-                    <TableRow key={net.name}>
-                      <TableCell className="pl-4 font-medium">{net.name}</TableCell>
-                      <TableCell><Pill tone={driverTone(net.driver)}>{net.driver}</Pill></TableCell>
-                      <TableCell className="text-muted-foreground">{net.scope}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{net.subnet || "—"}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{net.gateway || "—"}</TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">{net.containers}</TableCell>
-                      <TableCell className="pr-4">
-                        <div className="flex flex-wrap gap-1">
-                          {net.attachable && <Badge variant="outline" className="font-mono">attachable</Badge>}
-                          {net.internal && <Badge variant="outline" className="font-mono">internal</Badge>}
-                          {!net.attachable && !net.internal && <span className="text-muted-foreground">—</span>}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+              <div className="md:hidden"><NetworkCards rows={rows} /></div>
+              <Card className="hidden gap-0 overflow-hidden py-0 md:block">
+                <div className="overflow-x-auto"><NetworkTable rows={rows} sort={sort} onSort={onSort} /></div>
+              </Card>
             </>
           )}
-        </Card>
+        </section>
       </PageBody>
     </>
   )

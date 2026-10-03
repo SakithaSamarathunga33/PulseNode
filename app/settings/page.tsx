@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
-  AlertTriangle, CheckCircle2, DatabaseBackup, Download, ExternalLink, Loader2, LogOut,
+  AlertTriangle, ArrowUpRight, CheckCircle2, DatabaseBackup, Download, ExternalLink, Loader2, LogOut,
   RefreshCw, RotateCcw, Settings, Shield, Undo2, Zap,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -11,11 +11,9 @@ import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
 import { Pill } from "@/components/dashboard/Pill"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { API_BASE, nodeApi } from "@/lib/api"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
 
 const GO_API = API_BASE
 
@@ -58,15 +56,25 @@ interface AuthStatus { enabled: boolean; loggedIn: boolean; username?: string }
 function LogLine({ line }: { line: string }) {
   if (line.startsWith("::")) {
     const msg = line.replace(/^::[^:]+:: /, "")
-    return <p className="pt-1 text-xs font-semibold text-primary">{msg}</p>
+    return <p className="pt-1 text-xs font-semibold text-[var(--t-sys)]">{msg}</p>
   }
-  if (line.startsWith("✓"))  return <p className="font-mono text-xs text-success">{line}</p>
-  if (line.startsWith("⚠"))  return <p className="font-mono text-xs text-warning">{line}</p>
-  if (line.startsWith("✕"))  return <p className="font-mono text-xs text-danger">{line}</p>
-  if (/^\[.*\]/.test(line))  return <p className="font-mono text-[11px] leading-tight text-muted-foreground">{line}</p>
+  if (line.startsWith("✓"))  return <p className="font-mono text-xs text-[var(--t-ok)]">{line}</p>
+  if (line.startsWith("⚠"))  return <p className="font-mono text-xs text-[var(--t-warn)]">{line}</p>
+  if (line.startsWith("✕"))  return <p className="font-mono text-xs text-[var(--t-err)]">{line}</p>
+  if (/^\[.*\]/.test(line))  return <p className="font-mono text-[11px] leading-tight text-[var(--t-dim)]">{line}</p>
   if (/^(web|go-api|caddy)\s+(Pull|Push|Build|Pulling|Pushing|Building)/.test(line))
-    return <p className="font-mono text-xs text-info">{line}</p>
-  return <p className="font-mono text-xs text-muted-foreground">{line}</p>
+    return <p className="font-mono text-xs text-[var(--t-sys)]">{line}</p>
+  return <p className="font-mono text-xs text-[var(--t-fg)]">{line}</p>
+}
+
+/** Dark log well (terminal tokens), shared by the live update log and the last updater log. */
+function LogWell({ lines, label, className, endRef }: { lines: string[]; label: string; className?: string; endRef?: React.Ref<HTMLDivElement> }) {
+  return (
+    <div role="log" aria-label={label} className={`space-y-0.5 overflow-y-auto rounded-lg border border-[var(--t-border)] bg-[var(--t-bg)] px-3 py-2.5 ${className ?? "max-h-72"}`}>
+      {lines.map((l, i) => <LogLine key={i} line={l} />)}
+      {endRef && <div ref={endRef} />}
+    </div>
+  )
 }
 
 function Field({ id, label, ...props }: { id: string; label: string } & React.ComponentProps<typeof Input>) {
@@ -82,6 +90,7 @@ export default function SettingsPage() {
   const [version,      setVersion]      = useState<VersionInfo | null>(null)
   const [status,       setStatus]       = useState<UpdateStatus | null>(null)
   const [checking,     setChecking]     = useState(false)
+  const [checkedAt,    setCheckedAt]    = useState<number | null>(null)
   const [loadError,    setLoadError]    = useState(false)
   const [updating,     setUpdating]     = useState(false)
   const [countdown,    setCountdown]    = useState(0)
@@ -111,6 +120,7 @@ export default function SettingsPage() {
     try {
       const { data } = await nodeApi.get<VersionInfo>("/api/system/version")
       setVersion(data)
+      setCheckedAt(Date.now())
       setLoadError(false)
     } catch { setLoadError(true) }
     finally { setChecking(false) }
@@ -295,10 +305,17 @@ export default function SettingsPage() {
     window.location.href = "/login"
   }
 
+  const checkedAgo = (() => {
+    if (checkedAt == null) return ""
+    const m = Math.round((Date.now() - checkedAt) / 60000)
+    return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`
+  })()
+  const pct = Math.max(5, Math.min(100, ((90 - countdown) / 90) * 100))
+
   return (
     <>
-      <PageHeader icon={Settings} title="Settings" description="System configuration and updates" />
-      <PageBody className="max-w-6xl">
+      <PageHeader icon={Settings} title="Settings" description="Version, updates and dashboard access." />
+      <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
         {loadError && !updating && (
           <Alert variant="destructive">
             <AlertTriangle />
@@ -311,114 +328,114 @@ export default function SettingsPage() {
             </AlertDescription>
           </Alert>
         )}
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
+
+        <div className="grid items-start gap-5 xl:grid-cols-2">
           {/* Left column: Version + Updates */}
-          <div className="space-y-5">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Zap className="size-4 text-[var(--hue)]" /> Version</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg border bg-muted/40 p-3">
-                    <div className="mb-1 text-xs text-muted-foreground">Installed</div>
-                    <code className="font-mono text-sm tabular-nums">{version ? `v${version.current}` : "—"}</code>
-                  </div>
-                  <div className="rounded-lg border bg-muted/40 p-3">
-                    <div className="mb-1 text-xs text-muted-foreground">Latest release</div>
-                    <code className="font-mono text-sm tabular-nums">
-                      {version?.latest ? `v${version.latest}` : checking ? "checking…" : "—"}
-                    </code>
-                  </div>
-                </div>
-
-                {version && !updating && (
-                  version.hasUpdate ? (
-                    <Alert>
-                      <AlertTriangle className="text-warning" />
-                      <AlertDescription className="font-medium text-foreground">Update available: v{version.latest}</AlertDescription>
-                    </Alert>
-                  ) : (
-                    <Alert>
-                      <CheckCircle2 className="text-success" />
-                      <AlertDescription className="font-medium text-foreground">You are on the latest version</AlertDescription>
-                    </Alert>
-                  )
-                )}
-
-                {version?.hasUpdate && version.changelog && (
-                  <div className="space-y-2 rounded-lg border bg-muted/40 p-3">
-                    <div className="text-xs font-medium text-muted-foreground">What&apos;s new</div>
-                    <pre className="max-h-40 overflow-y-auto font-sans text-sm leading-relaxed whitespace-pre-wrap">
-                      {version.changelog}
-                    </pre>
-                    {version.releaseUrl && (
-                      <a href={version.releaseUrl} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-primary underline underline-offset-2">
-                        View full release notes <ExternalLink className="size-3" />
-                      </a>
-                    )}
-                  </div>
-                )}
-
+          <div className="min-w-0 space-y-4">
+            <section
+              aria-labelledby="st-ver"
+              className={`overflow-hidden rounded-xl border bg-card shadow-card ${updating ? "border-warning/40" : ""}`}
+            >
+              <div className="flex items-center justify-between gap-2.5 border-b px-[18px] py-3.5">
+                <h2 id="st-ver" className="flex items-center gap-2 text-[15px] font-semibold">
+                  {updating
+                    ? <Loader2 className="size-[17px] animate-spin text-[var(--hue)]" aria-hidden />
+                    : <Zap className="size-[17px] text-[var(--hue)]" aria-hidden />}
+                  {updating ? (reconnecting ? "Reconnecting…" : "Updating PulseNode") : "Version"}
+                </h2>
                 {!updating && (
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" onClick={fetchVersion} disabled={checking}>
-                      <RefreshCw className={checking ? "animate-spin" : ""} />
-                      {checking ? "Checking…" : "Check for updates"}
-                    </Button>
-                    {version?.hasUpdate && (
-                      <Button onClick={handleUpdate}>
-                        <Download /> Update to v{version.latest}
-                      </Button>
+                  <Button variant="ghost" size="sm" onClick={fetchVersion} disabled={checking}>
+                    <RefreshCw className={checking ? "animate-spin" : ""} />
+                    {checking ? "Checking…" : "Check for updates"}
+                  </Button>
+                )}
+              </div>
+
+              {!updating && (
+                <>
+                  <div className="grid grid-cols-2 gap-px bg-border">
+                    <div className="bg-card px-[18px] py-3.5">
+                      <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Installed</p>
+                      <p className="mt-1 font-mono text-xl font-semibold tabular-nums">{version ? `v${version.current}` : "—"}</p>
+                    </div>
+                    <div className="bg-card px-[18px] py-3.5">
+                      <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Latest</p>
+                      <p className={`mt-1 font-mono text-xl font-semibold tabular-nums ${version?.hasUpdate ? "text-warning" : version?.latest ? "text-success" : ""}`}>
+                        {version?.latest ? `v${version.latest}` : checking ? "…" : "—"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {version && !version.hasUpdate && (
+                    <div role="status" className="flex items-center gap-2.5 bg-success/10 px-[18px] py-3.5">
+                      <CheckCircle2 className="size-[17px] text-success" aria-hidden />
+                      <span className="text-[13px] font-medium">You&apos;re on the latest version.</span>
+                      {checkedAgo && <span className="ml-auto text-xs text-muted-foreground">checked {checkedAgo}</span>}
+                    </div>
+                  )}
+
+                  {version?.hasUpdate && (
+                    <>
+                      <div role="status" className="flex items-center gap-2.5 border-b bg-warning/10 px-[18px] py-3">
+                        <ArrowUpRight className="size-4 text-warning" aria-hidden />
+                        <span className="text-[13px] font-semibold">Update available: v{version.latest}</span>
+                        {checkedAgo && <span className="ml-auto text-xs text-muted-foreground">checked {checkedAgo}</span>}
+                      </div>
+                      {version.changelog && (
+                        <div className="space-y-2.5 px-[18px] py-3.5">
+                          <p className="text-[13px] font-semibold">What&apos;s new</p>
+                          <pre className="max-h-48 overflow-y-auto font-sans text-[13px] leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                            {version.changelog}
+                          </pre>
+                          {version.releaseUrl && (
+                            <a href={version.releaseUrl} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-[13px] text-primary underline underline-offset-2">
+                              Release notes <ExternalLink className="size-3" />
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex justify-end border-t bg-muted/40 px-[18px] py-3">
+                        <Button onClick={handleUpdate}><Download /> Update to v{version.latest}</Button>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              {updating && (
+                <div className="space-y-3 px-[18px] py-4" aria-live="polite">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2.5">
+                    <span className="text-[15px] font-semibold">{reconnecting ? "Restarting dashboard" : "Updating PulseNode"}</span>
+                    {!reconnecting && countdown > 0 && (
+                      <span className="text-xs text-muted-foreground tabular-nums">Restart expected in ~{countdown}s</span>
                     )}
                   </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {updating && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Loader2 className="size-4 animate-spin text-[var(--hue)]" />
-                    {reconnecting ? "Reconnecting…" : "Updating PulseNode"}
-                  </CardTitle>
-                  {!reconnecting && countdown > 0 && (
-                    <CardDescription className="tabular-nums">Restart expected in ~{countdown}s</CardDescription>
-                  )}
-                </CardHeader>
-                <CardContent className="space-y-3" aria-live="polite">
+                  <div
+                    role="progressbar" aria-label="Update progress" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}
+                    className="h-1.5 overflow-hidden rounded-full bg-muted"
+                  >
+                    <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${pct}%` }} />
+                  </div>
                   {status && status.log.length > 0 && (
-                    <div className="max-h-96 space-y-0.5 overflow-y-auto rounded-lg border bg-muted/50 p-3" role="log" aria-label="Update log">
-                      {status.log.map((l, i) => <LogLine key={i} line={l} />)}
-                      <div ref={logEndRef} />
-                    </div>
+                    <LogWell lines={status.log} label="Update log" className="h-[220px]" endRef={logEndRef} />
                   )}
                   {status?.error && (
                     <Alert variant="destructive"><AlertTriangle /><AlertDescription>{status.error}</AlertDescription></Alert>
                   )}
-                  {reconnecting && (
+                  {reconnecting ? (
                     <p className="text-sm text-muted-foreground">
                       Waiting for the dashboard to come back online… This may take up to 2 minutes while Docker rebuilds images.
                     </p>
-                  )}
-                  {!reconnecting && !status?.error && (
-                    <div className="space-y-2">
-                      <p className={countdown < 60 ? "text-sm text-warning" : "text-sm text-muted-foreground"}>
-                        The dashboard is restarting. Do not close this tab.
-                      </p>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full bg-primary transition-all duration-1000"
-                          style={{ width: `${Math.max(5, ((90 - countdown) / 90) * 100)}%` }}
-                        />
-                      </div>
+                  ) : !status?.error && (
+                    <div role="alert" className="flex items-center gap-2.5 rounded-lg bg-warning/10 px-3 py-2.5 text-[13px] font-medium">
+                      <Loader2 className="size-[15px] animate-spin text-warning" aria-hidden />
+                      The dashboard is restarting. Do not close this tab.
                     </div>
                   )}
-                </CardContent>
-              </Card>
-            )}
+                </div>
+              )}
+            </section>
 
             {verifying && (
               <Alert>
@@ -439,14 +456,16 @@ export default function SettingsPage() {
             )}
 
             {!updating && status && (status.phase === "done" || status.phase === "rolled_back" || status.phase === "failed") && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><Undo2 className="size-4 text-[var(--hue)]" /> Last update</CardTitle>
+              <section aria-labelledby="st-last" className="overflow-hidden rounded-xl border bg-card shadow-card">
+                <div className="flex items-center justify-between gap-2.5 border-b px-[18px] py-3.5">
+                  <h2 id="st-last" className="flex items-center gap-2 text-[15px] font-semibold">
+                    <Undo2 className="size-4 text-[var(--hue)]" aria-hidden /> Last update
+                  </h2>
                   {status.finishedAt && (
-                    <CardDescription>{new Date(status.finishedAt).toLocaleString()}</CardDescription>
+                    <span className="text-xs text-muted-foreground">{new Date(status.finishedAt).toLocaleString()}</span>
                   )}
-                </CardHeader>
-                <CardContent className="space-y-3">
+                </div>
+                <div className="space-y-3 px-[18px] py-4">
                   {status.phase === "done" && (
                     <Alert>
                       <CheckCircle2 className="text-success" />
@@ -491,69 +510,73 @@ export default function SettingsPage() {
                   {status.log && status.log.length > 0 && (
                     <details className="rounded-lg border bg-muted/40 p-3">
                       <summary className="cursor-pointer text-sm font-medium">Updater log</summary>
-                      <div className="mt-2 max-h-72 space-y-0.5 overflow-y-auto" role="log" aria-label="Updater log">
-                        {status.log.map((l, i) => <LogLine key={i} line={l} />)}
-                      </div>
+                      <LogWell lines={status.log} label="Updater log" className="mt-2 max-h-72" />
                     </details>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </section>
             )}
 
             {!updating && status?.snapshots && status.snapshots.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><DatabaseBackup className="size-4 text-[var(--hue)]" /> Database snapshots</CardTitle>
-                  <CardDescription>Taken automatically before every update; the newest {status.snapshots.length} are kept.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="divide-y rounded-lg border">
-                    {status.snapshots.map(sn => (
-                      <li key={sn.name} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium">{new Date(sn.createdAt).toLocaleString()}</p>
-                          <p className="truncate font-mono text-xs text-muted-foreground">{sn.name} · {fmtBytes(sn.size)}</p>
-                        </div>
-                        <Button variant="outline" size="sm" onClick={() => setRestoreTarget(sn)} disabled={restoring}>
-                          <RotateCcw /> Restore…
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
+              <section aria-labelledby="st-snap" className="overflow-hidden rounded-xl border bg-card shadow-card">
+                <div className="space-y-0.5 border-b px-[18px] py-3.5">
+                  <h2 id="st-snap" className="flex items-center gap-2 text-[15px] font-semibold">
+                    <DatabaseBackup className="size-4 text-[var(--hue)]" aria-hidden /> Database snapshots
+                  </h2>
+                  <p className="text-xs text-muted-foreground">Taken automatically before every update; the newest {status.snapshots.length} are kept.</p>
+                </div>
+                <ul className="divide-y">
+                  {status.snapshots.map(sn => (
+                    <li key={sn.name} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-[18px] py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium">{new Date(sn.createdAt).toLocaleString()}</p>
+                        <p className="truncate font-mono text-xs text-muted-foreground">{sn.name} · {fmtBytes(sn.size)}</p>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => setRestoreTarget(sn)} disabled={restoring}>
+                        <RotateCcw /> Restore…
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             )}
 
             {!updating && (
-              <Card>
-                <CardHeader><CardTitle>How updates work</CardTitle></CardHeader>
-                <CardContent className="space-y-2">
-                  <ol className="list-decimal space-y-1.5 pl-5 text-sm text-muted-foreground">
-                    <li>Checks that the new release&apos;s images are published, and saves a snapshot of the database</li>
-                    <li>Pulls the latest code (<code className="font-mono text-xs text-foreground">git pull</code>) and the pinned images, or builds from source</li>
-                    <li>Swaps the containers from a separate helper, so the swap survives the dashboard restarting</li>
-                    <li>Waits for the new version to pass its health check — if it does not, the previous version is put back automatically</li>
-                    <li>The dashboard reconnects automatically when ready</li>
-                  </ol>
-                  <p className="text-xs text-muted-foreground">
-                    Only available when installed via <code className="font-mono">install.sh</code> (git clone required).
-                  </p>
-                </CardContent>
-              </Card>
+              <section aria-labelledby="st-how" className="space-y-3 rounded-xl border bg-card px-[18px] py-3.5">
+                <h2 id="st-how" className="text-[13px] font-semibold text-muted-foreground">How updates work</h2>
+                <ol className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2.5">
+                  {[
+                    ["01", "Check and snapshot", "Confirms the release's images are published and saves a database snapshot."],
+                    ["02", "Pull", "git pull, then the pinned images, or a source build."],
+                    ["03", "Swap", "A separate helper swaps the containers, so it survives the dashboard restarting."],
+                    ["04", "Verify", "The new version must pass its health check, or the previous one is put back."],
+                    ["05", "Reconnect", "The dashboard reloads when the new version is up."],
+                  ].map(([n, t, d]) => (
+                    <li key={n} className="flex flex-col gap-1 rounded-lg border bg-muted/40 p-2.5">
+                      <span className="font-mono text-[11px] font-semibold text-primary">{n}</span>
+                      <span className="text-[13px] font-medium">{t}</span>
+                      <span className="text-xs leading-snug text-muted-foreground">{d}</span>
+                    </li>
+                  ))}
+                </ol>
+                <p className="text-xs text-muted-foreground">
+                  Only available when installed via <code className="font-mono">install.sh</code> (git clone required).
+                </p>
+              </section>
             )}
           </div>
 
           {/* Right column: Security */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex flex-wrap items-center gap-2">
-                <Shield className="size-4 text-[var(--hue)]" /> Security
-                {authStatus?.enabled && <Pill tone="ok" dot className="ml-auto">Protected · {authStatus.username}</Pill>}
-                {authStatus && !authStatus.enabled && <Pill tone="outline" dot className="ml-auto">Off</Pill>}
-              </CardTitle>
-            </CardHeader>
+          <section aria-labelledby="st-sec" className="min-w-0 overflow-hidden rounded-xl border bg-card shadow-card">
+            <div className="flex items-center justify-between gap-2.5 border-b px-[18px] py-3.5">
+              <h2 id="st-sec" className="flex items-center gap-2 text-[15px] font-semibold">
+                <Shield className="size-4 text-[var(--hue)]" aria-hidden /> Security
+              </h2>
+              {authStatus?.enabled && <Pill tone="ok" dot>Protected · {authStatus.username}</Pill>}
+              {authStatus && !authStatus.enabled && <Pill tone="outline" dot>Off</Pill>}
+            </div>
 
-            <CardContent className="space-y-5">
+            <div className="space-y-5 px-[18px] py-4">
               {secError && (
                 <Alert variant="destructive"><AlertTriangle /><AlertDescription>{secError}</AlertDescription></Alert>
               )}
@@ -562,11 +585,11 @@ export default function SettingsPage() {
               )}
 
               {authStatus && !authStatus.enabled && (
-                <form onSubmit={handleEnableLogin} className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Login protection is <strong className="text-foreground">off</strong>. Anyone who can reach this URL
-                    can access the dashboard. Set a username and password to lock it down.
-                  </p>
+                <form onSubmit={handleEnableLogin} className="space-y-3.5">
+                  <Alert variant="destructive">
+                    <AlertTriangle />
+                    <AlertDescription>Anyone who can reach this URL can access the dashboard. Set a username and password to lock it down.</AlertDescription>
+                  </Alert>
                   <Field id="new-username" label="Username" autoComplete="username" value={newUsername} onChange={e => setNewUsername(e.target.value)} required />
                   <Field id="new-password" label="Password" type="password" autoComplete="new-password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={8} />
                   <Field id="confirm-password" label="Confirm password" type="password" autoComplete="new-password" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} required minLength={8} />
@@ -578,26 +601,27 @@ export default function SettingsPage() {
               )}
 
               {authStatus?.enabled && (
-                <div className="space-y-5">
-                  <form onSubmit={handleChangePassword} className="space-y-4">
-                    <h2 className="text-sm font-semibold">Change password</h2>
-                    <Field id="cur-password" label="Current password" type="password" autoComplete="current-password" value={curPassword} onChange={e => setCurPassword(e.target.value)} required />
-                    <Field id="chg-password" label="New password" type="password" autoComplete="new-password" value={chgPassword} onChange={e => setChgPassword(e.target.value)} required minLength={8} />
-                    <Field id="chg-confirm" label="Confirm new password" type="password" autoComplete="new-password" value={chgConfirm} onChange={e => setChgConfirm(e.target.value)} required minLength={8} />
-                    <Button type="submit" variant="outline" disabled={secLoading || !curPassword || !chgPassword || !chgConfirm}>
-                      {secLoading ? "Updating…" : "Update password"}
+                <form onSubmit={handleChangePassword} className="space-y-3.5">
+                  <h3 className="text-[13px] font-semibold">Change password</h3>
+                  <Field id="cur-password" label="Current password" type="password" autoComplete="current-password" value={curPassword} onChange={e => setCurPassword(e.target.value)} required />
+                  <Field id="chg-password" label="New password" type="password" autoComplete="new-password" value={chgPassword} onChange={e => setChgPassword(e.target.value)} required minLength={8} />
+                  <Field id="chg-confirm" label="Confirm new password" type="password" autoComplete="new-password" value={chgConfirm} onChange={e => setChgConfirm(e.target.value)} required minLength={8} />
+                  {chgConfirm && chgPassword !== chgConfirm && (
+                    <p role="alert" className="text-xs text-danger">Passwords do not match.</p>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="submit" disabled={secLoading || !curPassword || !chgPassword || !chgConfirm}>
+                      {secLoading ? <Loader2 className="animate-spin" /> : null}
+                      {secLoading ? "Updating…" : "Change password"}
                     </Button>
-                  </form>
-
-                  <Separator />
-
-                  <Button variant="outline" onClick={handleLogout}>
-                    <LogOut /> Sign out
-                  </Button>
-                </div>
+                    <Button type="button" variant="outline" onClick={handleLogout}>
+                      <LogOut /> Sign out
+                    </Button>
+                  </div>
+                </form>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         </div>
       </PageBody>
 

@@ -74,13 +74,6 @@ fi
 echo ""
 echo -e "${C}━━━  Optional integrations (press Enter to skip)  ━━━━━━━━━━━━${N}"
 
-printf "  Coolify API URL   (e.g. https://coolify.example.com): "
-read -r COOLIFY_URL
-
-printf "  Coolify API token: "
-read -rs COOLIFY_TOKEN
-echo ""
-
 printf "  PostgreSQL URL    (postgresql://user:pass@host/db): "
 read -r DB_URL
 
@@ -117,8 +110,6 @@ AES_KEY=${AES_KEY}
 MASTER_ENCRYPTION_KEY=${MASTER_KEY}
 PULSENODE_SETUP_TOKEN=${SETUP_TOKEN}
 
-COOLIFY_API_URL=${COOLIFY_URL}
-COOLIFY_API_TOKEN=${COOLIFY_TOKEN}
 DATABASE_URL=${DB_URL}
 EOF
 chmod 600 .env.local

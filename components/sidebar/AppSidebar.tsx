@@ -21,12 +21,9 @@ export function AppSidebar() {
   const [cpu, setCpu] = useState<number | null>(null)
   const [host, setHost] = useState<{ name: string; ip: string } | null>(null)
   const [hasUpdate, setHasUpdate] = useState(false)
-  const [coolifyEnabled, setCoolifyEnabled] = useState(false)
   const [counts, setCounts] = useState<Partial<Record<NavBadge, number>>>({})
 
   useEffect(() => {
-    nodeApi.get<{ coolifyEnabled?: boolean }>("/config")
-      .then(({ data }) => { if (data?.coolifyEnabled) setCoolifyEnabled(true) }).catch(() => {})
     nodeApi.get<{ hasUpdate?: boolean }>("/api/system/version")
       .then(({ data }) => { if (data?.hasUpdate) setHasUpdate(true) }).catch(() => {})
     nodeApi.get<HostInfo>("/api/host")
@@ -112,7 +109,7 @@ export function AppSidebar() {
 
       <SidebarContent role="navigation" aria-label="Primary">
         {NAV_GROUPS.map(group => {
-          const items = group.items.filter(i => !i.optional || (i.optional === "coolify" && coolifyEnabled))
+          const items = group.items
           return (
             <SidebarGroup key={group.label} data-area={group.area}>
               <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-[var(--hue-fg)]">

@@ -1,29 +1,38 @@
 "use client"
 
-import { useState, useMemo, useEffect, useCallback } from "react"
+import { useState, useMemo, useEffect, useCallback, useRef } from "react"
 import { toast } from "sonner"
 import {
-  Activity, AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Ban, CheckCircle2, Cpu, PlayCircle, ShieldAlert, ShieldCheck, X,
+  Activity, AlertCircle, ArrowDown, ArrowUp, ChevronDown, ChevronUp, ChevronsUpDown, Ban, CheckCircle2,
+  PlayCircle, ShieldAlert, ShieldCheck, X,
 } from "lucide-react"
 import { nodeApi } from "@/lib/api"
+import { useSlashFocus } from "@/lib/use-slash-focus"
 import type { Process } from "@/lib/types"
 import { Pill } from "@/components/dashboard/Pill"
-import { ProgressBar } from "@/components/dashboard/ProgressBar"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { SearchInput } from "@/components/pn/SearchInput"
 import { Segmented } from "@/components/pn/Segmented"
 import { EmptyState } from "@/components/pn/EmptyState"
 import { LiveBadge } from "@/components/pn/LiveBadge"
+import { StatusDot } from "@/components/pn/StatusDot"
+import { TONE_BG, TONE_TEXT, toneFor } from "@/components/containers/utils"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { detectSuspicious } from "@/components/processes/detect"
-import { ProcessActions, ProcessConfirm, RiskPill, procName, type DialogState, type Risk } from "@/components/processes/parts"
+import { ProcessConfirm, ProcessIconActions, RiskPill, procName, type DialogState, type Risk } from "@/components/processes/parts"
+import { cn } from "@/lib/utils"
 
-type Tab = "processes" | "suspicious"
-type SortKey = "cpu" | "mem" | "pid"
+type SortKey = "pid" | "user" | "cmd" | "state" | "cpu" | "mem" | "res"
+type Dir = "asc" | "desc"
+
+const SORT_LABEL: Record<SortKey, string> = { pid: "PID", user: "User", cmd: "Command", state: "State", cpu: "CPU", mem: "MEM", res: "RES" }
+const NUMERIC: SortKey[] = ["cpu", "mem", "res"]
+const STICKY = "sticky right-0 bg-card shadow-[-1px_0_0_var(--border)]"
 
 // ── Python process mapper ──────────────────────────────────────────────────────
 
@@ -49,48 +58,61 @@ function mapPyProcess(p: PyProcess): Process {
   }
 }
 
-function CountBadge({ n, tone }: { n: number; tone?: "bad" }) {
+/** Memory in MB when the host reports it, otherwise the percentage the PM2 list gives. */
+const memLabel = (p: Process) => (p.memMb != null ? `${p.memMb} MB` : `${p.mem.toFixed(1)}%`)
+const memValue = (p: Process) => p.memMb ?? p.mem
+const cpuText = (cpu: number) => TONE_TEXT[toneFor(cpu)] === "text-success" ? "text-foreground" : TONE_TEXT[toneFor(cpu)]
+
+function StateLabel({ state }: { state: string }) {
+  const running = state === "R"
+  const suspended = state === "T"
   return (
-    <span className={`rounded-full px-1.5 font-mono text-[11px] tabular-nums ${tone === "bad" ? "bg-danger/12 text-danger" : "bg-muted text-muted-foreground"}`}>
-      {n}
+    <span className={cn("inline-flex items-center gap-1.5 text-xs", running ? "text-success" : suspended ? "text-warning" : "text-muted-foreground")}>
+      <StatusDot tone={running ? "ok" : suspended ? "warn" : "off"} />
+      {running ? "Running" : suspended ? "Suspended" : "Sleeping"}
     </span>
   )
 }
 
-function CommandCell({ proc, max = "max-w-[320px]" }: { proc: Process; max?: string }) {
+function CommandCell({ proc, flagged, max = "max-w-[420px]" }: { proc: Process; flagged?: boolean; max?: string }) {
   return (
-    <div className="flex items-center gap-2">
-      {proc.type === "pm2" && <Pill tone="acc" className="shrink-0">PM2</Pill>}
-      <div className="min-w-0">
-        <p className={`truncate text-sm font-medium ${max}`}>{procName(proc)}</p>
-        <p className={`truncate font-mono text-xs text-muted-foreground ${max}`} title={proc.cmd}>{proc.cmd}</p>
-      </div>
+    <div className="flex min-w-0 items-center gap-2">
+      {flagged && (
+        <Tooltip>
+          <TooltipTrigger render={<span className="inline-flex text-danger" aria-label="Matched a detection rule" />}>
+            <ShieldAlert className="size-3.5" />
+          </TooltipTrigger>
+          <TooltipContent>Matched a detection rule</TooltipContent>
+        </Tooltip>
+      )}
+      <span className={cn("truncate font-mono text-xs", max)} title={proc.cmd}>{proc.cmd}</span>
+      {proc.type === "pm2" && (
+        <span className="shrink-0 rounded bg-primary/12 px-1.5 py-px text-[11px] font-semibold text-primary">pm2 · {procName(proc)}</span>
+      )}
     </div>
   )
 }
 
-function UsageCell({ pct, label }: { pct: number; label: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <ProgressBar value={pct} tone="info" className="w-14 shrink-0" />
-      <span className="font-mono text-xs tabular-nums">{label}</span>
-    </div>
-  )
-}
-
-function SortHead({ k, label, className, sortKey, sortDir, onSort }: {
-  k: SortKey; label: string; className?: string; sortKey: SortKey; sortDir: "asc" | "desc"; onSort: (k: SortKey) => void
+function SortHead({ k, sortKey, dir, onSort, className }: {
+  k: SortKey; sortKey: SortKey; dir: Dir; onSort: (k: SortKey) => void; className?: string
 }) {
   const active = sortKey === k
-  const Icon = !active ? ArrowUpDown : sortDir === "desc" ? ArrowDown : ArrowUp
+  const Icon = !active ? ChevronsUpDown : dir === "asc" ? ChevronUp : ChevronDown
   return (
-    <TableHead className={className} aria-sort={active ? (sortDir === "desc" ? "descending" : "ascending") : "none"}>
+    <TableHead
+      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
+      className={cn("sticky top-0 z-[1] bg-card", NUMERIC.includes(k) && "text-right", className)}
+    >
       <button
+        type="button"
         onClick={() => onSort(k)}
-        className="inline-flex items-center gap-1 rounded-sm outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className={cn(
+          "inline-flex items-center gap-1 rounded-sm outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",
+          active && "text-foreground",
+        )}
       >
-        {label}
-        <Icon className={`size-3 ${active ? "" : "text-muted-foreground"}`} />
+        {SORT_LABEL[k]}
+        <Icon className={cn("size-3", !active && "opacity-50")} />
       </button>
     </TableHead>
   )
@@ -99,10 +121,9 @@ function SortHead({ k, label, className, sortKey, sortDir, onSort }: {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function ProcessesPage() {
-  const [activeTab,  setActiveTab]   = useState<Tab>("processes")
   const [search,     setSearch]      = useState("")
   const [sortKey,    setSortKey]     = useState<SortKey>("cpu")
-  const [sortDir,    setSortDir]     = useState<"asc" | "desc">("desc")
+  const [sortDir,    setSortDir]     = useState<Dir>("desc")
   const [processes,   setProcesses]   = useState<Process[]>([])
   const [loaded,     setLoaded]      = useState(false)
   const [loadError,  setLoadError]   = useState(false)
@@ -110,24 +131,34 @@ export default function ProcessesPage() {
   const [dialog,     setDialog]      = useState<DialogState>(null)
   const [blocked,    setBlocked]     = useState<Process[]>([])
   const [released,   setReleased]    = useState<Set<number>>(new Set())
+  const [inspecting, setInspecting]  = useState<Set<number>>(new Set())
+  const searchRef = useRef<HTMLInputElement>(null)
+  const inflight = useRef({ procs: false, cores: false })
+  useSlashFocus(searchRef)
 
   useEffect(() => {
     function fetchProcesses() {
+      if (inflight.current.procs) return
+      inflight.current.procs = true
+      const apply = (list: Process[]) => { setProcesses(list); setLoadError(false) }
       nodeApi.get<PyProcess[]>("/metrics/processes")
-        .then(({ data }) => { setProcesses(data.map(mapPyProcess)); setLoadError(false) })
+        .then(({ data }) => apply(Array.isArray(data) ? data.map(mapPyProcess) : []))
         .catch(() =>
           // Host process list unavailable — fall back to the PM2 list.
           nodeApi.get<Process[]>("/api/pm2/list")
-            .then(({ data }) => { setProcesses(data); setLoadError(false) })
+            .then(({ data }) => apply(Array.isArray(data) ? data : []))
             .catch(() => setLoadError(true)),
         )
-        .finally(() => setLoaded(true))
+        .finally(() => { inflight.current.procs = false; setLoaded(true) })
     }
 
     function fetchCores() {
+      if (inflight.current.cores) return
+      inflight.current.cores = true
       nodeApi.get<{ cpuCores?: number[] }>("/metrics/live")
-        .then(({ data }) => { if (data.cpuCores?.length) setCpuCores(data.cpuCores) })
+        .then(({ data }) => { if (Array.isArray(data?.cpuCores) && data.cpuCores.length) setCpuCores(data.cpuCores) })
         .catch(() => {})
+        .finally(() => { inflight.current.cores = false })
     }
 
     fetchProcesses()
@@ -167,29 +198,29 @@ export default function ProcessesPage() {
       .catch(err => toast.error(`Resume failed: ${(err as Error).message}`))
   }, [])
 
+  const requestAction = (type: "kill" | "suspend", proc: Process) => setDialog({ type, proc })
+  const toggleInspect = (pid: number) =>
+    setInspecting(prev => { const n = new Set(prev); if (n.has(pid)) n.delete(pid); else n.add(pid); return n })
+
   // ── Sorting / filtering ───────────────────────────────────────────────────────
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === "desc" ? "asc" : "desc")
-    else { setSortKey(key); setSortDir("desc") }
+    else { setSortKey(key); setSortDir(NUMERIC.includes(key) || key === "pid" ? "desc" : "asc") }
   }
 
   const blockedPids = useMemo(() => new Set(blocked.map(p => p.pid)), [blocked])
 
-  const sorted = useMemo(() => {
-    const q = search.toLowerCase()
-    const list = processes
-      .filter(p => !blockedPids.has(p.pid))
-      .filter(p => !q || p.cmd.toLowerCase().includes(q) || p.user.toLowerCase().includes(q) || String(p.pid).includes(q))
-    list.sort((a, b) => {
-      const av = a[sortKey as keyof typeof a] as number
-      const bv = b[sortKey as keyof typeof b] as number
-      return sortDir === "desc" ? bv - av : av - bv
-    })
-    return list
-  }, [search, sortKey, sortDir, processes, blockedPids])
-
   // ── Suspicious detection ──────────────────────────────────────────────────────
+
+  const flagged = useMemo(() => {
+    const map = new Map<number, Risk>()
+    for (const p of processes) {
+      const r = detectSuspicious(p)
+      if (r.suspicious) map.set(p.pid, r.risk)
+    }
+    return map
+  }, [processes])
 
   const suspicious = useMemo(() =>
     processes
@@ -202,7 +233,29 @@ export default function ProcessesPage() {
       }),
   [processes, released, blockedPids])
 
-  const requestAction = (type: "kill" | "suspend", proc: Process) => setDialog({ type, proc })
+  const sorted = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const list = processes
+      .filter(p => !blockedPids.has(p.pid))
+      .filter(p => !q || p.cmd.toLowerCase().includes(q) || p.user.toLowerCase().includes(q) || String(p.pid).includes(q))
+    const val = (p: Process): number | string => {
+      switch (sortKey) {
+        case "pid": return p.pid
+        case "user": return p.user
+        case "cmd": return p.cmd
+        case "state": return p.state
+        case "cpu": return p.cpu
+        case "mem": return memValue(p)
+        case "res": return memValue(p)
+      }
+    }
+    const mul = sortDir === "desc" ? -1 : 1
+    list.sort((a, b) => {
+      const x = val(a), y = val(b)
+      return (typeof x === "string" ? x.localeCompare(y as string) : x - (y as number)) * mul
+    })
+    return list
+  }, [search, sortKey, sortDir, processes, blockedPids])
 
   const riskCounts = (["critical", "high", "medium"] as Risk[])
     .map(r => ({ r, n: suspicious.filter(s => s.result.risk === r).length }))
@@ -214,27 +267,21 @@ export default function ProcessesPage() {
         className="pb-5"
         icon={Activity}
         title={
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-3">
             Processes
-            {suspicious.length > 0 && (
-              <Pill tone="bad"><ShieldAlert className="size-3" />{suspicious.length} suspicious</Pill>
+            {loaded && suspicious.length > 0 && (
+              <a href="#suspicious" className="rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
+                <Pill tone="bad" className="h-6 px-2.5 text-xs"><ShieldAlert className="size-3.5" />{suspicious.length} suspicious</Pill>
+              </a>
+            )}
+            {loaded && suspicious.length === 0 && (
+              <Pill tone="ok" className="h-6 px-2.5 text-xs"><ShieldCheck className="size-3.5" />No suspicious activity</Pill>
             )}
           </span>
         }
-        description={`${processes.length} processes${blocked.length > 0 ? ` · ${blocked.length} suspended` : ""}`}
-        actions={<LiveBadge>Live · 5s</LiveBadge>}
-      >
-        <Segmented<Tab>
-          aria-label="Processes view"
-          value={activeTab}
-          onChange={setActiveTab}
-          size="default"
-          options={[
-            { value: "processes", label: "All processes", count: processes.length },
-            { value: "suspicious", label: <><ShieldAlert className="size-3.5" />Suspicious activity</>, count: suspicious.length },
-          ]}
-        />
-      </PageHeader>
+        description={`${processes.length} processes${cpuCores.length ? ` · ${cpuCores.length} cores` : ""}${blocked.length > 0 ? ` · ${blocked.length} suspended` : ""}`}
+        actions={<LiveBadge stale={loadError}>{loadError ? "Updates failing" : "Auto · 5s"}</LiveBadge>}
+      />
 
       <PageBody className="motion-safe:animate-in motion-safe:fade-in-0 duration-300">
         {loadError && (
@@ -253,292 +300,287 @@ export default function ProcessesPage() {
 
         {/* ── CPU cores ── */}
         {cpuCores.length > 0 && (
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <Cpu className="size-4 text-[var(--hue)]" /> CPU cores
-              </CardTitle>
-              <CardAction><LiveBadge>Live</LiveBadge></CardAction>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4 lg:grid-cols-8">
-                {cpuCores.map((pct, i) => (
-                  <div key={i}>
-                    <div className="mb-1.5 flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">CPU{i + 1}</span>
-                      <span className="font-mono font-semibold tabular-nums">{pct}%</span>
-                    </div>
-                    <ProgressBar value={pct} tone={pct > 85 ? "bad" : pct > 65 ? "warn" : "ok"} />
-                  </div>
-                ))}
+          <section
+            aria-label="CPU cores"
+            className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border shadow-card sm:grid-cols-4 min-[1200px]:grid-cols-8"
+          >
+            {cpuCores.map((pct, i) => (
+              <div key={i} className="space-y-2 bg-card px-3.5 py-3">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">CPU {i + 1}</span>
+                  <span className={cn("text-[15px] font-semibold tabular-nums", cpuText(pct))}>{pct}%</span>
+                </div>
+                <div
+                  role="meter" aria-label={`CPU ${i + 1}`} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}
+                  className="h-1 overflow-hidden rounded-full bg-muted"
+                >
+                  <div className={cn("h-full transition-[width] duration-500", TONE_BG[toneFor(pct)])} style={{ width: `${Math.min(100, pct)}%` }} />
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            ))}
+          </section>
         )}
 
-        {/* ═════ TAB: ALL PROCESSES ═════ */}
-        {activeTab === "processes" && (
-          <>
-            <div className="flex flex-wrap items-center gap-2">
-              <SearchInput
-                aria-label="Search processes"
-                placeholder="Search by command, user or PID…"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
-              <div className="ml-auto flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Sort by</span>
-                <Segmented<SortKey>
-                  aria-label="Sort processes"
-                  value={sortKey}
-                  onChange={handleSort}
-                  options={[
-                    { value: "cpu", label: "CPU" },
-                    { value: "mem", label: "MEM" },
-                    { value: "pid", label: "PID" },
-                  ]}
-                />
-              </div>
-            </div>
+        {/* ── Suspicious activity ── */}
+        <section id="suspicious" aria-labelledby="sus-title" className="scroll-mt-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="sus-title" className="text-lg font-semibold">Suspicious activity</h2>
+            <span className="text-xs text-muted-foreground">Heuristic rules · re-evaluated on every refresh</span>
+          </div>
 
-            <Card className="gap-0 py-0">
-              <ul className="divide-y md:hidden" aria-label="Processes">
-                {sorted.map(proc => (
-                  <li key={proc.pid} className="space-y-2.5 p-4">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs tabular-nums text-muted-foreground">PID {proc.pid}</span>
-                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{proc.user}</span>
-                      {proc.state === "R" ? <Pill tone="ok" dot>Running</Pill> : <Pill tone="outline">Sleep</Pill>}
-                    </div>
-                    <CommandCell proc={proc} max="max-w-full" />
-                    <div className="grid grid-cols-2 gap-3">
-                      <UsageCell pct={(proc.cpu / 15) * 100} label={`CPU ${proc.cpu.toFixed(1)}`} />
-                      <UsageCell
-                        pct={proc.memMb != null ? Math.min(100, (proc.memMb / 500) * 100) : (proc.mem / 10) * 100}
-                        label={proc.memMb != null ? `MEM ${proc.memMb}M` : `MEM ${proc.mem.toFixed(1)}%`}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-xs text-muted-foreground">RES {proc.res}</span>
-                      <ProcessActions proc={proc} onRequest={requestAction} />
-                    </div>
-                  </li>
-                ))}
+          {!loaded ? (
+            <Skeleton className="h-24 rounded-xl" />
+          ) : suspicious.length === 0 ? (
+            <EmptyState
+              icon={ShieldCheck}
+              title="No suspicious activity detected"
+              description={`All ${processes.length} running processes look normal.${released.size > 0 ? ` ${released.size} manually released.` : ""}`}
+            />
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-danger/30 bg-card shadow-card">
+              <div role="alert" className="flex items-start gap-3 border-b border-danger/20 bg-danger/10 px-[18px] py-3.5">
+                <ShieldAlert className="mt-0.5 size-[18px] shrink-0 text-danger" />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="text-sm font-semibold">{suspicious.length} process{suspicious.length !== 1 ? "es" : ""} matched detection rules</p>
+                  <p className="text-[13px] text-muted-foreground">These are rule matches, not confirmed malware. Inspect before acting. Kill confirmed threats, or release a false positive.</p>
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    {riskCounts.map(({ r, n }) => (
+                      <span key={r} className="flex items-center gap-1.5"><RiskPill risk={r} /><span className="font-mono text-xs tabular-nums">{n}</span></span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <ul className="divide-y">
+                {suspicious.map(({ proc, result }) => {
+                  const open = inspecting.has(proc.pid)
+                  return (
+                    <li key={proc.pid} className="space-y-2.5 px-[18px] py-3.5">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                        <RiskPill risk={result.risk} />
+                        <span className="font-mono text-xs text-muted-foreground">PID <b className="font-semibold text-foreground">{proc.pid}</b></span>
+                        <span className="font-mono text-xs text-muted-foreground">{proc.user}</span>
+                        <span className="text-xs text-muted-foreground tabular-nums">CPU <b className={cn("font-semibold", proc.cpu >= 60 ? "text-danger" : "text-foreground")}>{proc.cpu.toFixed(1)}%</b></span>
+                        <span className="flex-1" />
+                        <div className="flex flex-wrap gap-1.5">
+                          <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => toggleInspect(proc.pid)}>
+                            {open ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}Inspect
+                          </Button>
+                          <Button
+                            variant="outline" size="sm" title="Mark as false positive / safe"
+                            onClick={() => { setReleased(prev => new Set(Array.from(prev).concat(proc.pid))); toast.success(`Released PID ${proc.pid} — marked as safe`) }}
+                          >
+                            <CheckCircle2 className="size-3.5 text-success" />Release
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => requestAction("suspend", proc)}>Suspend</Button>
+                          <Button variant="destructive" size="sm" onClick={() => requestAction("kill", proc)}>Kill</Button>
+                        </div>
+                      </div>
+                      <code className="block rounded-md border bg-muted/60 px-2.5 py-2 font-mono text-xs break-all">{proc.cmd}</code>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-xs font-medium text-muted-foreground">Flagged because</span>
+                        {result.reasons.map(r => (
+                          <span key={r} className="inline-flex items-center gap-1.5 rounded-md border bg-muted px-2 py-0.5 text-xs">{r}</span>
+                        ))}
+                      </div>
+                      {open && (
+                        <dl className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-x-5 gap-y-2.5 rounded-lg border bg-muted/40 p-3 motion-safe:animate-in motion-safe:fade-in-0">
+                          {([
+                            ["Process", proc.name || procName(proc)],
+                            ["User", proc.user],
+                            ["State", proc.state === "R" ? "Running" : proc.state === "T" ? "Suspended (SIGSTOP)" : "Sleeping"],
+                            ["Memory", memLabel(proc)],
+                            ["Managed by", proc.type === "pm2" ? "PM2" : "Host (system)"],
+                          ] as const).map(([k, v]) => (
+                            <div key={k} className="space-y-0.5">
+                              <dt className="text-[11px] text-muted-foreground">{k}</dt>
+                              <dd className="font-mono text-xs break-all">{v}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
-              <div className="hidden overflow-x-auto md:block">
-                <Table>
+            </div>
+          )}
+
+          {released.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card px-4 py-3 shadow-card">
+              <ShieldCheck className="size-4 text-success" />
+              <span className="text-sm font-medium">Released (false positives)</span>
+              <span className="rounded-full bg-muted px-1.5 font-mono text-[11px] tabular-nums text-muted-foreground">{released.size}</span>
+              <div className="flex flex-wrap gap-2">
+                {Array.from(released).map(pid => {
+                  const p = processes.find(pr => pr.pid === pid)
+                  return (
+                    <Button
+                      key={pid} variant="outline" size="xs" className="rounded-full"
+                      title="Click to re-flag"
+                      aria-label={`Re-flag PID ${pid}`}
+                      onClick={() => setReleased(prev => { const n = new Set(prev); n.delete(pid); return n })}
+                    >
+                      <span className="font-mono">{pid}</span>
+                      {p && <span className="text-muted-foreground">{p.name}</span>}
+                      <X className="size-3 text-muted-foreground" />
+                    </Button>
+                  )
+                })}
+              </div>
+              <Button variant="ghost" size="xs" className="ml-auto" onClick={() => setReleased(new Set())}>Clear all</Button>
+            </div>
+          )}
+        </section>
+
+        {/* ── Suspended ── */}
+        {blocked.length > 0 && (
+          <section aria-labelledby="blocked-title" className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 id="blocked-title" className="flex items-center gap-2 text-lg font-semibold">
+                <Ban className="size-[18px] text-warning" />Suspended processes
+                <span className="rounded-full bg-muted px-1.5 font-mono text-[11px] tabular-nums text-muted-foreground">{blocked.length}</span>
+              </h2>
+              <span className="text-xs text-muted-foreground">Unblock a process to let it run again</span>
+            </div>
+            <Card className="gap-0 overflow-hidden border-warning/30 py-0">
+              <div className="overflow-x-auto">
+                <Table className="min-w-[640px]">
                   <TableHeader>
                     <TableRow>
-                      <SortHead sortKey={sortKey} sortDir={sortDir} onSort={handleSort} k="pid" label="PID" className="pl-4" />
+                      <TableHead>PID</TableHead>
                       <TableHead>User</TableHead>
                       <TableHead>Command</TableHead>
                       <TableHead>State</TableHead>
-                      <SortHead sortKey={sortKey} sortDir={sortDir} onSort={handleSort} k="cpu" label="CPU%" />
-                      <SortHead sortKey={sortKey} sortDir={sortDir} onSort={handleSort} k="mem" label="MEM" />
-                      <TableHead>RES</TableHead>
-                      <TableHead className="pr-4 text-right">Actions</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sorted.map(proc => (
+                    {blocked.map(proc => (
                       <TableRow key={proc.pid}>
-                        <TableCell className="pl-4 font-mono tabular-nums text-muted-foreground">{proc.pid}</TableCell>
-                        <TableCell className="text-muted-foreground">{proc.user}</TableCell>
-                        <TableCell><CommandCell proc={proc} /></TableCell>
-                        <TableCell>
-                          {proc.state === "R" ? <Pill tone="ok" dot>Running</Pill> : <Pill tone="outline">Sleep</Pill>}
+                        <TableCell className="font-mono text-xs tabular-nums">{proc.pid}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{proc.user}</TableCell>
+                        <TableCell><CommandCell proc={proc} max="max-w-[360px]" /></TableCell>
+                        <TableCell><StateLabel state="T" /></TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="outline" size="xs" onClick={() => handleResume(proc)}>
+                            <PlayCircle className="size-3.5 text-success" /> Unblock
+                          </Button>
                         </TableCell>
-                        <TableCell><UsageCell pct={(proc.cpu / 15) * 100} label={proc.cpu.toFixed(1)} /></TableCell>
-                        <TableCell>
-                          <UsageCell
-                            pct={proc.memMb != null ? Math.min(100, (proc.memMb / 500) * 100) : (proc.mem / 10) * 100}
-                            label={proc.memMb != null ? `${proc.memMb}M` : `${proc.mem.toFixed(1)}%`}
-                          />
-                        </TableCell>
-                        <TableCell className="font-mono tabular-nums text-muted-foreground">{proc.res}</TableCell>
-                        <TableCell className="pr-4 text-right"><ProcessActions proc={proc} onRequest={requestAction} /></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
-              {!loaded && (
-                <div className="space-y-3 p-4">
-                  {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
-                </div>
-              )}
-              {loaded && sorted.length === 0 && (
-                <EmptyState className="m-4" icon={Activity}
-                  title={processes.length === 0 ? "No processes reported" : "No processes match"}
-                  description={processes.length === 0 ? "The host did not return any processes." : "Try a different search term."} />
-              )}
-              <div className="flex items-center justify-between border-t px-4 py-2.5 text-xs text-muted-foreground">
-                <span>Showing {sorted.length} of {processes.length} processes</span>
-                <LiveBadge>Live · 5s</LiveBadge>
-              </div>
             </Card>
+          </section>
+        )}
 
-            {blocked.length > 0 && (
-              <Card className="gap-0 py-0">
-                <CardHeader className="border-b bg-warning/8 py-3">
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <Ban className="size-4 text-warning" /> Suspended processes <CountBadge n={blocked.length} />
-                  </CardTitle>
-                  <CardAction>
-                    <span className="text-xs text-muted-foreground">Unblock a process to let it run again</span>
-                  </CardAction>
-                </CardHeader>
-                <div className="overflow-x-auto">
-                  <Table>
+        {/* ── All processes ── */}
+        <section aria-labelledby="pt-title" className="min-w-0 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h2 id="pt-title" className="text-lg font-semibold">All processes</h2>
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="h-3.5 w-[3px] rounded-sm bg-primary" aria-hidden />PM2-managed
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Segmented<SortKey>
+                aria-label="Sort processes"
+                className="md:hidden"
+                value={sortKey}
+                onChange={handleSort}
+                options={[{ value: "cpu", label: "CPU" }, { value: "mem", label: "MEM" }, { value: "pid", label: "PID" }]}
+              />
+              <div className="relative w-full min-w-[220px] max-w-[300px]">
+                <SearchInput
+                  ref={searchRef}
+                  className="max-w-none"
+                  aria-label="Search processes"
+                  placeholder="Search command, user or PID"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
+                <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border bg-muted px-1.5 font-mono text-[11px] text-muted-foreground sm:block">/</kbd>
+              </div>
+            </div>
+          </div>
+
+          {!loaded ? (
+            <Card className="gap-0 py-0"><div className="space-y-3 p-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div></Card>
+          ) : sorted.length === 0 ? (
+            <EmptyState icon={Activity}
+              title={processes.length === 0 ? "No processes reported" : `No processes match “${search}”`}
+              description={processes.length === 0 ? "The host did not return any processes." : "Try a different command, user or PID."} />
+          ) : (
+            <>
+              <ul className="space-y-3 md:hidden" aria-label="Processes">
+                {sorted.map(proc => (
+                  <li
+                    key={proc.pid}
+                    className={cn(
+                      "space-y-2.5 rounded-xl border bg-card p-3.5 shadow-card",
+                      flagged.has(proc.pid) && "bg-danger/5",
+                      proc.type === "pm2" && "shadow-[inset_3px_0_0_var(--primary)]",
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs tabular-nums text-muted-foreground">PID {proc.pid}</span>
+                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{proc.user}</span>
+                      <StateLabel state={proc.state} />
+                    </div>
+                    <CommandCell proc={proc} flagged={flagged.has(proc.pid)} max="max-w-full" />
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        CPU <b className={cn("font-semibold", cpuText(proc.cpu))}>{proc.cpu.toFixed(1)}</b> · MEM {memLabel(proc)}
+                      </span>
+                      <ProcessIconActions proc={proc} onRequest={requestAction} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              <Card className="hidden gap-0 overflow-hidden py-0 md:block">
+                <div className="max-h-[640px] overflow-auto">
+                  <Table className="min-w-[980px]">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="pl-4">PID</TableHead>
-                        <TableHead>User</TableHead>
-                        <TableHead>Command</TableHead>
-                        <TableHead>State</TableHead>
-                        <TableHead className="pr-4 text-right">Action</TableHead>
+                        <SortHead k="pid" sortKey={sortKey} dir={sortDir} onSort={handleSort} />
+                        <SortHead k="user" sortKey={sortKey} dir={sortDir} onSort={handleSort} />
+                        <SortHead k="cmd" sortKey={sortKey} dir={sortDir} onSort={handleSort} />
+                        <SortHead k="state" sortKey={sortKey} dir={sortDir} onSort={handleSort} />
+                        <SortHead k="cpu" sortKey={sortKey} dir={sortDir} onSort={handleSort} />
+                        <SortHead k="mem" sortKey={sortKey} dir={sortDir} onSort={handleSort} />
+                        <SortHead k="res" sortKey={sortKey} dir={sortDir} onSort={handleSort} />
+                        <TableHead className={cn(STICKY, "top-0 z-[2] text-right")}>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {blocked.map(proc => (
-                        <TableRow key={proc.pid}>
-                          <TableCell className="pl-4 font-mono tabular-nums">{proc.pid}</TableCell>
-                          <TableCell className="text-muted-foreground">{proc.user}</TableCell>
-                          <TableCell><CommandCell proc={proc} max="max-w-[360px]" /></TableCell>
-                          <TableCell><Pill tone="warn" dot>SIGSTOP · paused</Pill></TableCell>
-                          <TableCell className="pr-4 text-right">
-                            <Button variant="outline" size="xs" onClick={() => handleResume(proc)}>
-                              <PlayCircle className="size-3.5 text-success" /> Unblock
-                            </Button>
-                          </TableCell>
+                      {sorted.map(proc => (
+                        <TableRow key={proc.pid} className={cn("h-[46px]", flagged.has(proc.pid) && "bg-danger/5")}>
+                          <TableCell className={cn("font-mono text-xs tabular-nums text-muted-foreground", proc.type === "pm2" && "shadow-[inset_3px_0_0_var(--primary)]")}>{proc.pid}</TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">{proc.user}</TableCell>
+                          <TableCell className="max-w-[460px]"><CommandCell proc={proc} flagged={flagged.has(proc.pid)} /></TableCell>
+                          <TableCell><StateLabel state={proc.state} /></TableCell>
+                          <TableCell className={cn("text-right font-medium tabular-nums", cpuText(proc.cpu))}>{proc.cpu.toFixed(1)}</TableCell>
+                          <TableCell className="text-right tabular-nums text-muted-foreground">{proc.memMb != null ? proc.memMb.toLocaleString() : proc.mem.toFixed(1)}</TableCell>
+                          <TableCell className="text-right tabular-nums text-muted-foreground">{proc.res}</TableCell>
+                          <TableCell className={cn(STICKY, "px-2")}><ProcessIconActions proc={proc} onRequest={requestAction} /></TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
                 </div>
+                <div className="flex items-center justify-between border-t px-4 py-2.5 text-xs text-muted-foreground">
+                  <span>Showing {sorted.length} of {processes.length} processes</span>
+                  <span className="inline-flex items-center gap-1 tabular-nums">
+                    Sorted by {SORT_LABEL[sortKey]} {sortDir === "desc" ? <ArrowDown className="size-3" /> : <ArrowUp className="size-3" />}
+                  </span>
+                </div>
               </Card>
-            )}
-          </>
-        )}
-
-        {/* ═════ TAB: SUSPICIOUS ACTIVITY ═════ */}
-        {activeTab === "suspicious" && (
-          <>
-            {suspicious.length === 0 ? (
-              <EmptyState
-                icon={ShieldCheck}
-                title="No suspicious activity detected"
-                description={`All ${processes.length} running processes look normal.${released.size > 0 ? ` ${released.size} manually released.` : ""}`}
-              />
-            ) : (
-              <>
-                <Alert variant="destructive">
-                  <ShieldAlert />
-                  <AlertTitle>
-                    {suspicious.length} suspicious process{suspicious.length !== 1 ? "es" : ""} detected
-                  </AlertTitle>
-                  <AlertDescription>
-                    <p>Review each process below. Kill confirmed threats, or release if it is a false positive.</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-3">
-                      {riskCounts.map(({ r, n }) => (
-                        <span key={r} className="flex items-center gap-1.5 text-foreground">
-                          <RiskPill risk={r} /> <span className="font-mono text-xs tabular-nums">{n}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </AlertDescription>
-                </Alert>
-
-                <Card className="gap-0 py-0">
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="pl-4">Risk</TableHead>
-                          <TableHead>PID</TableHead>
-                          <TableHead>Process</TableHead>
-                          <TableHead>User</TableHead>
-                          <TableHead>CPU%</TableHead>
-                          <TableHead>Why flagged</TableHead>
-                          <TableHead className="pr-4 text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {suspicious.map(({ proc, result }) => (
-                          <TableRow key={proc.pid}>
-                            <TableCell className="pl-4"><RiskPill risk={result.risk} /></TableCell>
-                            <TableCell className="font-mono tabular-nums text-muted-foreground">{proc.pid}</TableCell>
-                            <TableCell>
-                              <p className="text-sm font-medium">{proc.name || "unknown"}</p>
-                              <p className="max-w-[220px] truncate font-mono text-xs text-muted-foreground" title={proc.cmd}>{proc.cmd}</p>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">{proc.user}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <ProgressBar value={(proc.cpu / 15) * 100} tone={proc.cpu > 70 ? "bad" : "info"} className="w-14 shrink-0" />
-                                <span className={`font-mono text-xs tabular-nums ${proc.cpu > 70 ? "font-semibold text-danger" : ""}`}>
-                                  {proc.cpu.toFixed(1)}%
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-col items-start gap-1">
-                                {result.reasons.map(r => (
-                                  <Pill key={r} tone="warn" className="h-auto whitespace-normal py-0.5 text-left">{r}</Pill>
-                                ))}
-                              </div>
-                            </TableCell>
-                            <TableCell className="pr-4 text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <Button
-                                  variant="outline" size="xs" title="Mark as false positive / safe"
-                                  onClick={() => { setReleased(prev => new Set(Array.from(prev).concat(proc.pid))); toast.success(`Released PID ${proc.pid} — marked as safe`) }}
-                                >
-                                  <CheckCircle2 className="size-3.5 text-success" /> Release
-                                </Button>
-                                <ProcessActions proc={proc} onRequest={requestAction} />
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </Card>
-              </>
-            )}
-
-            {released.size > 0 && (
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <ShieldCheck className="size-4 text-success" /> Released (false positives) <CountBadge n={released.size} />
-                  </CardTitle>
-                  <CardAction>
-                    <Button variant="ghost" size="xs" onClick={() => setReleased(new Set())}>Clear all</Button>
-                  </CardAction>
-                </CardHeader>
-                <CardContent className="flex flex-wrap gap-2">
-                  {Array.from(released).map(pid => {
-                    const p = processes.find(pr => pr.pid === pid)
-                    return (
-                      <Button
-                        key={pid} variant="outline" size="xs" className="rounded-full"
-                        title="Click to re-flag"
-                        aria-label={`Re-flag PID ${pid}`}
-                        onClick={() => setReleased(prev => { const n = new Set(prev); n.delete(pid); return n })}
-                      >
-                        <span className="font-mono">{pid}</span>
-                        {p && <span className="text-muted-foreground">{p.name}</span>}
-                        <X className="size-3 text-muted-foreground" />
-                      </Button>
-                    )
-                  })}
-                </CardContent>
-              </Card>
-            )}
-          </>
-        )}
+            </>
+          )}
+        </section>
       </PageBody>
     </>
   )

@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/cors"
 
 	"pulsenode/backend/internal/auth"
+	"pulsenode/backend/internal/backups"
 	"pulsenode/backend/internal/caddy"
 	"pulsenode/backend/internal/db"
 	"pulsenode/backend/internal/docker"
@@ -46,6 +47,7 @@ type Server struct {
 	origins   []string
 	backupMu  sync.Mutex
 	backups   map[string]*backupJob
+	backupSvc *backups.Service // scheduled backups (internal/backups)
 
 	insecureNoAuth bool       // PULSENODE_INSECURE_NO_AUTH=true: no admin account → open dashboard
 	setupMu        sync.Mutex // guards setupToken
@@ -68,6 +70,13 @@ func NewServer(cfg Config) *Server {
 		backups:        make(map[string]*backupJob),
 		insecureNoAuth: strings.EqualFold(os.Getenv("PULSENODE_INSECURE_NO_AUTH"), "true"),
 	}
+	srv.backupSvc = backups.New(backups.Deps{
+		DB: cfg.DB, Hub: cfg.Hub, Ops: backupOps{srv}, DataDir: dataDir, Workspace: workspaceDir(),
+		PanelVersion: installedVersion,
+		Audit: func(actor, action, resource string, status int) {
+			cfg.DB.InsertAuditLog(actor, action, resource, "", status)
+		},
+	})
 	srv.initSetupToken(dataDir)
 	srv.startBackupCleaner()
 	return srv
@@ -151,9 +160,6 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/system/update/status", s.updateStatus)
 		r.Post("/system/update", s.systemUpdate)
 		r.Post("/system/update/restore-snapshot", s.restoreSnapshot)
-
-		r.Get("/coolify/projects", s.coolifyProjects)
-		r.Get("/coolify/deployments", s.coolifyDeployments)
 
 		// GitHub integration
 		r.Get("/github/auth-url", s.githubAuthURL)
@@ -257,6 +263,24 @@ func (s *Server) Routes() http.Handler {
 		r.Get("/database/{name}/connection-string", s.databaseConnectionString)
 		r.Get("/database/{name}/schema", s.databaseSchema)
 		r.Get("/database/{name}/metrics", s.databaseMetrics)
+		r.Get("/backups/status", s.backupsStatus)
+		r.Get("/backups/destinations", s.listBackupDestinations)
+		r.Post("/backups/destinations", s.createBackupDestination)
+		r.Post("/backups/destinations/test", s.testDraftBackupDestination)
+		r.Patch("/backups/destinations/{id}", s.updateBackupDestination)
+		r.Delete("/backups/destinations/{id}", s.deleteBackupDestination)
+		r.Post("/backups/destinations/{id}/test", s.testSavedBackupDestination)
+		r.Get("/backups/schedules", s.listBackupSchedules)
+		r.Post("/backups/schedules", s.createBackupSchedule)
+		r.Patch("/backups/schedules/{id}", s.updateBackupSchedule)
+		r.Delete("/backups/schedules/{id}", s.deleteBackupSchedule)
+		r.Post("/backups/schedules/{id}/run", s.runBackupSchedule)
+		r.Get("/backups/history", s.listBackupHistory)
+		r.Get("/backups/history/{id}/download", s.downloadBackupHistory)
+		r.Delete("/backups/history/{id}", s.deleteBackupHistory)
+		r.Post("/backups/history/{id}/restore", s.restoreBackupHistory)
+		r.Get("/backups/passphrase", s.getBackupPassphrase)
+		r.Post("/backups/passphrase", s.setBackupPassphrase)
 		r.Post("/database/{name}/backup", s.startBackup)
 		r.Get("/database/backup/{jobId}", s.backupStatus)
 		r.Get("/database/backup/{jobId}/download", s.downloadBackup)
@@ -296,9 +320,7 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) clientConfig(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{
-		"coolifyEnabled": os.Getenv("COOLIFY_API_URL") != "" && os.Getenv("COOLIFY_API_TOKEN") != "",
-	})
+	writeJSON(w, http.StatusOK, map[string]any{})
 }
 
 // installedVersion reports the version PulseNode is running. Prefers the most

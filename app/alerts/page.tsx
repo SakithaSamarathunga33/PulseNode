@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
   Bell, BellOff, Mail, MessageSquare, Send, Webhook, Siren, AlertTriangle, Info, CheckCircle2, XCircle,
@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import { nodeApi, type ApiError } from "@/lib/api"
 import { getSocket } from "@/lib/socket"
+import { useSlashFocus } from "@/lib/use-slash-focus"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { SearchInput } from "@/components/pn/SearchInput"
 import { Segmented } from "@/components/pn/Segmented"
@@ -20,6 +21,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -41,6 +43,29 @@ type Channel = {
 type ChannelType = "webhook" | "slack" | "discord" | "telegram" | "smtp"
 type Tab = "history" | "rules" | "channels"
 type StateFilter = "all" | "firing" | "ack" | "resolved"
+type SevFilter = "all" | "critical" | "warning" | "info"
+type RangeFilter = "1h" | "24h" | "7d" | "all"
+
+const SEV_FILTERS = [
+  { value: "all", label: "All severities" }, { value: "critical", label: "Critical" },
+  { value: "warning", label: "Warning" }, { value: "info", label: "Info" },
+]
+const RANGE_FILTERS = [
+  { value: "1h", label: "Last hour" }, { value: "24h", label: "Last 24 hours" },
+  { value: "7d", label: "Last 7 days" }, { value: "all", label: "All time" },
+]
+const RANGE_MS: Record<RangeFilter, number> = { "1h": 3600e3, "24h": 86400e3, "7d": 7 * 86400e3, all: Infinity }
+const SEV_TEXT = { critical: "text-danger", warning: "text-warning", info: "text-info" } as const
+const STICKY = "sticky right-0 bg-card shadow-[-1px_0_0_var(--border)]"
+
+function SevLabel({ severity }: { severity: AlertEvent["severity"] }) {
+  const m = SEV[severity] ?? SEV.info
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 text-xs font-semibold", SEV_TEXT[severity] ?? "text-info")}>
+      <m.icon className="size-3.5" aria-hidden />{m.label}
+    </span>
+  )
+}
 
 const METRICS: { value: string; label: string; percent: boolean; hint: string }[] = [
   { value: "host.cpu", label: "Host CPU", percent: true, hint: "CPU usage of the server" },
@@ -81,15 +106,6 @@ function ruleExpr(r: Rule): string {
   return `${r.metric} ${r.operator} ${r.threshold}%${r.duration ? ` for ${r.duration >= 60 ? `${Math.round(r.duration / 60)}m` : `${r.duration}s`}` : ""}`
 }
 
-function SevIcon({ severity }: { severity: AlertEvent["severity"] }) {
-  const m = SEV[severity] ?? SEV.info
-  return (
-    <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", m.cls)} title={m.label}>
-      <m.icon className="size-4" aria-label={m.label} />
-    </span>
-  )
-}
-
 function StatePill({ state }: { state: string }) {
   if (state === "firing") return <Pill tone="bad" dot>Firing</Pill>
   if (state === "ack") return <Pill tone="warn" dot>Acknowledged</Pill>
@@ -109,12 +125,19 @@ export default function AlertsPage() {
   const [muteUntil, setMuteUntil] = useState(0)
   const [stateFilter, setStateFilter] = useState<StateFilter>("all")
   const [search, setSearch] = useState("")
+  const [sevFilter, setSevFilter] = useState<SevFilter>("all")
+  const [rangeFilter, setRangeFilter] = useState<RangeFilter>("7d")
+  const searchRef = useRef<HTMLInputElement>(null)
+  const loadingRef = useRef(false)
+  useSlashFocus(searchRef)
   const [ruleDialog, setRuleDialog] = useState<Rule | "new" | null>(null)
   const [channelDialog, setChannelDialog] = useState<Channel | "new" | null>(null)
   const [confirm, setConfirm] = useState<{ kind: "rule" | "channel"; id: string; name: string } | null>(null)
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
+    if (loadingRef.current) return
+    loadingRef.current = true
     try {
       const [ev, ru, ch, mu] = await Promise.all([
         nodeApi.get<AlertEvent[]>("/api/alerts/history?limit=300"),
@@ -122,10 +145,15 @@ export default function AlertsPage() {
         nodeApi.get<Channel[]>("/api/alerts/channels"),
         nodeApi.get<{ until: number }>("/api/alerts/mute"),
       ])
-      setEvents(ev.data); setRules(ru.data); setChannels(ch.data); setMuteUntil(mu.data.until)
+      setEvents(Array.isArray(ev.data) ? ev.data : [])
+      setRules(Array.isArray(ru.data) ? ru.data : [])
+      setChannels(Array.isArray(ch.data) ? ch.data : [])
+      setMuteUntil(mu.data?.until ?? 0)
       setError(null)
     } catch (e) {
       setError(errMsg(e, "Could not load alerts"))
+    } finally {
+      loadingRef.current = false
     }
   }, [])
 
@@ -153,11 +181,16 @@ export default function AlertsPage() {
   const ack = list.filter(a => a.state === "ack").length
   const resolved = list.filter(a => a.state === "resolved").length
 
-  const filtered = useMemo(() => list.filter(a => {
+  const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return (stateFilter === "all" || a.state === stateFilter) &&
-      (!q || a.rule.toLowerCase().includes(q) || a.target.toLowerCase().includes(q) || a.message.toLowerCase().includes(q))
-  }), [list, stateFilter, search])
+    const limit = RANGE_MS[rangeFilter]
+    return list.filter(a =>
+      (stateFilter === "all" || a.state === stateFilter) &&
+      (sevFilter === "all" || a.severity === sevFilter) &&
+      (limit === Infinity || Date.now() - new Date(a.firedAt).getTime() <= limit) &&
+      (!q || a.rule.toLowerCase().includes(q) || a.target.toLowerCase().includes(q) || a.message.toLowerCase().includes(q)))
+  }, [list, stateFilter, sevFilter, rangeFilter, search])
+  const resetFilters = () => { setSearch(""); setStateFilter("all"); setSevFilter("all"); setRangeFilter("7d") }
 
   async function act(id: number, action: "ack" | "resolve") {
     try {
@@ -229,7 +262,17 @@ export default function AlertsPage() {
       <PageHeader
         icon={Siren}
         title="Alerts"
-        description="Rules that watch the host, containers and deployments, and where to send the result."
+        description={
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span><b className={cn("font-semibold tabular-nums", firing ? "text-danger" : "text-foreground")}>{firing}</b> firing</span>
+            <span aria-hidden className="text-border">·</span>
+            <span><b className={cn("font-semibold tabular-nums", ack ? "text-warning" : "text-foreground")}>{ack}</b> acknowledged</span>
+            <span aria-hidden className="text-border">·</span>
+            <span><b className="font-semibold text-foreground tabular-nums">{resolved}</b> resolved</span>
+            <span aria-hidden className="text-border">·</span>
+            <span><b className="font-semibold text-foreground tabular-nums">{rules?.length ?? 0}</b> rules</span>
+          </span>
+        }
         actions={
           <>
             <Button variant="outline" onClick={toggleMute}>
@@ -247,9 +290,9 @@ export default function AlertsPage() {
           onChange={setTab}
           size="default"
           options={[
-            { value: "history", label: "History", count: firing || undefined },
-            { value: "rules", label: "Rules" },
-            { value: "channels", label: "Channels" },
+            { value: "history", label: "History", count: events ? list.length : undefined },
+            { value: "rules", label: "Rules", count: rules?.length },
+            { value: "channels", label: "Channels", count: channels?.length },
           ]}
         />
       </PageHeader>
@@ -286,9 +329,19 @@ export default function AlertsPage() {
         )}
 
         {tab === "history" && (
-          <>
+          <section aria-label="Alert history" className="min-w-0 space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <SearchInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Search alerts…" aria-label="Search alerts" />
+              <div className="relative w-full max-w-[280px]">
+                <SearchInput
+                  ref={searchRef}
+                  className="max-w-none"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search title or target"
+                  aria-label="Search alerts"
+                />
+                <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border bg-muted px-1.5 font-mono text-[11px] text-muted-foreground sm:block">/</kbd>
+              </div>
               <Segmented<StateFilter>
                 aria-label="Filter by state"
                 value={stateFilter}
@@ -298,6 +351,15 @@ export default function AlertsPage() {
                   { value: "ack", label: "Ack" }, { value: "resolved", label: "Resolved" },
                 ]}
               />
+              <Select value={sevFilter} onValueChange={v => setSevFilter(v as SevFilter)} items={SEV_FILTERS}>
+                <SelectTrigger size="sm" aria-label="Severity" className="w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectContent>{SEV_FILTERS.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}</SelectContent>
+              </Select>
+              <Select value={rangeFilter} onValueChange={v => setRangeFilter(v as RangeFilter)} items={RANGE_FILTERS}>
+                <SelectTrigger size="sm" aria-label="Time range" className="w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectContent>{RANGE_FILTERS.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}</SelectContent>
+              </Select>
+              <span className="ml-auto text-xs text-muted-foreground tabular-nums">{filtered.length} of {list.length}</span>
             </div>
 
             {loading ? (
@@ -305,36 +367,82 @@ export default function AlertsPage() {
             ) : filtered.length === 0 ? (
               <EmptyState
                 icon={Bell}
-                title={list.length === 0 ? "No alerts yet" : "No alerts match your filter"}
+                title={list.length === 0 ? "No alerts yet" : "No alerts match your filter."}
                 description={list.length === 0
                   ? (rules?.length ? "Nothing has triggered. Alerts appear here the moment a rule fires." : "Create a rule to start watching your server.")
-                  : "Try a different search or state."}
-                action={list.length === 0 && !rules?.length ? <Button onClick={() => { setTab("rules"); setRuleDialog("new") }}><Plus className="size-4" /> New rule</Button> : undefined}
+                  : "Try a different search, state, severity or time range."}
+                action={list.length === 0
+                  ? (!rules?.length ? <Button onClick={() => { setTab("rules"); setRuleDialog("new") }}><Plus className="size-4" /> New rule</Button> : undefined)
+                  : <Button variant="outline" size="sm" onClick={resetFilters}>Clear filters</Button>}
               />
             ) : (
-              <Card className="gap-0 divide-y overflow-hidden p-0">
-                {filtered.map(alert => (
-                  <div key={alert.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-muted/40">
-                    <SevIcon severity={alert.severity} />
-                    <div className="min-w-0 flex-1 basis-56">
-                      <p className="truncate text-sm font-medium">
-                        {alert.rule}{alert.target && alert.target !== "host" && <span className="font-normal text-muted-foreground"> — {alert.target}</span>}
-                      </p>
-                      <p className="mt-0.5 truncate text-xs text-muted-foreground" title={alert.message}>{alert.message}</p>
-                    </div>
-                    <span className="text-xs text-muted-foreground" title={new Date(alert.firedAt).toLocaleString()}>{ago(alert.firedAt)}</span>
-                    <StatePill state={alert.state} />
-                    <div className="flex items-center gap-1">
-                      <Button variant="outline" size="xs" disabled={alert.state !== "firing"} onClick={() => act(alert.id, "ack")}>Ack</Button>
-                      <Button variant="outline" size="xs" disabled={alert.state === "resolved"} onClick={() => act(alert.id, "resolve")}>
-                        <Check className="size-3" /> Resolve
-                      </Button>
-                    </div>
+              <>
+                <ul className="space-y-3 md:hidden" aria-label="Alerts">
+                  {filtered.map(alert => (
+                    <li key={alert.id} className={cn("space-y-2.5 rounded-xl border bg-card p-3.5 shadow-card", alert.state === "firing" && "bg-danger/5")}>
+                      <div className="flex items-center gap-2">
+                        <SevLabel severity={alert.severity} />
+                        <span className="ml-auto"><StatePill state={alert.state} /></span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium break-words">
+                          {alert.rule}{alert.target && alert.target !== "host" && <span className="font-normal text-muted-foreground"> — {alert.target}</span>}
+                        </p>
+                        <p className="mt-0.5 text-xs break-words text-muted-foreground">{alert.message}</p>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-muted-foreground" title={new Date(alert.firedAt).toLocaleString()}>{ago(alert.firedAt)}</span>
+                        <div className="flex items-center gap-1">
+                          <Button variant="outline" size="xs" disabled={alert.state !== "firing"} onClick={() => act(alert.id, "ack")} aria-label={`Acknowledge ${alert.rule}`}>Ack</Button>
+                          <Button variant="outline" size="xs" disabled={alert.state === "resolved"} onClick={() => act(alert.id, "resolve")} aria-label={`Resolve ${alert.rule}`}>
+                            <Check className="size-3" /> Resolve
+                          </Button>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+
+                <Card className="hidden gap-0 overflow-hidden py-0 md:block">
+                  <div className="overflow-x-auto">
+                    <Table className="min-w-[1000px]">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Severity</TableHead>
+                          <TableHead>Alert</TableHead>
+                          <TableHead>Target</TableHead>
+                          <TableHead>Detail</TableHead>
+                          <TableHead>Time</TableHead>
+                          <TableHead>State</TableHead>
+                          <TableHead className={cn(STICKY, "text-right")}>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filtered.map(alert => (
+                          <TableRow key={alert.id} className={cn("h-[52px]", alert.state === "firing" && "bg-danger/5")}>
+                            <TableCell><SevLabel severity={alert.severity} /></TableCell>
+                            <TableCell className="max-w-[260px]"><span className="block truncate font-medium" title={alert.rule}>{alert.rule}</span></TableCell>
+                            <TableCell className="font-mono text-xs whitespace-nowrap text-muted-foreground">{alert.target || "—"}</TableCell>
+                            <TableCell className="max-w-[300px]">
+                              <span className="block truncate text-xs text-muted-foreground" title={alert.message}>{alert.message}</span>
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-muted-foreground" title={new Date(alert.firedAt).toLocaleString()}>{ago(alert.firedAt)}</TableCell>
+                            <TableCell><StatePill state={alert.state} /></TableCell>
+                            <TableCell className={STICKY}>
+                              <div className="flex justify-end gap-1">
+                                <Button variant="ghost" size="xs" disabled={alert.state !== "firing"} onClick={() => act(alert.id, "ack")} aria-label={`Acknowledge ${alert.rule}`}>Ack</Button>
+                                <Button variant="outline" size="xs" disabled={alert.state === "resolved"} onClick={() => act(alert.id, "resolve")} aria-label={`Resolve ${alert.rule}`}>Resolve</Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
-                ))}
-              </Card>
+                </Card>
+              </>
             )}
-          </>
+          </section>
         )}
 
         {tab === "rules" && (
@@ -377,7 +485,7 @@ export default function AlertsPage() {
                 ))}
               </ul>
               <Card className="hidden gap-0 overflow-x-auto py-0 md:block">
-                <Table>
+                <Table className="min-w-[860px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-16">On</TableHead>
@@ -392,7 +500,12 @@ export default function AlertsPage() {
                     {rules.map(rule => (
                       <TableRow key={rule.id}>
                         <TableCell><Switch checked={rule.enabled} onCheckedChange={v => toggleRule(rule, v)} aria-label={`Enable rule ${rule.name}`} /></TableCell>
-                        <TableCell className="font-medium">{rule.name}</TableCell>
+                        <TableCell>
+                          <span className="block font-medium">{rule.name}</span>
+                          {metricOf(rule.metric)?.percent && rule.duration > 0 && (
+                            <span className="text-[11px] text-muted-foreground">for {rule.duration >= 60 ? `${Math.round(rule.duration / 60)}m` : `${rule.duration}s`}</span>
+                          )}
+                        </TableCell>
                         <TableCell><code className="rounded bg-muted px-2 py-0.5 font-mono text-xs">{ruleExpr(rule)}</code></TableCell>
                         <TableCell><Pill tone={SEV[rule.severity]?.tone ?? "info"}>{SEV[rule.severity]?.label ?? rule.severity}</Pill></TableCell>
                         <TableCell>

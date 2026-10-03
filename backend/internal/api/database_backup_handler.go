@@ -154,39 +154,7 @@ func (s *Server) runBackup(job *backupJob, containerName string, mdb *dbpkg.Mana
 
 	pw := &progressWriter{f: f, job: job, mu: &s.backupMu, hub: s.hub, last: time.Now()}
 
-	dbName := database
-	if dbName == "" {
-		dbName = mdb.DBName
-	}
-
-	var execErr error
-	switch mdb.Engine {
-	case "postgres":
-		cmd := []string{"pg_dump", "-U", mdb.Username, "-d", dbName}
-		if table != "" {
-			cmd = append(cmd, "-t", table)
-		}
-		execErr = s.docker.ExecStreamEnv(ctx, containerName, []string{"PGPASSWORD=" + mdb.Password}, cmd, pw)
-
-	case "mysql":
-		cmd := []string{"mysqldump", "-u" + mdb.Username, dbName}
-		if table != "" {
-			cmd = append(cmd, table)
-		}
-		execErr = s.docker.ExecStreamEnv(ctx, containerName, mysqlAuthEnv(mdb.Password), cmd, pw)
-
-	case "mongodb":
-		args := []string{"--archive", "--db", dbName}
-		if table != "" {
-			args = append(args, "--collection", table)
-		}
-		cmd, env := mongoToolCmd("mongodump", args, mdb.Username, mdb.Password)
-		execErr = s.docker.ExecStreamEnv(ctx, containerName, env, cmd, pw)
-
-	case "redis":
-		_, _ = s.docker.ExecSliceEnv(ctx, containerName, redisAuthEnv(mdb.Password), []string{"redis-cli", "SAVE"})
-		execErr = s.docker.ExecStreamEnv(ctx, containerName, nil, []string{"cat", "/data/dump.rdb"}, pw)
-	}
+	execErr := s.dumpEngine(ctx, containerName, mdb, database, table, pw)
 
 	s.finishBackup(job, execErr)
 }
@@ -317,71 +285,16 @@ func (s *Server) restoreDatabase(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
 	defer cancel()
 
-	remoteName := tmpID + ".dump"
-	remotePath := "/tmp/" + remoteName
-
-	// Redis restore requires stop/replace/start — handle separately
-	if mdb.Engine == "redis" {
-		if err := s.docker.Action(ctx, containerName, "stop"); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "stop redis: " + err.Error()})
-			return
-		}
-		info, _ := os.Stat(tmpPath)
-		rf, _ := os.Open(tmpPath)
-		cpErr := s.docker.CopyToContainer(ctx, containerName, "/data", "dump.rdb", rf, info.Size())
-		rf.Close()
-		_ = s.docker.Action(ctx, containerName, "start")
-		if cpErr != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "replace rdb: " + cpErr.Error()})
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "output": "RDB replaced. Redis restarted."})
-		return
+	_ = table // psql restores the whole file; table-level is implicit in the dump
+	output, status, rerr := s.restoreEngine(ctx, containerName, mdb, database, tmpPath)
+	switch {
+	case status == http.StatusUnprocessableEntity:
+		writeJSON(w, status, map[string]any{"error": rerr.Error(), "output": output})
+	case rerr != nil:
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": rerr.Error()})
+	default:
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "output": output})
 	}
-
-	// Copy backup file into container
-	info, err := os.Stat(tmpPath)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	rf, err := os.Open(tmpPath)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-	defer rf.Close()
-	if err := s.docker.CopyToContainer(ctx, containerName, "/tmp", remoteName, rf, info.Size()); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "copy to container: " + err.Error()})
-		return
-	}
-
-	var output string
-	var execErr error
-	switch mdb.Engine {
-	case "postgres":
-		cmd := []string{"psql", "-U", mdb.Username, "-d", database, "-f", remotePath}
-		_ = table // psql restores the whole file; table-level is implicit in the dump
-		output, execErr = s.docker.ExecSliceEnv(ctx, containerName, []string{"PGPASSWORD=" + mdb.Password}, cmd)
-
-	case "mysql":
-		// No shell: the password goes via MYSQL_PWD and the file via `source`.
-		cmd := []string{"mysql", "-u", mdb.Username, "-D", database, "-e", "source " + remotePath}
-		output, execErr = s.docker.ExecSliceEnv(ctx, containerName, []string{"MYSQL_PWD=" + mdb.Password}, cmd)
-
-	case "mongodb":
-		cmd, env := mongoToolCmd("mongorestore", []string{"--archive=" + remotePath, "--db", database}, mdb.Username, mdb.Password)
-		output, execErr = s.docker.ExecSliceEnv(ctx, containerName, env, cmd)
-	}
-
-	// Clean up temp file in container (best-effort)
-	_, _ = s.docker.ExecSlice(ctx, containerName, []string{"rm", "-f", remotePath})
-
-	if execErr != nil {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": execErr.Error(), "output": output})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "output": output})
 }
 
 // maxRestoreUpload caps restore uploads.

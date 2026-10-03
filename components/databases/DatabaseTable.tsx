@@ -219,7 +219,6 @@ export function DatabaseTable({
                       <span className="max-w-[220px] truncate font-semibold" title={db.name}>{db.name}</span>
                       <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         {db.host}
-                        {db.name.toLowerCase().includes("coolify") && <Pill tone="info">Coolify</Pill>}
                       </span>
                     </div>
                   </div>

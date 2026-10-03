@@ -7,6 +7,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Pill } from "@/components/dashboard/Pill"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
 
 export type DialogState = { type: "kill" | "suspend"; proc: Process } | null
@@ -91,5 +92,32 @@ export function ProcessConfirm({ dialog, onClose, onConfirmKill, onConfirmSuspen
         onClose()
       }}
     />
+  )
+}
+
+/** Icon-only Suspend / Kill buttons with tooltips (table rows and cards). */
+export function ProcessIconActions({ proc, onRequest }: {
+  proc: Process
+  onRequest: (type: "kill" | "suspend", p: Process) => void
+}) {
+  return (
+    <div className="flex justify-end gap-0.5">
+      <Tooltip>
+        <TooltipTrigger
+          render={<Button variant="ghost" size="icon-sm" aria-label={`Suspend PID ${proc.pid}`} onClick={() => onRequest("suspend", proc)} />}
+        >
+          <PauseCircle className="size-4" />
+        </TooltipTrigger>
+        <TooltipContent>Suspend (SIGSTOP)</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger
+          render={<Button variant="ghost" size="icon-sm" className="text-danger hover:text-danger" aria-label={`Kill PID ${proc.pid}`} onClick={() => onRequest("kill", proc)} />}
+        >
+          <XCircle className="size-4" />
+        </TooltipTrigger>
+        <TooltipContent>Kill (SIGKILL)</TooltipContent>
+      </Tooltip>
+    </div>
   )
 }

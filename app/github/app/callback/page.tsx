@@ -4,8 +4,9 @@ import { API_BASE } from "@/lib/api"
 import { useTimeouts } from "@/lib/use-timeouts"
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Loader2, CheckCircle2, XCircle } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
+import Link from "next/link"
+import { GitHubDark } from "developer-icons"
+import { ArrowLeft, CheckCircle2, Loader2, XCircle, Zap } from "lucide-react"
 
 const GO_API = API_BASE
 
@@ -84,34 +85,43 @@ function CallbackInner() {
       })
   }, [searchParams, router, later])
 
+  const view = {
+    loading: { title: "Registering installation…", desc: "Exchanging the authorization code with GitHub.", tone: "bg-primary/12 text-primary" },
+    ok:      { title: message || "Installation registered", desc: "Your repositories are now available for deployment.", tone: "bg-success/12 text-success" },
+    error:   { title: "Could not register the installation", desc: "Check the details below, then try connecting again.", tone: "bg-danger/12 text-danger" },
+  }[status]
+
   return (
-    <div className="grid min-h-screen place-items-center bg-background p-4">
-      <Card className="w-full max-w-sm" role="status" aria-live="polite">
-        <CardContent className="flex flex-col items-center gap-3 py-8 text-center motion-safe:animate-in fade-in-0 duration-300">
-          {status === "loading" && (
-            <>
-              <Loader2 className="size-8 animate-spin text-primary" aria-hidden />
-              <p className="text-sm font-medium">Registering installation…</p>
-            </>
-          )}
-          {status === "ok" && (
-            <>
-              <CheckCircle2 className="size-8 text-success" aria-hidden />
-              <p className="text-sm font-medium">{message}</p>
-              <p className="text-xs text-muted-foreground">Redirecting…</p>
-            </>
-          )}
-          {status === "error" && (
-            <>
-              <XCircle className="size-8 text-danger" aria-hidden />
-              <p className="text-sm font-medium">Something went wrong</p>
-              <p className="text-sm text-muted-foreground">{message}</p>
-              <p className="text-xs text-muted-foreground">Redirecting to GitHub settings…</p>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+    <main className="grid min-h-screen place-items-center bg-background p-6 text-foreground">
+      <div role="status" aria-live="polite" className="flex w-full max-w-[420px] flex-col items-center gap-[18px] text-center motion-safe:animate-in fade-in-0 duration-300">
+        <div className="flex items-center gap-2.5 text-muted-foreground" aria-hidden>
+          <span className="grid size-9 place-items-center rounded-[9px] border bg-card text-primary"><Zap className="size-[18px]" /></span>
+          <ArrowLeft className="size-3.5" />
+          <span className="grid size-9 place-items-center rounded-[9px] border bg-card text-foreground"><GitHubDark size={19} className="theme-dark-surface-icon" /></span>
+        </div>
+
+        <span className={`grid size-11 place-items-center rounded-full ${view.tone}`}>
+          {status === "loading" && <Loader2 className="size-[22px] animate-spin" aria-hidden />}
+          {status === "ok" && <CheckCircle2 className="size-[22px]" aria-hidden />}
+          {status === "error" && <XCircle className="size-[22px]" aria-hidden />}
+        </span>
+
+        <div className="space-y-1.5">
+          <h1 className="text-lg font-semibold">{view.title}</h1>
+          <p className="text-[13px] leading-relaxed text-muted-foreground">{view.desc}</p>
+        </div>
+
+        {status === "error" && message && (
+          <code className="max-w-full rounded-lg border bg-muted/50 px-3 py-2 font-mono text-xs break-words text-muted-foreground">{message}</code>
+        )}
+        {status !== "loading" && (
+          <>
+            <p className="text-xs text-muted-foreground">Redirecting{status === "error" ? " to GitHub settings" : ""}…</p>
+            <Link href="/github" className="text-[13px] text-primary underline underline-offset-2">Go to GitHub settings now</Link>
+          </>
+        )}
+      </div>
+    </main>
   )
 }
 

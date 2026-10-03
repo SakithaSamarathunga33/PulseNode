@@ -1,5 +1,5 @@
 import {
-  Activity, BarChart3, BellRing, Boxes, Database, FileCode2, FolderGit2, Gauge,
+  Activity, BarChart3, BellRing, Database, DatabaseBackup, FileCode2, FolderGit2, Gauge,
   GitBranch, Globe, LayoutDashboard, Layers, Network, ShieldCheck, Settings,
   type LucideIcon,
 } from "lucide-react"
@@ -17,8 +17,6 @@ export type NavItem = {
   description: string
   keywords: string[]
   badge?: NavBadge
-  /** Hidden unless the server says it is enabled (Coolify). */
-  optional?: "coolify"
 }
 
 export type NavGroup = { label: string; area: Area; items: NavItem[] }
@@ -39,9 +37,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Processes", href: "/processes", icon: Activity,
         description: "Host processes, kill/suspend, suspicious activity",
         keywords: ["process", "pid", "kill", "suspend", "resume", "pm2", "cpu", "memory", "malware"] },
-      { label: "Coolify", href: "/coolify", icon: Boxes, optional: "coolify",
-        description: "Coolify apps, databases and deployments",
-        keywords: ["coolify", "deployment", "project", "service"] },
     ],
   },
   {
@@ -56,6 +51,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Databases", href: "/databases", icon: Database, badge: "databases",
         description: "Provision, connect, query and back up databases",
         keywords: ["database", "postgres", "mysql", "redis", "mongo", "sql", "query", "backup", "restore"] },
+      { label: "Backups", href: "/backups", icon: DatabaseBackup,
+        description: "Scheduled, encrypted backups of the panel and databases",
+        keywords: ["backup", "restore", "schedule", "snapshot", "s3", "off-site", "passphrase", "disaster", "recovery"] },
     ],
   },
   {

@@ -3,13 +3,11 @@
 import { API_BASE } from "@/lib/api"
 import { useState, useEffect, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { AlertCircle, Loader2 } from "lucide-react"
+import { AlertCircle, ArrowRight, Eye, EyeOff, Loader2, Lock, RefreshCw } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { BorderBeam } from "@/components/magicui/border-beam"
 
 const GO_API = API_BASE
 
@@ -38,6 +36,7 @@ function LoginForm() {
   const [loading,  setLoading]  = useState(false)
   const [checking, setChecking] = useState(true)
   const [unreachable, setUnreachable] = useState(false)
+  const [showPw,   setShowPw]   = useState(false)
 
   const checkStatus = useCallback(() => {
     setChecking(true)
@@ -111,31 +110,44 @@ function LoginForm() {
   }
 
   return (
-    <main className="login-bg relative flex min-h-screen items-center justify-center p-4 text-foreground">
+    <main className="login-bg relative flex min-h-screen flex-col items-center justify-center gap-7 p-4 text-foreground">
       <div className="pointer-events-none absolute inset-0 bg-background/70" />
-      <Card className="relative z-10 w-full max-w-sm overflow-hidden motion-safe:animate-in fade-in-0 duration-300">
-        <BorderBeam size={120} duration={8} borderWidth={2} colorFrom="var(--primary)" colorTo="var(--chart-5)" />
-        <CardHeader className="items-center text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logodark-removebg-preview.png" alt="PulseNode" className="theme-logo-dark mx-auto h-16 w-auto" />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-removebg-preview.png" alt="PulseNode" className="theme-logo-light mx-auto h-16 w-auto" />
-          <h1 className="sr-only">{setup ? "Create your PulseNode admin account" : "Sign in to PulseNode"}</h1>
-          <CardDescription className="pt-2">
-            {setup ? "Create your admin account" : "Sign in to your dashboard"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {unreachable ? (
-            <div className="space-y-4">
+
+      <div className="relative z-10 flex flex-col items-center gap-1.5 text-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logodark-removebg-preview.png" alt="PulseNode" className="theme-logo-dark mx-auto h-14 w-auto" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-removebg-preview.png" alt="PulseNode" className="theme-logo-light mx-auto h-14 w-auto" />
+        <span className="font-mono text-[11px] tracking-[0.12em] text-muted-foreground">VPS · CONSOLE</span>
+      </div>
+
+      <div className="relative z-10 w-full max-w-[380px] overflow-hidden rounded-xl border bg-card shadow-pop motion-safe:animate-in fade-in-0 duration-300">
+        <div className="space-y-1 px-[22px] pt-[22px] pb-1.5">
+          <h1 className="text-lg font-semibold">{setup ? "Create your admin account" : "Sign in"}</h1>
+          <p className="text-[13px] text-muted-foreground">
+            {setup ? "First-run setup. This account becomes the administrator." : "Sign in to your PulseNode dashboard."}
+          </p>
+        </div>
+
+        {unreachable ? (
+          <div className="space-y-4 px-[22px] pt-3.5 pb-5">
+            <Alert variant="destructive" role="alert">
+              <AlertCircle />
+              <AlertDescription>Server unreachable. Check that PulseNode is running, then try again.</AlertDescription>
+            </Alert>
+            <Button type="button" size="lg" variant="outline" className="w-full" onClick={checkStatus}>
+              <RefreshCw /> Retry
+            </Button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-3 px-[22px] pt-3.5 pb-5">
+            {error && (
               <Alert variant="destructive" role="alert">
                 <AlertCircle />
-                <AlertDescription>Server unreachable. Check that PulseNode is running, then try again.</AlertDescription>
+                <AlertDescription>{error}</AlertDescription>
               </Alert>
-              <Button type="button" size="lg" variant="outline" className="w-full" onClick={checkStatus}>Retry</Button>
-            </div>
-          ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+            )}
+
             {setup && (
               <div className="space-y-1.5">
                 <Label htmlFor="setup-token">Setup token</Label>
@@ -145,6 +157,7 @@ function LoginForm() {
                   onChange={e => setToken(e.target.value)}
                   autoFocus
                   autoComplete="off"
+                  spellCheck={false}
                   required
                   className="font-mono"
                 />
@@ -153,6 +166,7 @@ function LoginForm() {
                 </p>
               </div>
             )}
+
             <div className="space-y-1.5">
               <Label htmlFor="username">Username</Label>
               <Input
@@ -161,21 +175,34 @@ function LoginForm() {
                 onChange={e => setUsername(e.target.value)}
                 autoFocus={!setup}
                 autoComplete="username"
+                spellCheck={false}
                 required
               />
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                autoComplete={setup ? "new-password" : "current-password"}
-                minLength={setup ? 8 : undefined}
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPw ? "text" : "password"}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  autoComplete={setup ? "new-password" : "current-password"}
+                  minLength={setup ? 8 : undefined}
+                  required
+                  className="pr-10"
+                />
+                <Button
+                  type="button" variant="ghost" size="icon-sm"
+                  onClick={() => setShowPw(v => !v)}
+                  aria-label={showPw ? "Hide password" : "Show password"}
+                  aria-pressed={showPw}
+                  className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground"
+                >
+                  {showPw ? <EyeOff /> : <Eye />}
+                </Button>
+              </div>
               {setup && <p className="text-xs text-muted-foreground">At least 8 characters.</p>}
             </div>
 
@@ -184,7 +211,7 @@ function LoginForm() {
                 <Label htmlFor="confirm">Confirm password</Label>
                 <Input
                   id="confirm"
-                  type="password"
+                  type={showPw ? "text" : "password"}
                   value={confirm}
                   onChange={e => setConfirm(e.target.value)}
                   autoComplete="new-password"
@@ -193,21 +220,20 @@ function LoginForm() {
               </div>
             )}
 
-            {error && (
-              <Alert variant="destructive" role="alert">
-                <AlertCircle />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            <Button type="submit" size="lg" className="w-full" disabled={loading}>
-              {loading && <Loader2 className="animate-spin" />}
-              {setup ? "Create account & sign in" : "Sign in"}
+            <Button type="submit" size="lg" className="mt-1 w-full" disabled={loading}>
+              {loading ? <Loader2 className="animate-spin" /> : <ArrowRight />}
+              {loading ? (setup ? "Creating…" : "Signing in…") : setup ? "Create account & sign in" : "Sign in"}
             </Button>
           </form>
-          )}
-        </CardContent>
-      </Card>
+        )}
+
+        <div className="flex items-center gap-1.5 border-t bg-muted/40 px-[22px] py-2.5 text-xs text-muted-foreground">
+          <Lock className="size-3" aria-hidden />
+          {setup ? "Login protection turns on as soon as the account exists." : "Login protection is enabled on this dashboard."}
+        </div>
+      </div>
+
+      <p className="relative z-10 text-xs text-muted-foreground italic">Infrastructure at a glance.</p>
     </main>
   )
 }

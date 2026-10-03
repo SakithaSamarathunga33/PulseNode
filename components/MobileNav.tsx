@@ -16,7 +16,7 @@ export function MobileNav() {
   const [more, setMore] = useState(false)
   const all = [...NAV_GROUPS.flatMap(g => g.items), SETTINGS_ITEM]
   const primary = PRIMARY.map(h => all.find(i => i.href === h)!).filter(Boolean)
-  const rest = all.filter(i => !PRIMARY.includes(i.href) && !i.optional)
+  const rest = all.filter(i => !PRIMARY.includes(i.href))
   const current = routeInfo(pathname)?.href
   const moreActive = !!current && !PRIMARY.includes(current)
 
