@@ -250,7 +250,7 @@ export const TerminalWindow = ({
       className={cn(
         "relative flex flex-col overflow-hidden rounded-xl border border-[var(--t-border)] bg-[var(--t-bg)] text-[var(--t-fg)]",
         "[--t-bg:#0d1117] [--t-bar:#161b22] [--t-border:#30363d] [--t-hover:#21262d]",
-        "[--t-fg:#e6edf3] [--t-muted:#8b949e] [--t-dim:#7d8590] [--t-err:#ff7b72] [--t-sys:#d2a8ff] [--t-ok:#7ee787]",
+        "[--t-fg:#e6edf3] [--t-muted:#8b949e] [--t-dim:#7d8590] [--t-err:#ff7b72] [--t-sys:#d2a8ff] [--t-ok:#7ee787] [--t-warn:#e3b341]",
         className
       )}
     >
