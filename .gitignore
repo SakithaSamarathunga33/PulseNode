@@ -42,3 +42,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# graphify automatic dated backups of the previous graph
+graphify-out/20*-*-*/
