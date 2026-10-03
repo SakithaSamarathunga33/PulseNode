@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/rs/zerolog/log"
 
 	"pulsenode/backend/internal/db"
 	"pulsenode/backend/internal/github"
@@ -18,7 +19,16 @@ import (
 // Only writes keys that aren't already in the DB; a UI save always wins.
 // GITHUB_APP_PRIVATE_KEY_FILE takes a file path (avoids multi-line env var
 // issues); GITHUB_APP_PRIVATE_KEY can be used as a fallback inline value.
+// publicDefaultAppWebhookSecret was the GITHUB_APP_WEBHOOK_SECRET default in
+// docker-compose.yml, so it is public and must never authenticate a webhook.
+const publicDefaultAppWebhookSecret = "pulsenode"
+
 func (s *Server) SeedGitHubAppFromEnv() {
+	defer func() {
+		if v, _ := s.db.GetSetting("github_app_webhook_secret"); v == publicDefaultAppWebhookSecret {
+			log.Warn().Msg("GitHub App webhook secret is the old public default and is ignored — set a new secret in the GitHub App and in GITHUB_APP_WEBHOOK_SECRET / GitHub settings")
+		}
+	}()
 	pairs := []struct{ key, envName string }{
 		{"github_app_id", "GITHUB_APP_ID"},
 		{"github_app_slug", "GITHUB_APP_SLUG"},
@@ -181,17 +191,20 @@ func (s *Server) githubAppRegister(w http.ResponseWriter, r *http.Request) {
 		accountType = "User"
 	}
 
-	// If not pre-supplied, try our own GitHub API call using the App JWT.
-	if login == "" {
-		appID, _ := s.db.GetSetting("github_app_id")
-		pkPEM, _ := s.db.GetSetting("github_app_private_key")
-		if appID != "" && pkPEM != "" {
-			if appClient, err := github.NewAppClient(appID, pkPEM); err == nil {
-				if inst, err := appClient.GetInstallation(installationID); err == nil {
-					login = inst.Account.Login
-					accountType = inst.Account.Type
-				}
+	// When this instance holds the App key, GitHub is the source of truth:
+	// verify the installation exists and use its real account, ignoring the
+	// caller-supplied values.
+	appID, _ := s.db.GetSetting("github_app_id")
+	pkPEM, _ := s.db.GetSetting("github_app_private_key")
+	if appID != "" && pkPEM != "" {
+		if appClient, err := github.NewAppClient(appID, pkPEM); err == nil {
+			inst, err := appClient.GetInstallation(installationID)
+			if err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "installation not found for this GitHub App"})
+				return
 			}
+			login = inst.Account.Login
+			accountType = inst.Account.Type
 		}
 	}
 	if login == "" {

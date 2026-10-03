@@ -1,18 +1,30 @@
 package api
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 
 	"pulsenode/backend/internal/builder"
 	"pulsenode/backend/internal/github"
 )
 
+const oauthStateCookie = "pn_oauth_state"
+
 func (s *Server) githubAuthURL(w http.ResponseWriter, r *http.Request) {
 	origin := os.Getenv("NEXT_PUBLIC_ORIGIN")
 	callback := origin + "/go/api/github/callback"
-	writeJSON(w, http.StatusOK, map[string]string{"url": github.AuthURL(callback)})
+	// state binds the callback to this browser, so a victim can't be tricked
+	// into completing an OAuth flow the attacker started (account swap).
+	state := randomHex(16)
+	http.SetCookie(w, &http.Cookie{
+		Name: oauthStateCookie, Value: state, Path: "/", MaxAge: 600,
+		HttpOnly: true, Secure: isHTTPS(r), SameSite: http.SameSiteLaxMode,
+	})
+	writeJSON(w, http.StatusOK, map[string]string{"url": github.AuthURL(callback, state)})
 }
 
 func (s *Server) githubCallback(w http.ResponseWriter, r *http.Request) {
@@ -21,24 +33,34 @@ func (s *Server) githubCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing code", http.StatusBadRequest)
 		return
 	}
+	c, err := r.Cookie(oauthStateCookie)
+	state := r.URL.Query().Get("state")
+	if err != nil || state == "" || subtle.ConstantTimeCompare([]byte(c.Value), []byte(state)) != 1 {
+		http.Error(w, "invalid OAuth state — start the GitHub connection again", http.StatusBadRequest)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: oauthStateCookie, Value: "", Path: "/", MaxAge: -1})
 	origin := os.Getenv("NEXT_PUBLIC_ORIGIN")
 	callback := origin + "/go/api/github/callback"
 
 	token, err := github.ExchangeCode(code, callback)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Warn().Err(err).Msg("github oauth code exchange failed")
+		http.Error(w, "GitHub authorization failed", http.StatusBadRequest)
 		return
 	}
 
 	client := github.NewClient(token)
 	user, err := client.CurrentUser()
 	if err != nil {
-		http.Error(w, "failed to fetch user: "+err.Error(), http.StatusInternalServerError)
+		log.Warn().Err(err).Msg("github oauth: fetch user failed")
+		http.Error(w, "failed to fetch GitHub user", http.StatusInternalServerError)
 		return
 	}
 
 	if err := s.db.UpsertGitHubAccount(user.Login, user.AvatarURL, token, "oauth"); err != nil {
-		http.Error(w, "failed to store account: "+err.Error(), http.StatusInternalServerError)
+		log.Error().Err(err).Msg("github oauth: store account failed")
+		http.Error(w, "failed to store GitHub account", http.StatusInternalServerError)
 		return
 	}
 

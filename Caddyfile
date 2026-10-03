@@ -1,8 +1,31 @@
 {
 	admin localhost:2019
+	servers {
+		# Trust X-Forwarded-* only from private networks (e.g. a Traefik in front),
+		# so {client_ip} is the real browser IP and can't be spoofed from outside.
+		trusted_proxies static private_ranges
+	}
 }
 
 {$CADDY_SITE_ADDRESS} {
+	# go-api keys rate limits and the audit log on this; overwrite whatever the
+	# client sent so it can't be spoofed.
+	request_header X-Real-IP {client_ip}
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		# Ignored by browsers on plain-HTTP responses. No includeSubDomains:
+		# apps deployed on sibling subdomains may still be HTTP-only.
+		Strict-Transport-Security "max-age=31536000"
+		# 'unsafe-inline' scripts: Next.js 14 inlines its bootstrap scripts.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+		-Server
+		-X-Powered-By
+	}
+
 	# Compress everything except streaming endpoints
 	@compressible not path /events /ws /api/ws/*
 	encode @compressible gzip

@@ -273,12 +273,13 @@ func AuthorisedCloneURL(cloneURL, token string) string {
 
 // ── OAuth ─────────────────────────────────────────────────────────────────────
 
-func AuthURL(callbackURL string) string {
+func AuthURL(callbackURL, state string) string {
 	clientID := os.Getenv("GITHUB_CLIENT_ID")
 	params := url.Values{}
 	params.Set("client_id", clientID)
 	params.Set("redirect_uri", callbackURL)
 	params.Set("scope", "repo read:user")
+	params.Set("state", state)
 	return "https://github.com/login/oauth/authorize?" + params.Encode()
 }
 

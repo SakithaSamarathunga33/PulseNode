@@ -44,26 +44,34 @@ func (m *Middleware) Require(next http.Handler) http.Handler {
 }
 
 func (m *Middleware) validJWT(token string) bool {
+	_, ok := m.ParseToken(token)
+	return ok
+}
+
+// ParseToken verifies the signature and expiry of token and returns its claims.
+// Tokens without an exp claim are rejected so a leaked token can't live forever.
+func (m *Middleware) ParseToken(token string) (map[string]any, bool) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		return false
+		return nil, false
 	}
 	mac := hmac.New(sha256.New, m.secret)
 	mac.Write([]byte(parts[0] + "." + parts[1]))
 	expected := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 	if !hmac.Equal([]byte(expected), []byte(parts[2])) {
-		return false
+		return nil, false
 	}
 
 	var claims map[string]any
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil || json.Unmarshal(payload, &claims) != nil {
-		return false
+		return nil, false
 	}
-	if exp, ok := claims["exp"].(float64); ok && exp > 0 {
-		return int64(exp) > nowUnix()
+	exp, ok := claims["exp"].(float64)
+	if !ok || int64(exp) <= nowUnix() {
+		return nil, false
 	}
-	return true
+	return claims, true
 }
 
 func nowUnix() int64 {
@@ -76,10 +84,16 @@ func (m *Middleware) ValidateToken(token string) bool {
 }
 
 // MakeJWT creates a signed JWT for the given username, expiring in ttlSecs seconds.
-func (m *Middleware) MakeJWT(username string, ttlSecs int64) string {
+// extra claims (if any) are merged into the payload.
+func (m *Middleware) MakeJWT(username string, ttlSecs int64, extra ...map[string]any) string {
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
-	exp := time.Now().Unix() + ttlSecs
-	payload, _ := json.Marshal(map[string]any{"sub": username, "exp": exp})
+	claims := map[string]any{"sub": username, "exp": time.Now().Unix() + ttlSecs}
+	for _, e := range extra {
+		for k, v := range e {
+			claims[k] = v
+		}
+	}
+	payload, _ := json.Marshal(claims)
 	enc := base64.RawURLEncoding.EncodeToString(payload)
 	mac := hmac.New(sha256.New, m.secret)
 	mac.Write([]byte(header + "." + enc))

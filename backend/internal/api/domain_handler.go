@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -243,6 +244,16 @@ func rootFromHost(host string) string {
 		return host
 	}
 	return strings.Join(parts[len(parts)-2:], ".")
+}
+
+// hostnameRe matches a DNS hostname (letters, digits, hyphens; dot-separated).
+var hostnameRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
+
+// validHostname reports whether d is safe to embed in a Traefik Host(`...`)
+// rule or a compose label. Anything else (backticks, quotes, spaces, `||`)
+// could rewrite the routing rule and hijack another app's or the panel's traffic.
+func validHostname(d string) bool {
+	return len(d) <= 253 && hostnameRe.MatchString(d)
 }
 
 func cleanDomain(domain string) string {

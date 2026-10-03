@@ -1,24 +1,75 @@
 package api
 
 import (
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"os"
+	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
+
+	"pulsenode/backend/internal/db"
 )
 
 const sessionCookieName = "pn_session"
-const sessionTTL = int64(1800) // 30 minutes
+const sessionTTL = int64(1800)         // 30 minutes idle
+const sessionMaxAge = int64(12 * 3600) // absolute cap, even for active sessions
 
-func setSessionCookie(w http.ResponseWriter, token string, maxAge int) {
+// isHTTPS reports whether the browser reached the panel over TLS. go-api is only
+// reachable through Caddy, which overwrites X-Forwarded-Proto from untrusted peers.
+func isHTTPS(r *http.Request) bool {
+	return r.TLS != nil ||
+		r.Header.Get("X-Forwarded-Proto") == "https" ||
+		strings.HasPrefix(os.Getenv("NEXT_PUBLIC_ORIGIN"), "https://")
+}
+
+func setSessionCookie(w http.ResponseWriter, r *http.Request, token string, maxAge int) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    token,
 		Path:     "/",
 		MaxAge:   maxAge,
 		HttpOnly: true,
+		Secure:   isHTTPS(r),
 		SameSite: http.SameSiteLaxMode,
 	})
+}
+
+// sessionVersion fingerprints the password hash, so changing the password
+// invalidates every session issued before the change.
+func sessionVersion(u *db.User) string {
+	h := sha256.Sum256([]byte(u.PasswordHash))
+	return hex.EncodeToString(h[:8])
+}
+
+// issueSession sets a fresh session cookie for u. authTime is the original login
+// time and is carried across refreshes to enforce sessionMaxAge.
+func (s *Server) issueSession(w http.ResponseWriter, r *http.Request, u *db.User, authTime int64) {
+	tok := s.auth.MakeJWT(u.Username, sessionTTL, map[string]any{"ver": sessionVersion(u), "auth_time": authTime})
+	setSessionCookie(w, r, tok, int(sessionTTL))
+}
+
+// validSession reports whether token is a live session for u and returns its
+// original login time.
+func (s *Server) validSession(token string, u *db.User) (int64, bool) {
+	claims, ok := s.auth.ParseToken(token)
+	if !ok {
+		return 0, false
+	}
+	sub, _ := claims["sub"].(string)
+	ver, _ := claims["ver"].(string)
+	authTime, _ := claims["auth_time"].(float64)
+	if sub != u.Username || subtle.ConstantTimeCompare([]byte(ver), []byte(sessionVersion(u))) != 1 {
+		return 0, false
+	}
+	if authTime <= 0 || time.Now().Unix()-int64(authTime) > sessionMaxAge {
+		return 0, false
+	}
+	return int64(authTime), true
 }
 
 // GET /api/auth/status
@@ -40,12 +91,17 @@ func (s *Server) authStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c, err := r.Cookie(sessionCookieName)
-	if err != nil || !s.auth.ValidateToken(c.Value) {
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "loggedIn": false})
+		return
+	}
+	authTime, ok := s.validSession(c.Value, user)
+	if !ok {
 		writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "loggedIn": false})
 		return
 	}
 	// Slide the session: issue a fresh token with a full 30-min window.
-	setSessionCookie(w, s.auth.MakeJWT(user.Username, sessionTTL), int(sessionTTL))
+	s.issueSession(w, r, user, authTime)
 	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "loggedIn": true, "username": user.Username})
 }
 
@@ -75,13 +131,13 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
 		return
 	}
-	setSessionCookie(w, s.auth.MakeJWT(user.Username, sessionTTL), int(sessionTTL))
+	s.issueSession(w, r, user, time.Now().Unix())
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 // POST /api/auth/logout
 func (s *Server) authLogout(w http.ResponseWriter, r *http.Request) {
-	setSessionCookie(w, "", -1)
+	setSessionCookie(w, r, "", -1)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
@@ -133,6 +189,9 @@ func (s *Server) authSetup(w http.ResponseWriter, r *http.Request) {
 	}
 	if existing == nil {
 		s.clearSetupToken()
+	} else if u, err := s.db.GetUser(); err == nil && u != nil {
+		// The password change revoked every other session; keep this one signed in.
+		s.issueSession(w, r, u, time.Now().Unix())
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }

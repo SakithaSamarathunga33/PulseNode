@@ -83,6 +83,7 @@ func (s *Server) Routes() http.Handler {
 		MaxAge:           300,
 	}))
 	r.Use(RateLimit(300, time.Minute)) // 300 req/min per IP
+	r.Use(s.sameOriginWrites)
 	r.Use(s.AuditLog)
 
 	r.Get("/health", s.health)
@@ -100,18 +101,26 @@ func (s *Server) Routes() http.Handler {
 	r.With(s.requireAuth).Get("/api/ws/containers/{id}/shell", s.containerShell)
 	r.With(s.requireAuth).Post("/api/ws/containers/resize", s.containerShellResize)
 
-	r.Get("/api/github/callback", s.githubCallback)
+	// OAuth callback — a top-level GET navigation from github.com, so the Lax
+	// session cookie is sent; requiring it (plus the state check in the handler)
+	// stops anyone from attaching their own GitHub account to this panel.
+	r.With(s.requireAuth).Get("/api/github/callback", s.githubCallback)
 	// GitHub push webhook — public, authenticated by HMAC signature (see handler).
 	r.Post("/api/github/webhook", s.githubWebhook)
 	// GitHub App installation callback — GitHub redirects here after install/uninstall.
-	r.Get("/api/github/app/callback", s.githubAppCallback)
+	r.With(s.requireAuth).Get("/api/github/app/callback", s.githubAppCallback)
 	// JSON registration endpoint called by the frontend /github/app/callback page.
-	r.Get("/api/github/app/register", s.githubAppRegister)
+	r.With(s.requireAuth).Get("/api/github/app/register", s.githubAppRegister)
 
 	r.Get("/api/auth/status", s.authStatus)
-	r.Post("/api/auth/login", s.authLogin)
 	r.Post("/api/auth/logout", s.authLogout)
-	r.Post("/api/auth/setup", s.authSetup)
+	// Password-checking endpoints get a much tighter per-IP budget than the
+	// global limiter: 10 attempts per minute is plenty for a human.
+	r.Group(func(r chi.Router) {
+		r.Use(RateLimit(10, time.Minute))
+		r.Post("/api/auth/login", s.authLogin)
+		r.Post("/api/auth/setup", s.authSetup)
+	})
 
 	r.Route("/api", func(r chi.Router) {
 		r.Use(s.requireAuth)

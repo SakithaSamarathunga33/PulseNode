@@ -162,6 +162,9 @@ func (s *Server) githubWebhook(w http.ResponseWriter, r *http.Request) {
 	// Also accept events signed with the GitHub App webhook secret so both
 	// per-repo hooks and GitHub App installations share the same endpoint.
 	appSecret, _ := s.db.GetSetting("github_app_webhook_secret")
+	if appSecret == publicDefaultAppWebhookSecret {
+		appSecret = "" // published in the old compose file — anyone could sign with it
+	}
 	sigHeader := r.Header.Get("X-Hub-Signature-256")
 	if !validSignature(secret, sigHeader, body) && !validSignature(appSecret, sigHeader, body) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid signature"})
@@ -237,7 +240,8 @@ func (s *Server) githubWebhook(w http.ResponseWriter, r *http.Request) {
 // an HMAC-SHA256 of body keyed with secret.
 func validSignature(secret, header string, body []byte) bool {
 	const prefix = "sha256="
-	if !strings.HasPrefix(header, prefix) {
+	// An empty key is public knowledge: anyone can compute HMAC("", body).
+	if secret == "" || !strings.HasPrefix(header, prefix) {
 		return false
 	}
 	want, err := hex.DecodeString(strings.TrimPrefix(header, prefix))

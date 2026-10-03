@@ -71,6 +71,11 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name, repoUrl, and domain are required"})
 		return
 	}
+	body.Domain = cleanDomain(body.Domain)
+	if !validHostname(body.Domain) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "domain must be a plain hostname like app.example.com"})
+		return
+	}
 	if body.BaseDir != "" && body.BaseDir != "frontend" && body.BaseDir != "backend" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "baseDir must be \"frontend\" or \"backend\""})
 		return
@@ -163,6 +168,13 @@ func (s *Server) updateProject(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.BackendEnvVars == "" {
 		body.BackendEnvVars = "{}"
+	}
+	if body.Domain != "" {
+		body.Domain = cleanDomain(body.Domain)
+		if !validHostname(body.Domain) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "domain must be a plain hostname like app.example.com"})
+			return
+		}
 	}
 	// Preserve the current auto-deploy setting when the field is omitted.
 	autoDeploy := true
