@@ -467,6 +467,11 @@ func (c *Client) CreateDBContainer(ctx context.Context, image, name, volumeName,
 		},
 		"ExposedPorts": map[string]any{fmt.Sprintf("%d/tcp", containerPort): map[string]any{}},
 	}
+	// Memory/pids ceilings, log rotation and no-new-privileges (new containers only).
+	hc := body["HostConfig"].(map[string]any)
+	for k, v := range dbHostConfigHardening(image) {
+		hc[k] = v
+	}
 	var created struct {
 		ID string `json:"Id"`
 	}

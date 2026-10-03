@@ -4,20 +4,29 @@
 # Required .env.local vars:
 #   TRAEFIK_HOST=vps.sakitha.com       # domain Traefik should route
 #   TRAEFIK_NETWORK=vps-monitor_proxy  # external Docker network Traefik is on
+# Recommended .env.local vars:
+#   TRAEFIK_CONTAINER=<traefik container name>   # `scripts/trust-traefik.sh` writes it
+#   (or CADDY_TRUSTED_PROXIES="<ip>/32 …" to pin addresses; "private_ranges" to opt out)
 #
 # Caddy handles internal routing; Traefik only terminates TLS externally.
 
 services:
   caddy:
+    # scripts/caddy-entrypoint.sh decides whose X-Forwarded-For Caddy believes:
+    # CADDY_TRUSTED_PROXIES if set, else the address(es) of the container(s) named in
+    # TRAEFIK_CONTAINER (default "traefik") on the shared network. Trusting only Traefik
+    # matters because apps deployed by PulseNode share this network and can reach Caddy
+    # directly — with `private_ranges` they could forge X-Forwarded-For and so the rate-limit
+    # key and the audit-log IP. If Traefik cannot be resolved the script falls back to
+    # private_ranges and logs a warning; run scripts/trust-traefik.sh to record the name.
+    # (The login lockout is per account regardless.)
+    entrypoint: ["/bin/sh", "/usr/local/bin/pn-caddy-entrypoint.sh"]
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    volumes:
+      - ./scripts/caddy-entrypoint.sh:/usr/local/bin/pn-caddy-entrypoint.sh:ro
     environment:
-      # Traefik forwards the real client IP; trust it (see Caddyfile).
-      # `private_ranges` also covers apps deployed on the shared Traefik network,
-      # which can then spoof X-Forwarded-For (rate-limit key, audit-log IP). Login
-      # is additionally locked per account (10 failures / 15 min) so spoofing the IP
-      # does not help guessing passwords. To close the IP spoofing too, set
-      # CADDY_TRUSTED_PROXIES in .env.local to Traefik's own address, e.g.
-      #   docker inspect <traefik> -f '{{(index .NetworkSettings.Networks "vps-monitor_proxy").IPAddress}}'
-      CADDY_TRUSTED_PROXIES: ${CADDY_TRUSTED_PROXIES:-private_ranges}
+      CADDY_TRUSTED_PROXIES: ${CADDY_TRUSTED_PROXIES:-}
+      TRAEFIK_CONTAINER: ${TRAEFIK_CONTAINER:-traefik}
     networks:
       - default
       - traefik-net

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/httprate"
 )
 
@@ -81,22 +82,65 @@ func (s *Server) trustedOrigin(src, host string) bool {
 	return configured(u.Host)
 }
 
-// AuditLog records every state-changing request into the audit_log table.
+// requestActor names who made the request: the session cookie's user, else the
+// Bearer token's user. Only a verified token counts — anything else is "anonymous".
+func (s *Server) requestActor(r *http.Request) string {
+	if c, err := r.Cookie(sessionCookieName); err == nil {
+		if claims, ok := s.auth.ParseToken(c.Value); ok {
+			if sub, _ := claims["sub"].(string); sub != "" {
+				return sub
+			}
+		}
+	}
+	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+		if claims, ok := s.auth.ParseToken(strings.TrimPrefix(h, "Bearer ")); ok {
+			if sub, _ := claims["sub"].(string); sub != "" {
+				return sub
+			}
+		}
+	}
+	return "anonymous"
+}
+
+// sensitiveReads are GET routes (chi patterns) that hand out secrets or
+// credentials. Reading them is audited like a write: who, which target, when —
+// never the response body.
+var sensitiveReads = map[string]bool{
+	"/api/databases/managed/{id}/credentials": true, // database password
+	"/api/database/{name}/connection-string":  true, // DSN with credentials
+	"/api/database/backup/{jobId}/download":   true, // full data dump
+	"/api/projects/{id}":                      true, // returns decrypted env vars / secrets
+	"/api/github/webhook-info":                true, // webhook signing secret
+	"/api/github/oauth-settings":              true, // OAuth app settings
+	"/api/github/app/settings":                true, // GitHub App settings
+	"/api/audit":                              false,
+}
+
+func isSensitiveRead(r *http.Request) bool {
+	rc := chi.RouteContext(r.Context())
+	if rc == nil {
+		return false
+	}
+	return sensitiveReads[rc.RoutePattern()]
+}
+
+// AuditLog records every state-changing request — and reads of secrets — into
+// the audit_log table. Only the method, path (ids, no query string or body), the
+// verified user, IP and status are stored.
 func (s *Server) AuditLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rw := &statusRecorder{ResponseWriter: w, code: 200}
 		next.ServeHTTP(rw, r)
 
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
-			return
-		}
-		actor := "anonymous"
-		if c, err := r.Cookie(sessionCookieName); err == nil {
-			if claims, ok := s.auth.ParseToken(c.Value); ok {
-				actor, _ = claims["sub"].(string)
+			if r.Method != http.MethodGet || !isSensitiveRead(r) {
+				return
 			}
 		}
-		s.db.InsertAuditLog(actor, r.Method+" "+r.URL.Path, r.URL.Path, clientIP(r), rw.code)
+		if r.URL.Path == "/api/auth/login" {
+			return // authLogin writes its own entry (success, failure, lockout)
+		}
+		s.db.InsertAuditLog(s.requestActor(r), r.Method+" "+r.URL.Path, r.URL.Path, clientIP(r), rw.code)
 	})
 }
 
@@ -144,8 +188,8 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 		// mid-action when the original 30-min token expires. Idle sessions still
 		// expire (no requests → no renewal).
 		if c, err := r.Cookie(sessionCookieName); err == nil {
-			if authTime, ok := s.validSession(c.Value, user); ok {
-				s.issueSession(w, r, user, authTime)
+			if ss, ok := s.parseSession(c.Value, user); ok {
+				s.issueSessionSID(w, r, user, ss.authTime, ss.sid)
 				next.ServeHTTP(w, r)
 				return
 			}

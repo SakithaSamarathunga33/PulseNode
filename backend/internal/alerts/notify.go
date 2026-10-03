@@ -55,7 +55,7 @@ type Channel struct {
 
 // secretKeys are never returned by the API and are kept on update when left blank.
 var secretKeys = map[string][]string{
-	TypeWebhook:  {"secret"},
+	TypeWebhook:  {"url", "secret"}, // the URL can embed tokens (ntfy, Zapier, Home Assistant)
 	TypeSlack:    {"webhookUrl"},
 	TypeDiscord:  {"webhookUrl"},
 	TypeTelegram: {"botToken"},
@@ -120,6 +120,9 @@ func ValidateConfig(typ string, cfg map[string]string) error {
 		if u.Scheme != "https" {
 			return errors.New("webhook URL must use https")
 		}
+		if err := checkChatURL(typ, u); err != nil {
+			return err
+		}
 	case TypeTelegram:
 		if !telegramToken.MatchString(cfg["botToken"]) {
 			return errors.New("bot token looks invalid (expected 123456:ABC…)")
@@ -173,20 +176,83 @@ func parseRecipients(s string) ([]string, error) {
 
 // MergeConfig applies an update on top of the stored config: blank secret fields
 // keep their stored value so the UI never has to resend secrets.
-func MergeConfig(typ string, old, update map[string]string) map[string]string {
+//
+// A stored secret is only ever sent to the destination it was saved for. If the
+// update moves the destination (webhook host, SMTP host/port/username/security)
+// and leaves a stored secret blank, the merge fails and the caller must ask for
+// the secret again — otherwise an edit could redirect a saved SMTP password or
+// signing secret to a host the editor controls.
+func MergeConfig(typ string, old, update map[string]string) (map[string]string, error) {
 	out := make(map[string]string, len(update))
 	for k, v := range update {
 		out[k] = v
 	}
+	moved := changedDestination(typ, old, update)
 	for _, k := range secretKeys[typ] {
-		if out[k] == "" {
-			out[k] = old[k]
+		if out[k] != "" || old[k] == "" {
+			continue
 		}
+		if moved != "" && !isDestinationKey(typ, k) {
+			return nil, fmt.Errorf("%s must be entered again because the %s changed (saved secrets are never sent to a new destination)", k, moved)
+		}
+		out[k] = old[k]
 	}
-	return out
+	return out, nil
 }
 
-// PublicConfig is the config minus secrets, plus "<key>Set" flags for the UI.
+// changedDestination names the first destination field the update moves, or "".
+func changedDestination(typ string, old, update map[string]string) string {
+	switch typ {
+	case TypeWebhook:
+		// A blank URL keeps the stored one; only a supplied URL can move it.
+		if u := update["url"]; u != "" && !strings.EqualFold(hostOf(u), hostOf(old["url"])) {
+			return "url"
+		}
+	case TypeSMTP:
+		norm := func(k, v string) string {
+			v = strings.TrimSpace(v)
+			switch k {
+			case "host":
+				return strings.ToLower(v)
+			case "security":
+				if v == "" {
+					return "starttls"
+				}
+			}
+			return v
+		}
+		for _, k := range []string{"host", "port", "username", "security"} {
+			if norm(k, update[k]) != norm(k, old[k]) {
+				return k
+			}
+		}
+	}
+	return ""
+}
+
+// isDestinationKey reports keys that are themselves the destination (the webhook
+// URL): a blank one means "keep", it is never re-sent anywhere new.
+func isDestinationKey(typ, k string) bool { return typ == TypeWebhook && k == "url" }
+
+// urlKeys are the config keys holding a webhook URL, per type.
+var urlKeys = map[string]string{TypeWebhook: "url", TypeSlack: "webhookUrl", TypeDiscord: "webhookUrl"}
+
+// MaskURL keeps scheme and host and hides everything after it (path and query
+// are where webhook tokens live).
+func MaskURL(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Host == "" {
+		return "•••"
+	}
+	m := u.Scheme + "://" + u.Host
+	if (u.Path != "" && u.Path != "/") || u.RawQuery != "" {
+		m += "/…"
+	}
+	return m
+}
+
+// PublicConfig is the config minus secrets, plus "<key>Set" flags for the UI and
+// a "<key>Hint" (masked URL) for webhook URLs.
 func PublicConfig(typ string, cfg map[string]string) map[string]string {
 	secret := map[string]bool{}
 	for _, k := range secretKeys[typ] {
@@ -197,6 +263,9 @@ func PublicConfig(typ string, cfg map[string]string) map[string]string {
 		if secret[k] {
 			if v != "" {
 				out[k+"Set"] = "true"
+				if k == urlKeys[typ] {
+					out[k+"Hint"] = MaskURL(v)
+				}
 			}
 			continue
 		}

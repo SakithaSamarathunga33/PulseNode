@@ -25,25 +25,57 @@ import (
 
 const webhookSecretKey = "github_webhook_secret"
 
-// getOrCreateWebhookSecret returns the stored webhook secret, generating and
-// persisting one the first time it's requested.
+// getOrCreateWebhookSecret returns the master webhook secret, generating and
+// persisting one the first time it's requested. It is stored ENCRYPTED; a
+// plaintext value written by an older version is re-encrypted in place. The master
+// is the legacy shared secret (hooks installed before per-project secrets keep
+// signing with it) and the root of every per-project secret.
 func (s *Server) getOrCreateWebhookSecret() (string, error) {
-	secret, err := s.db.GetSetting(webhookSecretKey)
+	stored, err := s.db.GetSetting(webhookSecretKey)
 	if err != nil {
 		return "", err
 	}
-	if secret != "" {
+	if stored == "" {
+		b := make([]byte, 24)
+		if _, err := rand.Read(b); err != nil {
+			return "", err
+		}
+		secret := hex.EncodeToString(b)
+		enc, err := db.Encrypt(secret)
+		if err != nil {
+			return "", err
+		}
+		if err := s.db.SetSetting(webhookSecretKey, enc); err != nil {
+			return "", err
+		}
 		return secret, nil
 	}
-	b := make([]byte, 24)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
+	if !db.IsEncrypted(stored) { // legacy plaintext: migrate
+		if enc, err := db.Encrypt(stored); err == nil {
+			if err := s.db.SetSetting(webhookSecretKey, enc); err != nil {
+				log.Printf("[webhook] could not encrypt stored secret: %v", err)
+			}
+		}
+		return stored, nil
 	}
-	secret = hex.EncodeToString(b)
-	if err := s.db.SetSetting(webhookSecretKey, secret); err != nil {
-		return "", err
-	}
-	return secret, nil
+	return db.Decrypt(stored)
+}
+
+// projectWebhookSecret derives the secret for one project from the master:
+// HMAC-SHA256(master, "project:"+id). GitHub signs with ONE secret per hook, so
+// installing this per project means someone who administers repo A's hook (and so
+// sees its secret) cannot forge pushes for repo B's projects.
+func projectWebhookSecret(master, projectID string) string {
+	mac := hmac.New(sha256.New, []byte(master))
+	mac.Write([]byte("project:" + projectID))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// legacyWebhookSecretAllowed reports whether deliveries signed with the shared
+// master secret are still accepted (hooks installed by older versions). Set
+// PULSENODE_WEBHOOK_LEGACY_SECRET=false once every hook was repaired.
+func legacyWebhookSecretAllowed() bool {
+	return !strings.EqualFold(os.Getenv("PULSENODE_WEBHOOK_LEGACY_SECRET"), "false")
 }
 
 // webhookTargetURL is the public URL GitHub should deliver push events to. It
@@ -73,11 +105,13 @@ func (s *Server) installProjectWebhook(proj *db.Project) (string, error) {
 	if acct == nil {
 		return "skipped", fmt.Errorf("GitHub account not connected")
 	}
-	secret, err := s.getOrCreateWebhookSecret()
+	master, err := s.getOrCreateWebhookSecret()
 	if err != nil {
 		return "error", err
 	}
-	created, err := github.NewClient(acct.AccessToken).EnsureWebhook(owner, repo, hookURL, secret)
+	// Per-project secret. An existing hook for the repo is left as is (it keeps
+	// whatever secret it was created with, which the handler still accepts).
+	created, err := github.NewClient(acct.AccessToken).EnsureWebhook(owner, repo, hookURL, projectWebhookSecret(master, proj.ID))
 	if err != nil {
 		return "error", err
 	}
@@ -140,6 +174,11 @@ func (s *Server) githubWebhookInfo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	// ?project=<id> returns that project's own secret (for a manual hook); without
+	// it the shared legacy secret is returned.
+	if id := r.URL.Query().Get("project"); id != "" {
+		secret = projectWebhookSecret(secret, id)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"secret":      secret,
 		"path":        "/api/github/webhook",
@@ -153,8 +192,7 @@ func (s *Server) githubWebhookInfo(w http.ResponseWriter, r *http.Request) {
 // by verifying the HMAC-SHA256 signature against the stored secret. The branch
 // poller remains as a fallback for installs that haven't configured webhooks.
 func (s *Server) githubWebhook(w http.ResponseWriter, r *http.Request) {
-	// GitHub caps webhook payloads at 25 MB. The HMAC needs the whole body, so
-	// bound the read up front instead of letting an unauthenticated POST stream
+	// The HMAC needs the whole body, so bound the read up front instead of letting an unauthenticated POST stream
 	// unlimited data into memory.
 	r.Body = http.MaxBytesReader(w, r.Body, maxWebhookBody)
 	body, err := io.ReadAll(r.Body)
@@ -168,27 +206,69 @@ func (s *Server) githubWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	secret, err := s.getOrCreateWebhookSecret()
-	if err != nil || secret == "" {
+	// Cheap pre-checks before any parsing or secret derivation: the signature
+	// header must be well formed (sha256= + 32 hex-encoded bytes).
+	sigHeader := r.Header.Get("X-Hub-Signature-256")
+	sigBytes, ok := decodeSignatureHeader(sigHeader)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid signature"})
+		return
+	}
+
+	master, err := s.getOrCreateWebhookSecret()
+	if err != nil || master == "" {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "webhook secret unavailable"})
 		return
+	}
+	// The repository named in the payload selects which per-project secrets can
+	// have signed it. It is untrusted until the signature below verifies, and only
+	// narrows the candidates (an unknown repo can only be signed by the master).
+	var named struct {
+		Repository struct {
+			FullName string `json:"full_name"`
+		} `json:"repository"`
+	}
+	_ = json.Unmarshal(body, &named)
+	projects, err := s.db.ListProjects()
+	if err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "unavailable"})
+		return
+	}
+	candidates := []string{}
+	if wo, wr, ok := splitFullName(named.Repository.FullName); ok {
+		for _, p := range projects {
+			if o, r2, ok := github.ParseOwnerRepo(p.RepoURL); ok && strings.EqualFold(o, wo) && strings.EqualFold(r2, wr) {
+				candidates = append(candidates, projectWebhookSecret(master, p.ID))
+			}
+		}
+	}
+	if legacyWebhookSecretAllowed() {
+		candidates = append(candidates, master) // hooks installed before per-project secrets
 	}
 	// Also accept events signed with the GitHub App webhook secret so both
 	// per-repo hooks and GitHub App installations share the same endpoint.
 	appSecret, _ := s.db.GetSetting("github_app_webhook_secret")
-	if appSecret == publicDefaultAppWebhookSecret {
-		appSecret = "" // published in the old compose file — anyone could sign with it
+	if appSecret != "" && appSecret != publicDefaultAppWebhookSecret { // that default was published in the old compose file
+		candidates = append(candidates, appSecret)
 	}
-	sigHeader := r.Header.Get("X-Hub-Signature-256")
-	if !validSignature(secret, sigHeader, body) && !validSignature(appSecret, sigHeader, body) {
+	verified := false
+	for _, c := range candidates {
+		if validSignature(c, sigHeader, body) {
+			verified = true
+			break
+		}
+	}
+	if !verified {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid signature"})
 		return
 	}
 
 	// Replay protection: a captured, correctly-signed delivery must not trigger
-	// deploys again. Only authenticated requests reach this point.
+	// deploys again. The signature (an HMAC of the body) is part of the key, so
+	// replaying the same body under a fresh X-GitHub-Delivery id is still caught.
 	delivery := r.Header.Get("X-GitHub-Delivery")
-	if delivery != "" && recentDeliveries.seen(delivery) {
+	sigKey := "sig:" + hex.EncodeToString(sigBytes)
+	if recentDeliveries.seen(sigKey) || (delivery != "" && recentDeliveries.seen(delivery)) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "duplicate"})
 		return
 	}
@@ -227,12 +307,6 @@ func (s *Server) githubWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 	wantOwner, wantRepo, _ := splitFullName(payload.Repository.FullName)
 
-	projects, err := s.db.ListProjects()
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-
 	triggered := []string{}
 	for _, p := range projects {
 		if !p.AutoDeploy || p.Branch != branch || p.Status == "building" || p.Status == "queued" {
@@ -264,6 +338,7 @@ func (s *Server) githubWebhook(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[webhook] %s: submit: %v", p.Name, err)
 		}
 	}
+	recentDeliveries.add(sigKey)
 	if delivery != "" {
 		recentDeliveries.add(delivery)
 	}
@@ -271,8 +346,9 @@ func (s *Server) githubWebhook(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "triggered": triggered})
 }
 
-// maxWebhookBody is GitHub's documented payload cap.
-const maxWebhookBody = 25 << 20
+// maxWebhookBody bounds the unauthenticated read. GitHub allows up to 25 MB, but
+// a push payload (commit list capped at 20, no file contents) is a few KB.
+const maxWebhookBody = 5 << 20
 
 // deliveryCache remembers X-GitHub-Delivery IDs for a while so replays are ignored.
 type deliveryCache struct {
@@ -312,6 +388,19 @@ func (c *deliveryCache) add(id string) {
 		}
 	}
 	c.ids[id] = now
+}
+
+// decodeSignatureHeader parses "sha256=<64 hex>" without touching any secret.
+func decodeSignatureHeader(header string) ([]byte, bool) {
+	const prefix = "sha256="
+	if !strings.HasPrefix(header, prefix) {
+		return nil, false
+	}
+	b, err := hex.DecodeString(strings.TrimPrefix(header, prefix))
+	if err != nil || len(b) != sha256.Size {
+		return nil, false
+	}
+	return b, true
 }
 
 // validSignature reports whether the GitHub X-Hub-Signature-256 header matches

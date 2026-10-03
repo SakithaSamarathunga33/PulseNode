@@ -232,7 +232,7 @@ type channelView struct {
 	Type    string            `json:"type"`
 	Enabled bool              `json:"enabled"`
 	Summary string            `json:"summary"`
-	Config  map[string]string `json:"config"` // secrets omitted; "<key>Set":"true" marks stored ones
+	Config  map[string]string `json:"config"` // secrets omitted; "<key>Set":"true" marks stored ones, "<key>Hint" is a masked webhook URL
 }
 
 func toChannelView(c dbpkg.NotificationChannel) channelView {
@@ -320,7 +320,10 @@ func (s *Server) updateNotificationChannel(w http.ResponseWriter, r *http.Reques
 	}
 	cfg := old.Config
 	if req.Config != nil {
-		cfg = alerts.MergeConfig(cur.Type, old.Config, alerts.NormalizeConfig(req.Config))
+		if cfg, err = alerts.MergeConfig(cur.Type, old.Config, alerts.NormalizeConfig(req.Config)); err != nil {
+			badRequest(w, err.Error())
+			return
+		}
 		if err := alerts.ValidateConfig(cur.Type, cfg); err != nil {
 			badRequest(w, err.Error())
 			return
@@ -386,7 +389,10 @@ func (s *Server) testDraftChannel(w http.ResponseWriter, r *http.Request) {
 	if req.ID != "" {
 		if c, _ := s.db.GetNotificationChannel(req.ID); c != nil && c.Type == req.Type {
 			if old, err := alerts.DecodeChannel(*c); err == nil {
-				cfg = alerts.MergeConfig(req.Type, old.Config, cfg)
+				if cfg, err = alerts.MergeConfig(req.Type, old.Config, cfg); err != nil {
+					badRequest(w, err.Error())
+					return
+				}
 			}
 		}
 	}

@@ -236,7 +236,11 @@ func (s *Server) deleteProject(w http.ResponseWriter, r *http.Request) {
 func (s *Server) deployProject(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	proj, err := s.db.GetProject(id)
-	if err != nil || proj == nil {
+	if err != nil {
+		writeError(w, err) // e.g. "cannot decrypt env: AES key mismatch" must not read as "not found"
+		return
+	}
+	if proj == nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "project not found"})
 		return
 	}

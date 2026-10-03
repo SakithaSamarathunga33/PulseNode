@@ -83,9 +83,9 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 
 	// 2. Parse env vars
-	envMap := map[string]string{}
-	if cfg.EnvVars != "" && cfg.EnvVars != "{}" {
-		_ = json.Unmarshal([]byte(cfg.EnvVars), &envMap)
+	envMap, err := parseEnvVars(cfg.EnvVars)
+	if err != nil {
+		return Result{}, err
 	}
 
 	slug := sanitizeName(cfg.ProjectName)
@@ -117,9 +117,9 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 				cfg.log("system", "→ Detected a frontend/ + backend/ monorepo — deploying two services on one domain")
 				// Backend gets its own env (kept separate from the frontend's), so
 				// backend secrets never land in the frontend container.
-				beEnvMap := map[string]string{}
-				if cfg.BackendEnvVars != "" && cfg.BackendEnvVars != "{}" {
-					_ = json.Unmarshal([]byte(cfg.BackendEnvVars), &beEnvMap)
+				beEnvMap, err := parseEnvVars(cfg.BackendEnvVars)
+				if err != nil {
+					return Result{}, fmt.Errorf("backend env: %w", err)
 				}
 				res, err := cfg.runMonorepo(ctx, slug, verTag, envMap, beEnvMap, feDir, beDir)
 				if err != nil {
@@ -168,9 +168,9 @@ func RunFromImage(ctx context.Context, cfg Config, imageRef string) (Result, err
 	if err := runSilent(ctx, "docker", "image", "inspect", imageRef); err != nil {
 		return Result{}, fmt.Errorf("image %s is no longer available locally (it may have been pruned)", imageRef)
 	}
-	envMap := map[string]string{}
-	if cfg.EnvVars != "" && cfg.EnvVars != "{}" {
-		_ = json.Unmarshal([]byte(cfg.EnvVars), &envMap)
+	envMap, err := parseEnvVars(cfg.EnvVars)
+	if err != nil {
+		return Result{}, err
 	}
 	cid, err := cfg.deployContainer(ctx, imageRef, sanitizeName(cfg.ProjectName), envMap)
 	if err != nil {
@@ -215,6 +215,9 @@ func (cfg Config) buildCompose(ctx context.Context, dir, containerName string, e
 	if _, ok := envMap["PORT"]; !ok {
 		envMap["PORT"] = fmt.Sprintf("%d", cfg.Port)
 	}
+	if err := validateEnvMap(envMap); err != nil {
+		return "", err
+	}
 	if len(envMap) > 0 {
 		cfg.log("system", "→ Writing .env file…")
 		var sb strings.Builder
@@ -236,24 +239,39 @@ func (cfg Config) buildCompose(ctx context.Context, dir, containerName string, e
 
 	// After .env is written, so ${VAR:?required} interpolation resolves.
 	cfg.log("system", fmt.Sprintf("→ Checking %s…", file))
-	if err := cfg.checkComposePolicy(ctx, dir, file, project); err != nil {
+	configJSON, err := cfg.checkComposePolicy(ctx, dir, file, project)
+	if err != nil {
 		return "", err
 	}
 
+	// Same protections single-container deploys get, applied through a generated
+	// override merged last (never read from the repo). Only fills in what the
+	// service did not set itself.
+	files := []string{"-f", file, "-f", "docker-compose.pulsenode.yml"}
+	hardening, err := composeHardeningOverlay([]byte(configJSON))
+	if err != nil {
+		return "", err
+	}
+	if hardening != nil {
+		if err := os.WriteFile(filepath.Join(dir, composeHardeningFile), hardening, 0o644); err != nil {
+			return "", err
+		}
+		files = append(files, "-f", composeHardeningFile)
+		cfg.log("system", "→ Applying resource limits, dropped capabilities and log rotation to services that don't set their own")
+	}
+	compose := func(sub ...string) []string {
+		args := append([]string{"compose", "-p", project}, files...)
+		return append(args, sub...)
+	}
+
 	cfg.log("system", "→ Building and starting containers…")
-	if err := cfg.run(ctx, dir, "docker", "compose", "-p", project,
-		"-f", file,
-		"-f", "docker-compose.pulsenode.yml",
-		"up", "-d", "--build"); err != nil {
+	if err := cfg.run(ctx, dir, "docker", compose("up", "-d", "--build")...); err != nil {
 		return "", fmt.Errorf("compose up: %w", err)
 	}
 	cfg.removeStaleComposeContainers(ctx, project)
 
 	// Get first running container name from compose project
-	out, err := runOutput(ctx, dir, "docker", "compose", "-p", project,
-		"-f", file,
-		"-f", "docker-compose.pulsenode.yml",
-		"ps", "-q")
+	out, err := runOutput(ctx, dir, "docker", compose("ps", "-q")...)
 	if err != nil || strings.TrimSpace(out) == "" {
 		return "compose-unknown", nil
 	}
@@ -406,6 +424,10 @@ func (cfg Config) deployService(ctx context.Context, imageRef, slug string, envM
 	traefikNet := cfg.resolveTraefikNetwork(ctx)
 	if traefikNet == "" {
 		return "", fmt.Errorf("TRAEFIK_NETWORK is not configured and no Traefik Docker network could be detected")
+	}
+
+	if err := validateEnvMap(envMap); err != nil {
+		return "", err
 	}
 
 	namePrefix := "pn-" + slug

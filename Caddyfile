@@ -2,10 +2,15 @@
 	admin localhost:2019
 	servers {
 		# Whose X-Forwarded-For to believe when resolving {client_ip}. Standalone,
-		# Caddy is the edge, so nobody (loopback only). The Traefik overlay sets
-		# private_ranges; narrow it to Traefik's own IP/CIDR if untrusted apps
-		# share its network, or they can spoof their IP to the rate limiter.
+		# Caddy is the edge, so nobody (loopback only). The Traefik overlay resolves
+		# Traefik's own address(es) at start (scripts/caddy-entrypoint.sh) and only
+		# falls back to private_ranges when it cannot — apps sharing Traefik's network
+		# could otherwise spoof their IP to the rate limiter and the audit log.
+		# Space-separated CIDRs are fine here.
 		trusted_proxies static {$CADDY_TRUSTED_PROXIES:127.0.0.1/32}
+		# Read X-Forwarded-For right to left and take the first address that is not a
+		# trusted proxy, so a client-supplied prefix can never become the client IP.
+		trusted_proxies_strict
 	}
 }
 

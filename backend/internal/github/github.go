@@ -241,18 +241,57 @@ func (c *Client) GetBranchHead(owner, repo, branch string) (sha, msg string, err
 }
 
 // ParseOwnerRepo extracts "owner" and "repo" from a GitHub clone/HTML URL.
-// Supports https://github.com/owner/repo(.git) and git@github.com:owner/repo(.git).
+// The host must be exactly github.com (or www.github.com) — no substring match, so
+// https://github.com.evil.org/o/r and https://evil.example/github.com/o/r are rejected.
+// Supports https://github.com/owner/repo(.git), http://…, ssh://git@github.com/o/r
+// and the scp form git@github.com:owner/repo(.git).
 func ParseOwnerRepo(repoURL string) (owner, repo string, ok bool) {
 	s := strings.TrimSpace(repoURL)
-	s = strings.TrimSuffix(s, ".git")
-	// Normalise scp-style SSH URLs (git@github.com:owner/repo) to a path.
-	if i := strings.Index(s, "github.com"); i >= 0 {
-		s = s[i+len("github.com"):]
-		s = strings.TrimLeft(s, ":/")
+	var host, path string
+	if i := strings.Index(s, "://"); i >= 0 {
+		switch strings.ToLower(s[:i]) {
+		case "https", "http", "ssh", "git":
+		default:
+			return "", "", false
+		}
+		u, err := url.Parse(s)
+		if err != nil {
+			return "", "", false
+		}
+		// Embedded credentials (https://user:pw@…) are never accepted: the token is
+		// passed separately, and this keeps look-alike userinfo tricks out.
+		if u.User != nil && u.Scheme != "ssh" && u.Scheme != "git" {
+			return "", "", false
+		}
+		host, path = u.Hostname(), u.EscapedPath()
+		if u.RawQuery != "" || u.Fragment != "" {
+			return "", "", false
+		}
 	} else {
+		colon := strings.Index(s, ":")
+		switch slash := strings.Index(s, "/"); {
+		case colon >= 0 && (slash < 0 || colon < slash):
+			// scp-style: [user@]host:owner/repo
+			hostPart := s[:colon]
+			if at := strings.LastIndex(hostPart, "@"); at >= 0 {
+				hostPart = hostPart[at+1:]
+			}
+			host, path = hostPart, s[colon+1:]
+		case slash > 0 && colon < 0:
+			// scheme-less: github.com/owner/repo
+			host, path = s[:slash], s[slash+1:]
+		default:
+			return "", "", false
+		}
+	}
+	host = strings.ToLower(host)
+	if host != "github.com" && host != "www.github.com" {
 		return "", "", false
 	}
-	parts := strings.Split(s, "/")
+	path = strings.TrimSuffix(strings.Trim(path, "/"), ".git")
+	parts := strings.Split(path, "/")
+	// Extra segments are tolerated for pasted HTML URLs (…/o/r/tree/main); the
+	// owner and repo themselves are always charset-validated.
 	if len(parts) < 2 || !ValidOwnerRepo(parts[0], parts[1]) {
 		return "", "", false
 	}

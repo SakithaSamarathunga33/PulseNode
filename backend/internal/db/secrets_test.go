@@ -1,8 +1,10 @@
 package db
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -74,5 +76,62 @@ func TestEnsureEncryptionKeyGeneratesWhenMissing(t *testing.T) {
 	// Legacy plaintext rows (written when no key existed) still read back as-is.
 	if dec, _ := Decrypt("KEY=value"); dec != "KEY=value" {
 		t.Fatalf("legacy plaintext got %q", dec)
+	}
+}
+
+func TestDecryptWrongKeyFailsInsteadOfReturningCiphertext(t *testing.T) {
+	enc, err := Encrypt("DB_URL=postgres://secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AES_KEY", "ffffffffffffffffffffffffffffffff")
+	got, err := Decrypt(enc)
+	if err == nil || got != "" {
+		t.Fatalf("wrong key must fail, got %q err=%v", got, err)
+	}
+	if !errors.Is(err, ErrDecrypt) {
+		t.Fatalf("want ErrDecrypt, got %v", err)
+	}
+}
+
+func TestDecryptMissingKeyOnCiphertextFails(t *testing.T) {
+	enc, _ := Encrypt("x")
+	t.Setenv("AES_KEY", "")
+	t.Setenv("MASTER_ENCRYPTION_KEY", "")
+	if _, err := Decrypt(enc); !errors.Is(err, ErrDecrypt) {
+		t.Fatalf("ciphertext without a key must fail, got %v", err)
+	}
+	if got, err := Decrypt("KEY=value"); err != nil || got != "KEY=value" {
+		t.Fatalf("legacy plaintext must still pass through, got %q %v", got, err)
+	}
+}
+
+func TestDecryptLegacyPlaintextAndEmpty(t *testing.T) {
+	for _, v := range []string{"", "KEY=value\nOTHER=1", `{"url":"https://x"}`, "short", "gho_abc123token"} {
+		got, err := Decrypt(v)
+		if err != nil || got != v {
+			t.Errorf("Decrypt(%q) = %q, %v; want passthrough", v, got, err)
+		}
+	}
+	enc, _ := Encrypt("")
+	if got, err := Decrypt(enc); err != nil || got != "" {
+		t.Errorf("empty plaintext round trip: %q %v", got, err)
+	}
+}
+
+func TestGetProjectWithMismatchedKeyReportsDecryptError(t *testing.T) {
+	d, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	p := &Project{ID: "p1", Name: "n", RepoURL: "https://github.com/o/r", Branch: "main", BuildMethod: "auto", EnvVars: "A=1"}
+	if err := d.CreateProject(p); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AES_KEY", "ffffffffffffffffffffffffffffffff")
+	_, err = d.GetProject("p1")
+	if err == nil || !strings.Contains(err.Error(), "cannot decrypt env") {
+		t.Fatalf("want 'cannot decrypt env' error, got %v", err)
 	}
 }

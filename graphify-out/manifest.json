@@ -564,9 +564,9 @@
     "semantic_hash": ""
   },
   "app/alerts/page.tsx": {
-    "mtime": 1791008882.2418597,
-    "seen": 1791009508.3701236,
-    "ast_hash": "3c29726472348ef454563c040f6ff31b",
+    "mtime": 1791009996.75153,
+    "seen": 1791010841.977335,
+    "ast_hash": "2efc9f2eea586febcdcda59f843d99f8",
     "semantic_hash": ""
   },
   "app/containers/page.tsx": {
@@ -702,15 +702,15 @@
     "semantic_hash": ""
   },
   "backend/internal/api/alerts_handler.go": {
-    "mtime": 1791008811.78151,
-    "seen": 1791009508.3702395,
-    "ast_hash": "bfed21f0666dde408b1207554deda197",
+    "mtime": 1791009834.4496462,
+    "seen": 1791010841.977428,
+    "ast_hash": "7253a6b52f52ab0dfac397e23955a202",
     "semantic_hash": ""
   },
   "backend/internal/api/auth_handler.go": {
-    "mtime": 1791008813.964641,
-    "seen": 1791009508.3702493,
-    "ast_hash": "d0161c516fcf18229c2d51e5c22d07a4",
+    "mtime": 1791010153.4410086,
+    "seen": 1791010841.977436,
+    "ast_hash": "189ee289ad5beef7ea388b4b47dab28a",
     "semantic_hash": ""
   },
   "backend/internal/api/caddy_handler.go": {
@@ -810,9 +810,9 @@
     "semantic_hash": ""
   },
   "backend/internal/api/github_webhook.go": {
-    "mtime": 1790996788.7088432,
-    "seen": 1791000197.6749752,
-    "ast_hash": "3f9078796cb6ce29406cae7cc9a915bd",
+    "mtime": 1791010042.6579168,
+    "seen": 1791010841.9774806,
+    "ast_hash": "abc617f9ff2cebff4397a91204959234",
     "semantic_hash": ""
   },
   "backend/internal/api/github_webhook_test.go": {
@@ -834,15 +834,15 @@
     "semantic_hash": ""
   },
   "backend/internal/api/middleware.go": {
-    "mtime": 1790996538.8412967,
-    "seen": 1791000197.6749868,
-    "ast_hash": "75d28700e8eddfeb9036834b8f7c8a47",
+    "mtime": 1791010175.4105966,
+    "seen": 1791010841.9774873,
+    "ast_hash": "abccb729173f1da21df856b58126282a",
     "semantic_hash": ""
   },
   "backend/internal/api/projects_handler.go": {
-    "mtime": 1790996781.4565449,
-    "seen": 1791000197.6749895,
-    "ast_hash": "2661b2aacd6054aac51c3c2486cb6e29",
+    "mtime": 1791009813.264068,
+    "seen": 1791010841.977489,
+    "ast_hash": "be6dc09014406cacd460ca2beb96d99d",
     "semantic_hash": ""
   },
   "backend/internal/api/security.go": {
@@ -876,9 +876,9 @@
     "semantic_hash": ""
   },
   "backend/internal/builder/builder.go": {
-    "mtime": 1791009165.3704133,
-    "seen": 1791009508.3703656,
-    "ast_hash": "f5b7221d24ac39724295ce71dba269eb",
+    "mtime": 1791009998.7869425,
+    "seen": 1791010841.977513,
+    "ast_hash": "18c0255501e67c82afcb9952369dc2ac",
     "semantic_hash": ""
   },
   "backend/internal/builder/builder_test.go": {
@@ -900,9 +900,9 @@
     "semantic_hash": ""
   },
   "backend/internal/db/db.go": {
-    "mtime": 1791008708.9422894,
-    "seen": 1791009508.3704212,
-    "ast_hash": "11bc7c128916d63e5d7e37f20084dfc5",
+    "mtime": 1791010187.8830647,
+    "seen": 1791010841.9775496,
+    "ast_hash": "7aacab7c581d30c0980dea815839d8b2",
     "semantic_hash": ""
   },
   "backend/internal/db/db_test.go": {
@@ -912,9 +912,9 @@
     "semantic_hash": ""
   },
   "backend/internal/docker/client.go": {
-    "mtime": 1791008730.5966272,
-    "seen": 1791009508.3704388,
-    "ast_hash": "464006bf72f8915711ce3d77f2e3926a",
+    "mtime": 1791010136.9437652,
+    "seen": 1791010841.977567,
+    "ast_hash": "3f5e3917a03dd52539d83eb04fcdb93f",
     "semantic_hash": ""
   },
   "backend/internal/github/app.go": {
@@ -924,9 +924,9 @@
     "semantic_hash": ""
   },
   "backend/internal/github/github.go": {
-    "mtime": 1790996443.7130744,
-    "seen": 1791000197.6750653,
-    "ast_hash": "c22aafca54dbec061f449fb6ed876754",
+    "mtime": 1791009914.9540029,
+    "seen": 1791010841.977579,
+    "ast_hash": "c107e49c639da9193d97fda6f29abcff",
     "semantic_hash": ""
   },
   "backend/internal/github/github_test.go": {
@@ -954,9 +954,9 @@
     "semantic_hash": ""
   },
   "backend/internal/security/security.go": {
-    "mtime": 1791008641.6962054,
-    "seen": 1791009508.370474,
-    "ast_hash": "dedd4704f0eddac64cd67c1a24109cac",
+    "mtime": 1791009943.12991,
+    "seen": 1791010841.977599,
+    "ast_hash": "86ffc36293c28e31e2eeb8167562ce7d",
     "semantic_hash": ""
   },
   "components.json": {
@@ -2520,9 +2520,9 @@
     "semantic_hash": ""
   },
   "SECURITY.md": {
-    "mtime": 1790988562.7784362,
-    "seen": 1790993150.706361,
-    "ast_hash": "fb1ca8dc04907f01a3333efeeebd1d26",
+    "mtime": 1791010478.8200934,
+    "seen": 1791010841.9782138,
+    "ast_hash": "7ed09773cc2243aae5b4d463c4c31a34",
     "semantic_hash": ""
   },
   "docker-compose.ghcr.yml": {
@@ -2544,9 +2544,9 @@
     "semantic_hash": ""
   },
   "docker-compose.traefik.yml": {
-    "mtime": 1790996813.7235746,
-    "seen": 1791000197.6761658,
-    "ast_hash": "f101f1084a98a9fed85ad270291f869f",
+    "mtime": 1791010253.4602852,
+    "seen": 1791010841.9782217,
+    "ast_hash": "d8fc0b4a2c7c9b0991fd169a9de09d9d",
     "semantic_hash": ""
   },
   "docker-compose.yml": {
@@ -2790,9 +2790,9 @@
     "semantic_hash": ""
   },
   "backend/internal/builder/composepolicy.go": {
-    "mtime": 1791008686.104934,
-    "seen": 1791009508.370372,
-    "ast_hash": "3a9734c20a8f4873f4e0d8d83b5f2f00",
+    "mtime": 1791009998.7861004,
+    "seen": 1791010841.9775257,
+    "ast_hash": "4bea589c63df0453ff63941e54b916f7",
     "semantic_hash": ""
   },
   "backend/internal/builder/composepolicy_test.go": {
@@ -2808,9 +2808,9 @@
     "semantic_hash": ""
   },
   "backend/internal/db/secrets_test.go": {
-    "mtime": 1790988562.7834363,
-    "seen": 1790993150.704732,
-    "ast_hash": "831bb65b56f6ee8680e42d65eb0e68d6",
+    "mtime": 1791009828.6416383,
+    "seen": 1791010841.9775622,
+    "ast_hash": "2d6efc23501f4c4ddadf6fa7e6fc9956",
     "semantic_hash": ""
   },
   "skills-lock.json": {
@@ -3138,27 +3138,27 @@
     "semantic_hash": ""
   },
   "backend/internal/alerts/notify.go": {
-    "mtime": 1790996655.2918036,
-    "seen": 1791000197.6748836,
-    "ast_hash": "eb5cc480c89576072efb9a06730dfdf4",
+    "mtime": 1791009834.4476268,
+    "seen": 1791010841.9774141,
+    "ast_hash": "a8b30e3037a41da41e6471d095f7ecb3",
     "semantic_hash": ""
   },
   "backend/internal/alerts/notify_test.go": {
-    "mtime": 1790996837.8803022,
-    "seen": 1791000197.6748865,
-    "ast_hash": "a290bc9adf969de1847bea068d157988",
+    "mtime": 1791009886.3371944,
+    "seen": 1791010841.9774175,
+    "ast_hash": "8bf0811212872a96138500392c0c57a7",
     "semantic_hash": ""
   },
   "backend/internal/alerts/ssrf.go": {
-    "mtime": 1790996621.0647728,
-    "seen": 1791000197.6748898,
-    "ast_hash": "cf14d369c84e0683c571b90c30ace170",
+    "mtime": 1791009834.4489245,
+    "seen": 1791010841.9774234,
+    "ast_hash": "6f391296fbfd7d5fe3103f19ce5a0e6d",
     "semantic_hash": ""
   },
   "backend/internal/api/auth_guard.go": {
-    "mtime": 1791008813.9640625,
-    "seen": 1791009508.3702426,
-    "ast_hash": "7a1862bdfdac78d9581d0d87ae9a07cf",
+    "mtime": 1791009931.5413117,
+    "seen": 1791010841.9774315,
+    "ast_hash": "13619f3ef8dce4a90985f7bc31ccb88d",
     "semantic_hash": ""
   },
   "backend/internal/api/db_creds.go": {
@@ -3168,9 +3168,9 @@
     "semantic_hash": ""
   },
   "backend/internal/api/security_hardening_test.go": {
-    "mtime": 1791008813.9649918,
-    "seen": 1791009508.370345,
-    "ast_hash": "aea3b4ff7d878af21af80133311d4ffc",
+    "mtime": 1791009969.0356927,
+    "seen": 1791010841.977493,
+    "ast_hash": "ef0a6053921b374162e89a387e71f92b",
     "semantic_hash": ""
   },
   "backend/internal/db/alerts_db.go": {
@@ -3186,9 +3186,9 @@
     "semantic_hash": ""
   },
   "backend/internal/github/ownerrepo_test.go": {
-    "mtime": 1790996470.4652376,
-    "seen": 1791000197.6750722,
-    "ast_hash": "9ca6b9630208f17dba9f322138c50600",
+    "mtime": 1791009907.1985173,
+    "seen": 1791010841.9775853,
+    "ast_hash": "c350b06464e4ccd9d5eb13a3301cdd04",
     "semantic_hash": ""
   },
   "backend/internal/hub/hub_test.go": {
@@ -3204,9 +3204,9 @@
     "semantic_hash": ""
   },
   "backend/internal/security/security_test.go": {
-    "mtime": 1791008641.6971629,
-    "seen": 1791009508.370478,
-    "ast_hash": "6b51ff900827c7ef611b99a909a702a9",
+    "mtime": 1791009951.7307975,
+    "seen": 1791010841.9776013,
+    "ast_hash": "ee0b4b06b4aa4164e6e9996bbac7a447",
     "semantic_hash": ""
   },
   "components/MobileNav.tsx": {
@@ -3267,6 +3267,96 @@
     "mtime": 1791008908.9116652,
     "seen": 1791009508.3704247,
     "ast_hash": "0b64f2e743242b3e3b07634e3d45f775",
+    "semantic_hash": ""
+  },
+  "backend/internal/alerts/secrecy_test.go": {
+    "mtime": 1791009886.362195,
+    "seen": 1791010841.9774206,
+    "ast_hash": "7d3fd710123b41d7da162f41e0feb03e",
+    "semantic_hash": ""
+  },
+  "backend/internal/api/alerts_channels_test.go": {
+    "mtime": 1791009910.7019305,
+    "seen": 1791010841.9774256,
+    "ast_hash": "6af8b56a9d58d6d7e305d2c19cb0f334",
+    "semantic_hash": ""
+  },
+  "backend/internal/api/audit_test.go": {
+    "mtime": 1791010175.4239278,
+    "seen": 1791010841.9774299,
+    "ast_hash": "854f2a73c9a744d39f0ba475639d36f5",
+    "semantic_hash": ""
+  },
+  "backend/internal/api/auth_session_test.go": {
+    "mtime": 1791009969.044693,
+    "seen": 1791010841.977438,
+    "ast_hash": "e093a6b7e4ce490d14b7c408661f2e3f",
+    "semantic_hash": ""
+  },
+  "backend/internal/api/webhook_secrets_test.go": {
+    "mtime": 1791010112.7750695,
+    "seen": 1791010841.9775069,
+    "ast_hash": "adda3b21b9abbe9b8bf480cd229ebb4c",
+    "semantic_hash": ""
+  },
+  "backend/internal/builder/composehardening.go": {
+    "mtime": 1791010061.8754973,
+    "seen": 1791010841.9775188,
+    "ast_hash": "0390e1e321734ea0759afb01e18cd7e1",
+    "semantic_hash": ""
+  },
+  "backend/internal/builder/composehardening_compose_test.go": {
+    "mtime": 1791010095.4493625,
+    "seen": 1791010841.9775207,
+    "ast_hash": "48d2df11abe9954825eb85d9e162f8cb",
+    "semantic_hash": ""
+  },
+  "backend/internal/builder/composehardening_test.go": {
+    "mtime": 1791010061.8764975,
+    "seen": 1791010841.977523,
+    "ast_hash": "bbc5a5835674198a64b47a6a9ba1e3a0",
+    "semantic_hash": ""
+  },
+  "backend/internal/builder/envvars.go": {
+    "mtime": 1791009865.5555665,
+    "seen": 1791010841.9775345,
+    "ast_hash": "c7a4de6eef74753827792bb02462e847",
+    "semantic_hash": ""
+  },
+  "backend/internal/builder/envvars_test.go": {
+    "mtime": 1791010044.1789627,
+    "seen": 1791010841.9775379,
+    "ast_hash": "e03d54ad807c8be4057ff58c875b1568",
+    "semantic_hash": ""
+  },
+  "backend/internal/db/sessions.go": {
+    "mtime": 1791009892.7673886,
+    "seen": 1791010841.977564,
+    "ast_hash": "b18b2e06209e17b5d568001434c276c6",
+    "semantic_hash": ""
+  },
+  "backend/internal/docker/dblimits.go": {
+    "mtime": 1791010136.9197645,
+    "seen": 1791010841.97757,
+    "ast_hash": "523655e3cb39e663e93071fe5d22ee7b",
+    "semantic_hash": ""
+  },
+  "backend/internal/docker/dblimits_test.go": {
+    "mtime": 1791010136.962766,
+    "seen": 1791010841.977573,
+    "ast_hash": "b0dd461acbabb257b7b82ad317ac13bd",
+    "semantic_hash": ""
+  },
+  "scripts/caddy-entrypoint.sh": {
+    "mtime": 1791010205.9028485,
+    "seen": 1791010841.9777966,
+    "ast_hash": "4ccccb077b86f4404f1fbb20de34cbcf",
+    "semantic_hash": ""
+  },
+  "scripts/trust-traefik.sh": {
+    "mtime": 1791010216.5592382,
+    "seen": 1791010841.9777982,
+    "ast_hash": "1378df99eac47f673e5d3237d46eeaea",
     "semantic_hash": ""
   }
 }

@@ -25,6 +25,9 @@ var blockedNets = mustCIDRs(
 	"172.16.0.0/12", "192.0.0.0/24", "192.168.0.0/16", "198.18.0.0/15",
 	"224.0.0.0/4", "240.0.0.0/4",
 	"::/128", "::1/128", "fc00::/7", "fe80::/10", "ff00::/8",
+	// IPv6 transition/special ranges that can embed or tunnel to private IPv4:
+	// NAT64, 6to4, Teredo, deprecated site-local, discard-only and documentation.
+	"64:ff9b::/96", "64:ff9b:1::/48", "2002::/16", "2001::/32", "fec0::/10", "100::/64", "2001:db8::/32",
 )
 
 func mustCIDRs(cidrs ...string) []*net.IPNet {
@@ -123,4 +126,50 @@ func CheckURL(raw string) (*url.URL, error) {
 		return nil, errBlocked
 	}
 	return u, nil
+}
+
+// Slack and Discord webhooks live on fixed hosts. Pinning them means a channel of
+// those types cannot be turned into a generic outbound-POST primitive. Set
+// PULSENODE_ALERTS_ALLOW_ANY_WEBHOOK_HOST=true for Slack-compatible servers
+// (Mattermost, Rocket.Chat) or PULSENODE_ALERTS_ALLOW_PRIVATE=true for private
+// targets.
+var chatHosts = map[string][]string{
+	TypeSlack:   {"hooks.slack.com"},
+	TypeDiscord: {"discord.com", "discordapp.com", "canary.discord.com", "ptb.discord.com"},
+}
+
+var chatPaths = map[string][]string{
+	TypeSlack:   {"/services/", "/workflows/", "/triggers/"},
+	TypeDiscord: {"/api/webhooks/"},
+}
+
+func allowAnyChatHost() bool {
+	return allowPrivate() || os.Getenv("PULSENODE_ALERTS_ALLOW_ANY_WEBHOOK_HOST") == "true"
+}
+
+func checkChatURL(typ string, u *url.URL) error {
+	if allowAnyChatHost() {
+		return nil
+	}
+	host := strings.ToLower(u.Hostname())
+	okHost := false
+	for _, h := range chatHosts[typ] {
+		if host == h {
+			okHost = true
+		}
+	}
+	if p := u.Port(); p != "" && p != "443" {
+		okHost = false
+	}
+	okPath := false
+	for _, p := range chatPaths[typ] {
+		if strings.HasPrefix(u.Path, p) {
+			okPath = true
+		}
+	}
+	if !okHost || !okPath {
+		return fmt.Errorf("%s webhook URLs must look like https://%s%s… (set PULSENODE_ALERTS_ALLOW_ANY_WEBHOOK_HOST=true for compatible servers)",
+			typ, chatHosts[typ][0], chatPaths[typ][0])
+	}
+	return nil
 }

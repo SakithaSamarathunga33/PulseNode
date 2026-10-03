@@ -197,37 +197,3 @@ func (l *loginLimiter) success(account, ip string) {
 
 // loginGuard: 10 failures per (account, IP) per 15 minutes; 20 per account then slows unfamiliar IPs.
 var loginGuard = newLoginLimiter(10, 15*time.Minute)
-
-// sessionRevocations remembers logged-out sessions. A session is identified by
-// its original login time (auth_time), which every refreshed token carries, so
-// revoking it kills every copy of the cookie, not only the latest. In memory:
-// a restart forgets revocations, but tokens still expire (idle 30 min, max 12 h).
-type sessionRevocations struct {
-	mu sync.Mutex
-	m  map[int64]int64 // auth_time → unix time after which the entry is moot
-}
-
-func newSessionRevocations() *sessionRevocations {
-	return &sessionRevocations{m: map[int64]int64{}}
-}
-
-func (r *sessionRevocations) revoke(authTime int64) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	now := time.Now().Unix()
-	for t, exp := range r.m {
-		if exp <= now {
-			delete(r.m, t)
-		}
-	}
-	r.m[authTime] = authTime + sessionMaxAge
-}
-
-func (r *sessionRevocations) isRevoked(authTime int64) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	_, ok := r.m[authTime]
-	return ok
-}
-
-var revokedSessions = newSessionRevocations()

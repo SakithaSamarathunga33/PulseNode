@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -72,12 +73,29 @@ func TestListsEmptyNotNil(t *testing.T) {
 
 func TestInvalidImageRef(t *testing.T) {
 	s := newTestService(t, map[string]bool{"trivy": true, "syft": true}, failRunner(t))
-	for _, ref := range []string{"", "--help", "-o evil", "a b", "x;rm -rf /", "$(id)"} {
+	for _, ref := range []string{"", "--help", "-o evil", "a b", "x;rm -rf /", "$(id)",
+		"dir:/workspace", "dir:.", "DIR:/x", "file:/etc/passwd", "file:///etc/passwd", "directory:/var/lib/pulsenode",
+		"docker-archive:/tmp/x.tar", "docker-archive:x.tar", "oci-archive:x.tar", "oci-dir:/x", "singularity:x.sif", "sbom:x.json",
+		"http://evil/x", "https://evil/x", "git:github.com/a/b", "registry:evil.example/app:1", "docker:registry.x/app:1",
+		"podman:a/b:c", "nginx/../../etc", "a:/b"} {
 		if _, err := s.Scan(context.Background(), ref); !errors.Is(err, ErrInvalidRef) {
 			t.Errorf("Scan(%q) err = %v, want ErrInvalidRef", ref, err)
 		}
 		if _, err := s.SBOM(context.Background(), ref, ""); !errors.Is(err, ErrInvalidRef) {
 			t.Errorf("SBOM(%q) err = %v, want ErrInvalidRef", ref, err)
+		}
+	}
+}
+
+func TestValidImageRefAcceptsPlainRefs(t *testing.T) {
+	for _, ref := range []string{
+		"nginx", "nginx:1.27", "library/nginx:latest", "pn-shop:3f9a2c1", "pn-shop-frontend:3f9a2c1",
+		"ghcr.io/org/app:v1", "localhost:5000/app:1", "registry.example.com:8443/team/app:2.0",
+		"app@sha256:" + strings.Repeat("a", 64), "ghcr.io/org/app:1@sha256:" + strings.Repeat("b", 64),
+		"docker:dind", "docker:24", "mongo:7.0", "redis:7.4-alpine", "postgres:16.4",
+	} {
+		if !validImageRef(ref) {
+			t.Errorf("validImageRef(%q) = false, plain refs must pass", ref)
 		}
 	}
 }

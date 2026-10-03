@@ -41,6 +41,45 @@ var ErrInvalidRef = errors.New("invalid image reference")
 // reference.
 var imageRef = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/:@+-]{0,254}$`)
 
+// pathSchemes are scanner source transports that read a local path or archive
+// (syft/trivy accept them in the same position as an image name): `dir:/workspace`
+// would produce a package list of the panel's own files. Never allowed.
+var pathSchemes = map[string]bool{
+	"dir": true, "directory": true, "file": true, "docker-archive": true, "oci-archive": true,
+	"oci-dir": true, "oci": true, "singularity": true, "sbom": true, "k8s": true, "kubernetes": true,
+	"http": true, "https": true, "ftp": true, "git": true, "github": true, "ssh": true,
+}
+
+// daemonSchemes pick where an image is pulled from. They are only legitimate here
+// as the official image of the same name with a plain tag (docker:dind, docker:24),
+// never as a transport prefix in front of a full reference (docker:registry.x/app).
+var daemonSchemes = map[string]bool{"docker": true, "podman": true, "registry": true, "containerd": true, "daemon": true, "remote": true}
+
+var plainTag = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._-]*$`)
+
+// validImageRef accepts a plain image reference (name[:tag][@digest], optionally
+// with a registry host[:port]) and rejects flags, paths and source-scheme prefixes.
+func validImageRef(target string) bool {
+	if !imageRef.MatchString(target) || strings.Contains(target, "..") {
+		return false
+	}
+	i := strings.Index(target, ":")
+	if i < 0 {
+		return true
+	}
+	prefix, rest := strings.ToLower(target[:i]), target[i+1:]
+	if strings.HasPrefix(rest, "/") { // dir:/x, http://host — image refs never have ':/'
+		return false
+	}
+	if pathSchemes[prefix] {
+		return false
+	}
+	if daemonSchemes[prefix] && !plainTag.MatchString(rest) {
+		return false
+	}
+	return true
+}
+
 // Runner executes a command and returns stdout plus the tail of stderr.
 type Runner func(ctx context.Context, name string, args ...string) (stdout []byte, stderrTail string, err error)
 
@@ -114,7 +153,7 @@ func (s *Service) SBOMs() []map[string]any {
 // result is not persisted to the history.
 func (s *Service) Scan(ctx context.Context, target string) (map[string]any, error) {
 	target = strings.TrimSpace(target)
-	if !imageRef.MatchString(target) {
+	if !validImageRef(target) {
 		return nil, ErrInvalidRef
 	}
 	start := time.Now()
@@ -198,7 +237,7 @@ func ParseTrivy(out []byte) ([4]int, error) {
 // status "unavailable"; nothing is fabricated or persisted.
 func (s *Service) SBOM(ctx context.Context, target string, format string) (map[string]any, error) {
 	target = strings.TrimSpace(target)
-	if !imageRef.MatchString(target) {
+	if !validImageRef(target) {
 		return nil, ErrInvalidRef
 	}
 	syftFormat := "spdx-json"

@@ -16,10 +16,11 @@ func TestLogoutRevokesEveryCopyOfTheSession(t *testing.T) {
 	postSetup(s, `{"username":"admin","password":"password123","setup_token":"test-setup-token-0123456789"}`)
 	u, _ := s.db.GetUser()
 
-	authTime := time.Now().Unix() - 5000 // unique per test: revocations are process-wide
+	authTime := time.Now().Unix() - 5000
+	sid := newSessionID() // both tokens are copies of ONE login
 	issue := func() string {
 		rec := httptest.NewRecorder()
-		s.issueSession(rec, httptest.NewRequest(http.MethodPost, "/", nil), u, authTime)
+		s.issueSessionSID(rec, httptest.NewRequest(http.MethodPost, "/", nil), u, authTime, sid)
 		return rec.Result().Cookies()[0].Value
 	}
 	stolen, current := issue(), issue() // a refreshed token and the copy an attacker kept
@@ -39,7 +40,7 @@ func TestLogoutRevokesEveryCopyOfTheSession(t *testing.T) {
 	}
 	// A different login is unaffected, and so is the middleware path.
 	rec := httptest.NewRecorder()
-	s.issueSession(rec, httptest.NewRequest(http.MethodPost, "/", nil), u, authTime+1)
+	s.issueSession(rec, httptest.NewRequest(http.MethodPost, "/", nil), u, authTime)
 	other := rec.Result().Cookies()[0].Value
 	if _, ok := s.validSession(other, u); !ok {
 		t.Fatal("other sessions must stay valid")

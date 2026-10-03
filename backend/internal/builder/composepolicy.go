@@ -19,11 +19,11 @@ import (
 // project is the fixed compose project name (see composeProject) passed with -p:
 // the repo's own top-level `name:` must never choose it, or a repo could name
 // itself after the panel (or another app) and take over its services and volumes.
-func (cfg Config) checkComposePolicy(ctx context.Context, dir, file, project string) error {
+func (cfg Config) checkComposePolicy(ctx context.Context, dir, file, project string) (configJSON string, err error) {
 	out, err := runOutput(ctx, dir, "docker", "compose", "-p", project, "-f", file,
 		"config", "--format", "json", "--no-env-resolution")
 	if err != nil {
-		return fmt.Errorf("%s could not be parsed: %w", file, err)
+		return "", fmt.Errorf("%s could not be parsed: %w", file, err)
 	}
 	problems := composeViolations([]byte(out), dir, project)
 
@@ -33,15 +33,15 @@ func (cfg Config) checkComposePolicy(ctx context.Context, dir, file, project str
 	raw, err := runOutput(ctx, dir, "docker", "compose", "-p", project, "-f", file,
 		"config", "--format", "json", "--no-env-resolution", "--no-interpolate")
 	if err != nil {
-		return fmt.Errorf("%s could not be parsed: %w", file, err)
+		return "", fmt.Errorf("%s could not be parsed: %w", file, err)
 	}
 	problems = append(problems, envFileViolations([]byte(raw), dir)...)
 
 	if len(problems) > 0 {
-		return fmt.Errorf("%s uses settings PulseNode does not allow:\n  - %s", file,
+		return "", fmt.Errorf("%s uses settings PulseNode does not allow:\n  - %s", file,
 			strings.Join(problems, "\n  - "))
 	}
-	return nil
+	return out, nil
 }
 
 // envFileViolations checks env_file paths in uninterpolated compose JSON.

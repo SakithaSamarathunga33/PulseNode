@@ -146,7 +146,8 @@ func TestSlackAndDiscordRequireHTTPS(t *testing.T) {
 		if err := ValidateConfig(typ, map[string]string{"webhookUrl": "http://example.com/x"}); err == nil {
 			t.Errorf("%s over http should be rejected", typ)
 		}
-		if err := ValidateConfig(typ, map[string]string{"webhookUrl": "https://example.com/x"}); err != nil {
+		good := map[string]string{TypeSlack: "https://hooks.slack.com/services/T/B/x", TypeDiscord: "https://discord.com/api/webhooks/1/abc"}[typ]
+		if err := ValidateConfig(typ, map[string]string{"webhookUrl": good}); err != nil {
 			t.Errorf("%s over https: %v", typ, err)
 		}
 	}
@@ -186,12 +187,12 @@ func TestValidateConfig(t *testing.T) {
 
 func TestSecretsMergeAndRedaction(t *testing.T) {
 	old := map[string]string{"host": "h", "password": "pw-old", "port": "25"}
-	merged := MergeConfig(TypeSMTP, old, map[string]string{"host": "h2", "password": "", "port": "587"})
-	if merged["password"] != "pw-old" || merged["host"] != "h2" {
-		t.Fatalf("blank secret must keep the stored value: %v", merged)
+	merged, err := MergeConfig(TypeSMTP, old, map[string]string{"host": "h", "password": "", "port": "25"})
+	if err != nil || merged["password"] != "pw-old" || merged["host"] != "h" {
+		t.Fatalf("blank secret must keep the stored value: %v %v", merged, err)
 	}
-	merged = MergeConfig(TypeSMTP, old, map[string]string{"password": "new"})
-	if merged["password"] != "new" {
+	merged, err = MergeConfig(TypeSMTP, old, map[string]string{"host": "h2", "password": "new", "port": "587"})
+	if err != nil || merged["password"] != "new" {
 		t.Fatal("a supplied secret must replace the stored one")
 	}
 	pub := PublicConfig(TypeSMTP, old)

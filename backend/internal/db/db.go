@@ -19,7 +19,10 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-type DB struct{ *sql.DB }
+type DB struct {
+	*sql.DB
+	sessOnce sync.Once
+}
 
 func Open(path string) (*DB, error) {
 	raw, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)")
@@ -29,7 +32,7 @@ func Open(path string) (*DB, error) {
 	// SQLite: one writer at a time. The _pragma options in the DSN are applied to
 	// every new connection the pool opens, so they survive connection recycling.
 	raw.SetMaxOpenConns(1)
-	d := &DB{raw}
+	d := &DB{DB: raw}
 	if err := d.migrate(); err != nil {
 		_ = raw.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
@@ -247,6 +250,11 @@ func (d *DB) addColumn(table, column, definition string) {
 
 // ── Encryption ────────────────────────────────────────────────────────────────
 
+// aesKey takes the FIRST 32 CHARACTERS of AES_KEY as the raw key bytes. For the
+// 64-char hex keys install.sh generates that is 128 bits of entropy rather than
+// 256 (each hex char carries 4 bits). Decoding the hex, or a KDF, would be better,
+// but any change of derivation makes every existing ciphertext undecryptable, so
+// it needs a versioned migration (re-encrypt all rows) first — see Decrypt's TODO.
 func aesKey() ([]byte, error) {
 	k := os.Getenv("AES_KEY")
 	if k == "" {
@@ -281,15 +289,64 @@ func Encrypt(plaintext string) (string, error) {
 	return hex.EncodeToString(sealed), nil
 }
 
+// ErrDecrypt means a stored value looks like ciphertext but cannot be opened:
+// the AES key does not match the one it was encrypted with (restored backup,
+// regenerated key volume). Callers must fail instead of using the value, or the
+// raw hex would reach apps as if it were their env vars.
+var ErrDecrypt = errors.New("cannot decrypt stored secret: AES key mismatch")
+
+var decryptWarn sync.Once
+
+func warnDecrypt(reason string) {
+	decryptWarn.Do(func() {
+		log.Printf("[crypto] ERROR: %s — a stored secret cannot be decrypted. The AES key differs from the one used to encrypt the data (restored DB without its key?). Restore the matching AES_KEY / aes-key file; affected deploys and channels will fail until then.", reason)
+	})
+}
+
+// looksEncrypted reports whether s has the shape Encrypt produces: hex of
+// nonce(12) + at least the 16-byte GCM tag. It lets Decrypt tell a real
+// ciphertext (never silently accepted) from a legacy plaintext value.
+func looksEncrypted(s string) bool {
+	if len(s) < 2*(12+16) || len(s)%2 != 0 {
+		return false
+	}
+	_, err := hex.DecodeString(s)
+	return err == nil
+}
+
+// IsEncrypted reports whether stored looks like Encrypt output (as opposed to a
+// legacy plaintext value), so callers can migrate plaintext rows in place.
+func IsEncrypted(stored string) bool { return looksEncrypted(stored) }
+
+// Decrypt opens a value written by Encrypt.
+//
+// Legacy plaintext rows (written before encryption existed, e.g. plain JSON or
+// KEY=value text) are returned unchanged — the ONLY fallback. Anything shaped
+// like our ciphertext that fails to open returns ErrDecrypt. Known limit: a
+// legacy plaintext that is itself a hex string of 56+ chars is indistinguishable
+// from ciphertext and is reported as ErrDecrypt (none of the stored kinds — env
+// text, tokens, JSON — look like that).
+//
+// TODO: aesKey uses only the first 32 characters of AES_KEY (a 64-char hex key
+// therefore gives 128 bits of entropy, not 256). Changing the derivation would
+// invalidate every existing ciphertext, so it needs a versioned migration first.
 func Decrypt(ciphertext string) (string, error) {
+	if ciphertext == "" {
+		return "", nil
+	}
+	enc := looksEncrypted(ciphertext)
 	key, err := aesKey()
 	if err != nil {
+		if enc {
+			warnDecrypt("AES key unavailable")
+			return "", ErrDecrypt
+		}
 		return ciphertext, nil
 	}
-	data, err := hex.DecodeString(ciphertext)
-	if err != nil {
-		return ciphertext, nil // not encrypted, return as-is
+	if !enc {
+		return ciphertext, nil // legacy plaintext
 	}
+	data, _ := hex.DecodeString(ciphertext)
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", err
@@ -298,12 +355,10 @@ func Decrypt(ciphertext string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if len(data) < gcm.NonceSize() {
-		return ciphertext, nil
-	}
 	plain, err := gcm.Open(nil, data[:gcm.NonceSize()], data[gcm.NonceSize():], nil)
 	if err != nil {
-		return ciphertext, nil
+		warnDecrypt("authentication failed")
+		return "", ErrDecrypt
 	}
 	return string(plain), nil
 }
@@ -437,11 +492,11 @@ func (d *DB) GetProject(id string) (*Project, error) {
 	p.AutoDeploy = autoDeploy != 0
 	plain, err := Decrypt(enc)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot decrypt env: %w", err)
 	}
 	p.EnvVars = plain
 	if p.BackendEnvVars, err = Decrypt(encBackend); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot decrypt backend env: %w", err)
 	}
 	return &p, nil
 }
@@ -823,6 +878,9 @@ func (d *DB) PruneOld(logsAge, auditAge, alertsAge time.Duration) error {
 	}
 	hours := func(a time.Duration) string { return fmt.Sprintf("-%d hours", int(a.Hours())+1) }
 	var firstErr error
+	if err := d.PruneSessionRevocations(); err != nil {
+		firstErr = err
+	}
 	for _, q := range []struct{ sql, age string }{
 		{`DELETE FROM deployment_logs WHERE ts < datetime('now', ?)`, hours(logsAge)},
 		{`DELETE FROM audit_log WHERE created_at < datetime('now', ?)`, hours(auditAge)},
@@ -915,7 +973,10 @@ func (d *DB) GetManagedDatabase(id string) (*ManagedDatabase, error) {
 		}
 		return nil, err
 	}
-	plain, _ := Decrypt(enc)
+	plain, err := Decrypt(enc)
+	if err != nil {
+		return nil, fmt.Errorf("managed database %s: %w", m.Name, err)
+	}
 	m.Password = plain
 	return &m, nil
 }
@@ -930,7 +991,10 @@ func (d *DB) GetManagedDatabaseByContainerName(engine, name string) (*ManagedDat
 		}
 		return nil, err
 	}
-	plain, _ := Decrypt(enc)
+	plain, err := Decrypt(enc)
+	if err != nil {
+		return nil, fmt.Errorf("managed database %s: %w", m.Name, err)
+	}
 	m.Password = plain
 	return &m, nil
 }

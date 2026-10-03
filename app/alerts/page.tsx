@@ -625,10 +625,11 @@ function blankRule(): Rule {
   return { id: "", name: "", metric: "host.cpu", operator: ">", threshold: 90, duration: 60, severity: "warning", target: "", channelIds: [], cooldown: 300, enabled: true }
 }
 
-type FieldSpec = { key: string; label: string; secret?: boolean; placeholder?: string; type?: string; optional?: boolean; hint?: string }
+// secret: stored encrypted and never returned (blank on edit = keep). plain: show the box as readable text while typing.
+type FieldSpec = { key: string; label: string; secret?: boolean; plain?: boolean; placeholder?: string; type?: string; optional?: boolean; hint?: string }
 const CHANNEL_FIELDS: Record<ChannelType, FieldSpec[]> = {
   webhook: [
-    { key: "url", label: "URL", placeholder: "https://example.com/hooks/pulsenode" },
+    { key: "url", label: "URL", secret: true, plain: true, placeholder: "https://example.com/hooks/pulsenode", hint: "Stored encrypted — URLs often embed tokens, so only the host is shown after saving." },
     { key: "secret", label: "Signing secret", secret: true, optional: true, hint: "If set, requests carry X-PulseNode-Signature: sha256=HMAC of the body." },
   ],
   slack: [{ key: "webhookUrl", label: "Incoming webhook URL", secret: true, placeholder: "https://hooks.slack.com/services/…" }],
@@ -665,7 +666,7 @@ function ChannelDialog({ value, onClose, onSaved }: {
     if (value === "new") { setType("slack"); setName(""); setCfg({}); setSecurity("starttls") }
     else {
       setType(value.type); setName(value.name); setSecurity(value.config.security || "starttls")
-      setCfg(Object.fromEntries(Object.entries(value.config).filter(([k]) => !k.endsWith("Set"))))
+      setCfg(Object.fromEntries(Object.entries(value.config).filter(([k]) => !k.endsWith("Set") && !k.endsWith("Hint"))))
     }
   }, [value])
 
@@ -711,12 +712,16 @@ function ChannelDialog({ value, onClose, onSaved }: {
           </Field>
           {fields.map(f => {
             const stored = !!editing && f.secret && editing.config[`${f.key}Set`] === "true"
+            const savedHint = stored ? editing?.config[`${f.key}Hint`] : undefined
             return (
-              <Field key={f.key} id={`c-${f.key}`} label={f.label} hint={f.hint}>
+              <Field
+                key={f.key} id={`c-${f.key}`} label={f.label}
+                hint={stored ? `Saved${savedHint ? ` for ${savedHint}` : ""}. Leave blank to keep it.${f.hint && !f.plain ? ` ${f.hint}` : ""}` : f.hint}
+              >
                 <Input
-                  id={`c-${f.key}`} type={f.secret ? "password" : f.type ?? "text"} autoComplete="off"
+                  id={`c-${f.key}`} type={f.secret && !f.plain ? "password" : f.type ?? "text"} autoComplete="off"
                   value={cfg[f.key] ?? ""} onChange={e => setCfg(c => ({ ...c, [f.key]: e.target.value }))}
-                  placeholder={stored ? "•••••••• (saved — leave blank to keep)" : f.placeholder}
+                  placeholder={stored ? (savedHint ? `${savedHint} (saved — leave blank to keep)` : "•••••••• (saved — leave blank to keep)") : f.placeholder}
                   className={f.type === "number" ? undefined : "font-mono text-xs"}
                 />
               </Field>
@@ -729,7 +734,19 @@ function ChannelDialog({ value, onClose, onSaved }: {
               </select>
             </Field>
           )}
-          {err && <Alert variant="destructive"><AlertDescription>{err}</AlertDescription></Alert>}
+          {err && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                {err}
+                {/entered again/i.test(err) && (
+                  <span className="mt-1 block text-xs">
+                    You changed where this channel sends to. Saved secrets are never reused for a new destination — type the secret
+                    again, or put the original host back to leave it blank.
+                  </span>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
         <DialogFooter className="sm:justify-between">
           <Button variant="outline" onClick={test} disabled={testing || saving}>

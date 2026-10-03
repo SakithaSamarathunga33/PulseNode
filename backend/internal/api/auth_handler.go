@@ -1,10 +1,12 @@
 package api
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -47,33 +49,77 @@ func sessionVersion(u *db.User) string {
 	return hex.EncodeToString(h[:8])
 }
 
-// issueSession sets a fresh session cookie for u. authTime is the original login
-// time and is carried across refreshes to enforce sessionMaxAge.
+// newSessionID returns a random session id (the jti claim). Every refreshed
+// token of one login carries the same id, so revoking it kills every copy.
+func newSessionID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// issueSession starts a new session (fresh id) for u. authTime is the login time.
 func (s *Server) issueSession(w http.ResponseWriter, r *http.Request, u *db.User, authTime int64) {
-	tok := s.auth.MakeJWT(u.Username, sessionTTL, map[string]any{"ver": sessionVersion(u), "auth_time": authTime})
+	s.issueSessionSID(w, r, u, authTime, newSessionID())
+}
+
+// issueSessionSID sets a fresh session cookie for u, keeping the session id and
+// the original login time across the sliding refreshes (enforces sessionMaxAge).
+func (s *Server) issueSessionSID(w http.ResponseWriter, r *http.Request, u *db.User, authTime int64, sid string) {
+	tok := s.auth.MakeJWT(u.Username, sessionTTL, map[string]any{"ver": sessionVersion(u), "auth_time": authTime, "jti": sid})
 	setSessionCookie(w, r, tok, int(sessionTTL))
+}
+
+// session is the verified identity behind a token.
+type session struct {
+	authTime int64
+	sid      string // "" for tokens issued before jti existed
+}
+
+// revocationKey is what a logout stores for the session. Tokens issued before the
+// jti claim existed (valid for at most 12 h after deploying this change) fall back
+// to their login time, as before; the row is persisted either way.
+func (ss session) revocationKey() string {
+	if ss.sid != "" {
+		return ss.sid
+	}
+	return "t:" + strconv.FormatInt(ss.authTime, 10)
+}
+
+// parseSession verifies token for u and returns the session behind it. Revocations
+// are read from the database, so a logout survives a restart; a database error
+// fails closed.
+func (s *Server) parseSession(token string, u *db.User) (session, bool) {
+	claims, ok := s.auth.ParseToken(token)
+	if !ok {
+		return session{}, false
+	}
+	sub, _ := claims["sub"].(string)
+	ver, _ := claims["ver"].(string)
+	authTime, _ := claims["auth_time"].(float64)
+	sid, _ := claims["jti"].(string)
+	if sub != u.Username || subtle.ConstantTimeCompare([]byte(ver), []byte(sessionVersion(u))) != 1 {
+		return session{}, false
+	}
+	if authTime <= 0 || time.Now().Unix()-int64(authTime) > sessionMaxAge {
+		return session{}, false
+	}
+	ss := session{authTime: int64(authTime), sid: sid}
+	revoked, err := s.db.IsSessionRevoked(ss.revocationKey())
+	if err != nil {
+		log.Printf("[auth] revocation lookup failed, rejecting session: %v", err)
+		return session{}, false
+	}
+	if revoked {
+		return session{}, false
+	}
+	return ss, true
 }
 
 // validSession reports whether token is a live session for u and returns its
 // original login time.
 func (s *Server) validSession(token string, u *db.User) (int64, bool) {
-	claims, ok := s.auth.ParseToken(token)
-	if !ok {
-		return 0, false
-	}
-	sub, _ := claims["sub"].(string)
-	ver, _ := claims["ver"].(string)
-	authTime, _ := claims["auth_time"].(float64)
-	if sub != u.Username || subtle.ConstantTimeCompare([]byte(ver), []byte(sessionVersion(u))) != 1 {
-		return 0, false
-	}
-	if authTime <= 0 || time.Now().Unix()-int64(authTime) > sessionMaxAge {
-		return 0, false
-	}
-	if revokedSessions.isRevoked(int64(authTime)) {
-		return 0, false
-	}
-	return int64(authTime), true
+	ss, ok := s.parseSession(token, u)
+	return ss.authTime, ok
 }
 
 // GET /api/auth/status
@@ -99,13 +145,13 @@ func (s *Server) authStatus(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "loggedIn": false})
 		return
 	}
-	authTime, ok := s.validSession(c.Value, user)
+	ss, ok := s.parseSession(c.Value, user)
 	if !ok {
 		writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "loggedIn": false})
 		return
 	}
 	// Slide the session: issue a fresh token with a full 30-min window.
-	s.issueSession(w, r, user, authTime)
+	s.issueSessionSID(w, r, user, ss.authTime, ss.sid)
 	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "loggedIn": true, "username": user.Username})
 }
 
@@ -136,18 +182,31 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 		account = user.Username
 	}
 	if tooManyAttempts(w, account, ip) {
+		// Never log the attempted username: people paste passwords into that field.
+		s.db.InsertAuditLog("anonymous", "auth.login.locked", loginTarget(account), ip, http.StatusTooManyRequests)
 		return
 	}
 	// Always run bcrypt so a wrong username takes as long as a wrong password.
 	pwOK := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(body.Password)) == nil
 	if account == unknownAccount || !pwOK {
 		loginGuard.fail(account, ip)
+		s.db.InsertAuditLog("anonymous", "auth.login.failed", loginTarget(account), ip, http.StatusUnauthorized)
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
 		return
 	}
 	loginGuard.success(account, ip)
+	s.db.InsertAuditLog(user.Username, "auth.login", "account", ip, http.StatusOK)
 	s.issueSession(w, r, user, time.Now().Unix())
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// loginTarget is what a failed attempt is recorded against: the real account, or
+// a generic marker for any other username (which may be a mistyped password).
+func loginTarget(account string) string {
+	if account == unknownAccount {
+		return "unknown-user"
+	}
+	return "account"
 }
 
 // tooManyAttempts answers 429 and returns true while account/ip must wait.
@@ -176,10 +235,18 @@ func (s *Server) authLogout(w http.ResponseWriter, r *http.Request) {
 		tokens = append(tokens, strings.TrimPrefix(h, "Bearer "))
 	}
 	for _, t := range tokens {
-		if claims, ok := s.auth.ParseToken(t); ok {
-			if at, _ := claims["auth_time"].(float64); at > 0 {
-				revokedSessions.revoke(int64(at))
-			}
+		claims, ok := s.auth.ParseToken(t)
+		if !ok {
+			continue
+		}
+		at, _ := claims["auth_time"].(float64)
+		if at <= 0 {
+			continue
+		}
+		sid, _ := claims["jti"].(string)
+		ss := session{authTime: int64(at), sid: sid}
+		if err := s.db.RevokeSession(ss.revocationKey(), ss.authTime+sessionMaxAge); err != nil {
+			log.Printf("[auth] could not persist logout: %v", err)
 		}
 	}
 	setSessionCookie(w, r, "", -1)
