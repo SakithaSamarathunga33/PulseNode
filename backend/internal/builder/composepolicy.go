@@ -19,11 +19,43 @@ func (cfg Config) checkComposePolicy(ctx context.Context, dir string) error {
 	if err != nil {
 		return fmt.Errorf("docker-compose.yml could not be parsed: %w", err)
 	}
-	if problems := composeViolations([]byte(out), dir); len(problems) > 0 {
+	problems := composeViolations([]byte(out), dir)
+
+	// Some compose versions (e.g. v2.36) drop env_file from the output above,
+	// so read the paths again uninterpolated; any path still containing "$"
+	// (like ${X:-/workspace/.env.local}) is rejected rather than guessed at.
+	raw, err := runOutput(ctx, dir, "docker", "compose", "-f", "docker-compose.yml",
+		"config", "--format", "json", "--no-env-resolution", "--no-interpolate")
+	if err != nil {
+		return fmt.Errorf("docker-compose.yml could not be parsed: %w", err)
+	}
+	problems = append(problems, envFileViolations([]byte(raw), dir)...)
+
+	if len(problems) > 0 {
 		return fmt.Errorf("docker-compose.yml uses settings PulseNode does not allow:\n  - %s",
 			strings.Join(problems, "\n  - "))
 	}
 	return nil
+}
+
+// envFileViolations checks env_file paths in uninterpolated compose JSON.
+func envFileViolations(raw []byte, dir string) []string {
+	var cf composeFile
+	if err := json.Unmarshal(raw, &cf); err != nil {
+		return []string{"unreadable compose config: " + err.Error()}
+	}
+	var out []string
+	for name, s := range cf.Services {
+		for _, f := range s.EnvFile {
+			switch {
+			case strings.Contains(f.Path, "$"):
+				out = append(out, fmt.Sprintf("%s: env_file must be a literal path, not %s", name, f.Path))
+			case !resolvedWithin(dir, f.Path):
+				out = append(out, fmt.Sprintf("%s: env_file outside the repository: %s", name, f.Path))
+			}
+		}
+	}
+	return out
 }
 
 type composeFile struct {

@@ -139,3 +139,21 @@ func TestComposeViolationsRejectsPanelVolumesAndNamespaces(t *testing.T) {
 		}
 	}
 }
+
+func TestEnvFileViolationsUninterpolated(t *testing.T) {
+	dir := t.TempDir()
+	raw := `{"services": {"app": {"env_file": [
+	  {"path": "/workspace/.env.local"},
+	  {"path": "${NOPE:-/workspace/.env.local}"},
+	  {"path": "` + filepath.Join(dir, ".env") + `"}
+	]}}}`
+	got := strings.Join(envFileViolations([]byte(raw), dir), "\n")
+	for _, want := range []string{"outside the repository: /workspace/.env.local", "literal path"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, filepath.Join(dir, ".env")) {
+		t.Errorf("in-repo env_file rejected:\n%s", got)
+	}
+}
