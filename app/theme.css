@@ -1,0 +1,270 @@
+/*
+ * PulseNode theme — "Spectrum" direction.
+ *
+ * 1. shadcn tokens (light on :root, dark on [data-theme="dark"]) — every shadcn
+ *    component themes itself from these.
+ * 2. PulseNode tokens: one hue per app area, status colours, chart colours.
+ * 3. Legacy aliases (--acc, --bg-2, --fg-3 …) so pages not yet migrated keep
+ *    working; delete a group here once nothing references it.
+ *
+ * Text-bearing colours (--success, --warning, --danger, --info, --area-*-fg) are
+ * chosen for >= 4.5:1 on their surface in each theme. Chart colours were run
+ * through the dataviz palette validator (CVD separation + contrast) for both.
+ */
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  color-scheme: light;
+  --radius: 0.625rem;
+
+  /* ── shadcn ──────────────────────────────────────────────────────────── */
+  --background: #f6f7f9;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --secondary: #eef1f6;
+  --secondary-foreground: #1e293b;
+  --muted: #eef1f6;
+  --muted-foreground: #5b677a;
+  --accent: #e7eefc;
+  --accent-foreground: #0f172a;
+  --destructive: #dc2626;
+  --border: #e1e6ee;
+  --input: #d3dae6;
+  --ring: #2563eb;
+  --chart-1: #2563eb;
+  --chart-2: #d97706;
+  --chart-3: #0d9488;
+  --chart-4: #e11d48;
+  --chart-5: #7c3aed;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #334155;
+  --sidebar-primary: #2563eb;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eef1f6;
+  --sidebar-accent-foreground: #0f172a;
+  --sidebar-border: #e1e6ee;
+  --sidebar-ring: #2563eb;
+
+  /* ── PulseNode: area hues (icons, tints, accents) + text-safe variants ── */
+  --area-monitor: #0d9488;   --area-monitor-fg: #0f766e;
+  --area-resource: #2563eb;  --area-resource-fg: #1d4ed8;
+  --area-deploy: #ea580c;    --area-deploy-fg: #c2410c;
+  --area-security: #7c3aed;  --area-security-fg: #6d28d9;
+
+  /* ── PulseNode: status (also used as text, so already contrast-safe) ─── */
+  --success: #15803d;
+  --warning: #b45309;
+  --danger: #dc2626;
+  --info: #0369a1;
+
+  --shadow-card: 0 1px 2px rgba(15,23,42,0.05), 0 1px 3px rgba(15,23,42,0.04);
+  --shadow-pop: 0 10px 30px -8px rgba(15,23,42,0.22), 0 2px 6px rgba(15,23,42,0.06);
+  --shadow-glow: 0 0 20px rgb(var(--pn-blue-rgb) / 0.35);
+  --scrim: rgba(15,23,42,0.4);
+
+  /* ── Legacy aliases ──────────────────────────────────────────────────── */
+  --acc: var(--primary);
+  --acc-2: color-mix(in srgb, var(--primary) 82%, black);
+  --acc-soft: color-mix(in srgb, var(--primary) 12%, transparent);
+  --acc-soft-2: color-mix(in srgb, var(--primary) 7%, transparent);
+  --acc-border: color-mix(in srgb, var(--primary) 30%, transparent);
+
+  --ok: var(--success);
+  --ok-soft: color-mix(in srgb, var(--success) 12%, transparent);
+  --warn: var(--warning);
+  --warn-soft: color-mix(in srgb, var(--warning) 13%, transparent);
+  --bad: var(--danger);
+  --bad-soft: color-mix(in srgb, var(--danger) 11%, transparent);
+  --info-soft: color-mix(in srgb, var(--info) 11%, transparent);
+
+  --bg: var(--background);
+  --bg-1: var(--card);
+  --bg-2: var(--muted);
+  --bg-3: #e5e9f1;
+  --bg-hover: color-mix(in srgb, var(--foreground) 5%, transparent);
+  --bg-active: color-mix(in srgb, var(--primary) 11%, transparent);
+  --card-elev: var(--popover);
+  --body-bg: var(--background);
+
+  --border-2: #cdd5e2;
+  --border-3: #b4bfd1;
+
+  --fg: var(--foreground);
+  --fg-2: #334155;
+  --fg-3: #5b677a;
+  --fg-4: #7b8798;
+  --grid: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --shadow-soft: 0 1px 0 rgba(255,255,255,0.8) inset;
+
+  --sev-crit-fg: #b91c1c;  --sev-crit-bg: rgba(220,38,38,0.10);
+  --sev-high-fg: #c2410c;  --sev-high-bg: rgba(249,115,22,0.12);
+  --sev-med-fg:  #a16207;  --sev-med-bg:  rgba(217,119,6,0.12);
+  --sev-low-fg:  #1d4ed8;  --sev-low-bg:  rgba(59,130,246,0.12);
+  --sev-info-fg: #0369a1;  --sev-info-bg: rgba(2,132,199,0.12);
+  --sev-bar-crit: #dc2626; --sev-bar-high: #ea580c; --sev-bar-med: #d97706; --sev-bar-low: #2563eb;
+
+  --r-sm: 6px; --r-md: 8px; --r-lg: 10px; --r-xl: 14px; --r-2xl: 18px; --r-full: 999px;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur-fast: 120ms; --dur: 200ms; --dur-slow: 360ms;
+
+  --db-postgres: #336791; --db-redis: #dc382d; --db-mysql: #00758f;
+  --db-clickhouse: #fbcd1c; --db-mongo: #47a248; --db-other: #6d5cff;
+  --eco-go: #00add8; --eco-npm: #cb3837; --eco-deb: #a81d33; --eco-other: #6d5cff;
+
+  /* rgb triplets for the legacy `rgb(var(--x) / a)` Tailwind colours */
+  --pn-navy-rgb: 246,247,249;       --pn-navy-light-rgb: 255,255,255;
+  --pn-cyan-rgb: 37,99,235;         --pn-blue-rgb: 29,78,216;
+  --pn-electric-rgb: 37,99,235;     --pn-bg-rgb: 15,23,42;
+  --pn-border-rgb: 15,23,42;        --pn-muted-rgb: 91,103,122;
+  --fg-rgb: 15,23,42; --fg-2-rgb: 51,65,85; --fg-3-rgb: 91,103,122; --fg-4-rgb: 123,135,152;
+  --helm-bg-1: var(--bg-1); --helm-bg-2: var(--bg-2); --helm-bg-3: var(--bg-3);
+  --helm-fg-rgb: var(--fg-rgb); --helm-fg-2-rgb: var(--fg-2-rgb);
+  --helm-fg-3-rgb: var(--fg-3-rgb); --helm-fg-4-rgb: var(--fg-4-rgb);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --background: #0b0f17;
+  --foreground: #e6ebf5;
+  --card: #121826;
+  --card-foreground: #e6ebf5;
+  --popover: #151c2c;
+  --popover-foreground: #e6ebf5;
+  --primary: #60a5fa;
+  --primary-foreground: #0b1020;
+  --secondary: #182031;
+  --secondary-foreground: #e6ebf5;
+  --muted: #182031;
+  --muted-foreground: #9aa6bb;
+  --accent: #1b2a47;
+  --accent-foreground: #e6ebf5;
+  --destructive: #f87171;
+  --border: #243049;
+  --input: #2c3a57;
+  --ring: #60a5fa;
+  --chart-1: #3b82f6;
+  --chart-2: #d97706;
+  --chart-3: #10a99a;
+  --chart-4: #f43f5e;
+  --chart-5: #8b5cf6;
+  --sidebar: #0e1320;
+  --sidebar-foreground: #b8c2d4;
+  --sidebar-primary: #60a5fa;
+  --sidebar-primary-foreground: #0b1020;
+  --sidebar-accent: #182031;
+  --sidebar-accent-foreground: #e6ebf5;
+  --sidebar-border: #1c2536;
+  --sidebar-ring: #60a5fa;
+
+  --area-monitor: #2dd4bf;   --area-monitor-fg: #2dd4bf;
+  --area-resource: #60a5fa;  --area-resource-fg: #60a5fa;
+  --area-deploy: #fb923c;    --area-deploy-fg: #fb923c;
+  --area-security: #a78bfa;  --area-security-fg: #a78bfa;
+
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #38bdf8;
+
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.03);
+  --shadow-pop: 0 14px 36px -8px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
+  --scrim: rgba(2,6,14,0.62);
+
+  --acc-2: color-mix(in srgb, var(--primary) 82%, white);
+  --acc-soft: color-mix(in srgb, var(--primary) 15%, transparent);
+  --acc-soft-2: color-mix(in srgb, var(--primary) 9%, transparent);
+  --acc-border: color-mix(in srgb, var(--primary) 34%, transparent);
+  --ok-soft: color-mix(in srgb, var(--success) 14%, transparent);
+  --warn-soft: color-mix(in srgb, var(--warning) 15%, transparent);
+  --bad-soft: color-mix(in srgb, var(--danger) 15%, transparent);
+  --info-soft: color-mix(in srgb, var(--info) 14%, transparent);
+
+  --bg-3: #1d2638;
+  --bg-hover: color-mix(in srgb, var(--foreground) 5%, transparent);
+  --bg-active: color-mix(in srgb, var(--primary) 16%, transparent);
+  --border-2: #34425f;
+  --border-3: #4a5a7d;
+  --fg-2: #c5cddc;
+  --fg-3: #9aa6bb;
+  --fg-4: #6f7b91;
+  --shadow-soft: 0 1px 0 rgba(255,255,255,0.04) inset;
+
+  --sev-crit-fg: #fca5a5;  --sev-crit-bg: rgba(239,68,68,0.18);
+  --sev-high-fg: #fdba74;  --sev-high-bg: rgba(249,115,22,0.18);
+  --sev-med-fg:  #fcd34d;  --sev-med-bg:  rgba(245,158,11,0.18);
+  --sev-low-fg:  #93c5fd;  --sev-low-bg:  rgba(59,130,246,0.18);
+  --sev-info-fg: #67e8f9;  --sev-info-bg: rgba(6,182,212,0.18);
+  --sev-bar-crit: #ef4444; --sev-bar-high: #f97316; --sev-bar-med: #f59e0b; --sev-bar-low: #3b82f6;
+
+  --db-other: #a78bfa; --eco-other: #a78bfa;
+
+  --pn-navy-rgb: 11,15,23;          --pn-navy-light-rgb: 18,24,38;
+  --pn-cyan-rgb: 96,165,250;        --pn-blue-rgb: 59,130,246;
+  --pn-electric-rgb: 96,165,250;    --pn-bg-rgb: 230,235,245;
+  --pn-border-rgb: 255,255,255;     --pn-muted-rgb: 154,166,187;
+  --fg-rgb: 230,235,245; --fg-2-rgb: 197,205,220; --fg-3-rgb: 154,166,187; --fg-4-rgb: 111,123,145;
+}
+
+/* Tailwind utilities for the tokens above (bg-card, text-muted-foreground, bg-area-deploy …) */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-area-monitor: var(--area-monitor);
+  --color-area-monitor-fg: var(--area-monitor-fg);
+  --color-area-resource: var(--area-resource);
+  --color-area-resource-fg: var(--area-resource-fg);
+  --color-area-deploy: var(--area-deploy);
+  --color-area-deploy-fg: var(--area-deploy-fg);
+  --color-area-security: var(--area-security);
+  --color-area-security-fg: var(--area-security-fg);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+}

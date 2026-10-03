@@ -28,7 +28,7 @@ function FilterChip({ label, value }: { label: string; value: string }) {
 }
 
 function SevIcon({ sev }: { sev: string }) {
-  const base = "w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+  const base = "w-7 h-7 rounded-full flex items-center justify-center shrink-0"
   switch (sev) {
     case "bad":  return <div className={cn(base)} style={{ background: "var(--color-error-soft)", color: "var(--color-error)" }}><XCircle size={13} /></div>
     case "warn": return <div className={cn(base)} style={{ background: "var(--color-warning-soft)", color: "var(--color-warning)" }}><AlertTriangle size={13} /></div>
@@ -52,7 +52,7 @@ function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: () =>
     <button
       onClick={onChange}
       className={cn(
-        "w-8 h-4 rounded-full relative cursor-pointer transition-colors duration-200 focus:outline-none",
+        "w-8 h-4 rounded-full relative cursor-pointer transition-colors duration-200 focus:outline-hidden",
         enabled ? "bg-pn-cyan" : "bg-pn-navylt border border-pn-border/20"
       )}
     >
@@ -155,7 +155,7 @@ export default function AlertsPage() {
             <span className="text-helm-fg3">{rules.length} rules configured</span>
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {process.env.NODE_ENV !== "production" && (
             <button onClick={simulateAlert} className="border border-amber-500/30 text-amber-400 hover:text-amber-300 px-3 py-1.5 rounded-lg text-xs transition-colors">
               Simulate Alert
@@ -218,7 +218,7 @@ export default function AlertsPage() {
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search alerts…"
-                  className="pl-8 pr-3 py-1.5 rounded-lg text-xs text-helm-fg placeholder:text-helm-fg4 focus:outline-none"
+                  className="pl-8 pr-3 py-1.5 rounded-lg text-xs text-helm-fg placeholder:text-helm-fg4 focus:outline-hidden"
                   style={{ background: "var(--helm-bg-2)", border: "1px solid rgb(var(--pn-border-rgb)/0.08)" }}
                 />
               </div>

@@ -230,7 +230,7 @@ export default function GitHubPage() {
                   value={patValue}
                   onChange={e => setPatValue(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && connectPAT()}
-                  className="w-full px-3 py-2 rounded-lg text-sm font-mono outline-none"
+                  className="w-full px-3 py-2 rounded-lg text-sm font-mono outline-hidden"
                   style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
                 />
                 {patError && <p className="text-xs" style={{ color: "var(--err)" }}>{patError}</p>}
@@ -283,7 +283,7 @@ export default function GitHubPage() {
                       placeholder="Iv1.xxxxxxxxxxxx"
                       value={clientId}
                       onChange={e => setClientId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                      className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
                       style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
                     />
                   </div>
@@ -296,7 +296,7 @@ export default function GitHubPage() {
                       placeholder={oauthSettings?.hasSecret ? "Leave blank to keep existing" : "xxxxxxxxxxxxxxxxxxxx"}
                       value={clientSecret}
                       onChange={e => setClientSecret(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                      className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
                       style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
                     />
                   </div>
@@ -346,7 +346,7 @@ export default function GitHubPage() {
               <label className="text-xs mb-1.5 block font-medium" style={{ color: "var(--fg-3)" }}>Payload URL</label>
               <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
                 <code className="flex-1 text-xs font-mono truncate" style={{ color: "var(--fg)" }}>{webhookUrl}</code>
-                <button onClick={() => copy(webhookUrl, "url")} title="Copy" className="flex-shrink-0" style={{ color: "var(--fg-3)" }}>
+                <button onClick={() => copy(webhookUrl, "url")} title="Copy" className="shrink-0" style={{ color: "var(--fg-3)" }}>
                   {copied === "url" ? <Check size={13} style={{ color: "var(--ok)" }} /> : <Copy size={13} />}
                 </button>
               </div>
@@ -357,10 +357,10 @@ export default function GitHubPage() {
                 <code className="flex-1 text-xs font-mono truncate" style={{ color: "var(--fg)" }}>
                   {webhookSecret ? (showSecret ? webhookSecret : "•".repeat(24)) : "—"}
                 </code>
-                <button onClick={() => setShowSecret(s => !s)} title={showSecret ? "Hide" : "Reveal"} className="flex-shrink-0" style={{ color: "var(--fg-3)" }}>
+                <button onClick={() => setShowSecret(s => !s)} title={showSecret ? "Hide" : "Reveal"} className="shrink-0" style={{ color: "var(--fg-3)" }}>
                   {showSecret ? <EyeOff size={13} /> : <Eye size={13} />}
                 </button>
-                <button onClick={() => copy(webhookSecret, "secret")} title="Copy" className="flex-shrink-0" style={{ color: "var(--fg-3)" }}>
+                <button onClick={() => copy(webhookSecret, "secret")} title="Copy" className="shrink-0" style={{ color: "var(--fg-3)" }}>
                   {copied === "secret" ? <Check size={13} style={{ color: "var(--ok)" }} /> : <Copy size={13} />}
                 </button>
               </div>

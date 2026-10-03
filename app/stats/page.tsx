@@ -341,7 +341,7 @@ export default function StatsPage() {
               ["Swap",      `${host.swap.used}/${host.swap.total} GB (${host.swap.pct}%)`],
             ].map(([k, v]) => (
               <div key={k} className="flex items-start justify-between gap-2">
-                <dt className="text-[11px] text-helm-fg3 flex-shrink-0">{k}</dt>
+                <dt className="text-[11px] text-helm-fg3 shrink-0">{k}</dt>
                 <dd className="text-[11px] text-helm-fg font-mono text-right truncate max-w-[180px]">{v}</dd>
               </div>
             ))}
@@ -372,7 +372,7 @@ export default function StatsPage() {
             ].map(row => (
               <div key={row.label} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: row.color }} />
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: row.color }} />
                   <span className="text-[11px] text-helm-fg3">{row.label}</span>
                 </div>
                 <div className="flex items-center gap-2">

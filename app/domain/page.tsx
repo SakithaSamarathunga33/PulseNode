@@ -172,7 +172,7 @@ export default function DomainPage() {
             onChange={e => setNewDomain(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") save(newDomain) }}
             placeholder="example.com or app.example.com"
-            className="flex-1 px-3 py-2 rounded-lg text-sm outline-none font-mono"
+            className="flex-1 px-3 py-2 rounded-lg text-sm outline-hidden font-mono"
             style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
           />
           <button
@@ -287,7 +287,7 @@ export default function DomainPage() {
             value={checkDomain}
             onChange={e => setCheckDomain(e.target.value)}
             placeholder="example.com or app.example.com"
-            className="flex-1 px-3 py-2 rounded-lg text-sm outline-none font-mono"
+            className="flex-1 px-3 py-2 rounded-lg text-sm outline-hidden font-mono"
             style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
           />
           <button

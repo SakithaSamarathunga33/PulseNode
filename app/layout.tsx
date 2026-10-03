@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import localFont from "next/font/local"
 import "./globals.css"
 import { AppShell } from "@/components/AppShell"
+import { Providers } from "@/components/Providers"
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -26,21 +27,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="dark" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body
-        className="antialiased"
-        style={{
-          background: "var(--body-bg)",
-          color: "var(--fg)",
-          minHeight: "100vh",
-        }}
-      >
-        <script
-          dangerouslySetInnerHTML={{
-            __html: "try{var p=window.location.pathname;var t=(p==='/login'||p.startsWith('/login/'))?'dark':(localStorage.getItem('pn-theme')==='light'?'light':'dark');document.documentElement.dataset.theme=t;}catch(e){}",
-          }}
-        />
-        <AppShell>{children}</AppShell>
+    <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className="min-h-screen bg-background text-foreground antialiased">
+        <Providers>
+          <AppShell>{children}</AppShell>
+        </Providers>
       </body>
     </html>
   )

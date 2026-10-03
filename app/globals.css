@@ -1,254 +1,123 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+@import './theme.css';
+
+@theme {
+  --color-pn-navy: rgb(var(--pn-navy-rgb));
+  --color-pn-navylt: rgb(var(--pn-navy-light-rgb));
+  --color-pn-cyan: rgb(var(--pn-cyan-rgb));
+  --color-pn-blue: rgb(var(--pn-blue-rgb));
+  --color-pn-electric: rgb(var(--pn-electric-rgb));
+  --color-pn-bg: rgb(var(--pn-bg-rgb));
+  --color-pn-border: rgb(var(--pn-border-rgb));
+  --color-pn-muted: rgb(var(--pn-muted-rgb));
+  --color-helm-bg1: var(--helm-bg-1);
+  --color-helm-bg2: var(--helm-bg-2);
+  --color-helm-bg3: var(--helm-bg-3);
+  --color-helm-fg: rgb(var(--helm-fg-rgb));
+  --color-helm-fg2: rgb(var(--helm-fg-2-rgb));
+  --color-helm-fg3: rgb(var(--helm-fg-3-rgb));
+  --color-helm-fg4: rgb(var(--helm-fg-4-rgb));
+  --color-pn-page: rgb(var(--pn-navy-rgb));
+  --color-pn-card: rgb(var(--pn-navy-light-rgb));
+  --color-pn-accent: rgb(var(--pn-cyan-rgb));
+  --color-pn-action: rgb(var(--pn-electric-rgb));
+  --color-pn-text: rgb(var(--pn-bg-rgb));
+  --color-pn-subtle: rgb(var(--pn-muted-rgb));
+
+  --color-pulseNode-navy: rgb(var(--pn-navy-rgb));
+  --color-pulseNode-navyLight: rgb(var(--pn-navy-light-rgb));
+  --color-pulseNode-cyan: rgb(var(--pn-cyan-rgb));
+  --color-pulseNode-blue: rgb(var(--pn-blue-rgb));
+  --color-pulseNode-electric: rgb(var(--pn-electric-rgb));
+  --color-pulseNode-background: rgb(var(--pn-bg-rgb));
+  --color-pulseNode-border: rgb(var(--pn-border-rgb));
+  --color-pulseNode-muted: rgb(var(--pn-muted-rgb));
+
+  --shadow-glow: var(--shadow-glow);
+  --shadow-glow-lg: 0 0 40px rgb(var(--pn-cyan-rgb) / 0.2);
+
+  --animate-border-beam: border-beam calc(var(--duration) * 1s) infinite linear;
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-sparkle: sparkle 1.5s ease-in-out infinite;
+  --animate-meteor: meteor linear infinite;
+  --animate-fade-in: fade-in 0.35s ease forwards;
+
+  @keyframes border-beam {
+    100% {
+      offset-distance: 100%;
+    }
+  }
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+  @keyframes sparkle {
+    0%,
+    100% {
+      opacity: 0;
+      transform: scale(0) rotate(0deg);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1) rotate(90deg);
+    }
+  }
+  @keyframes meteor {
+    0% {
+      transform: rotate(215deg) translateX(0);
+      opacity: 1;
+    }
+    70% {
+      opacity: 1;
+    }
+    100% {
+      transform: rotate(215deg) translateX(-500px);
+      opacity: 0;
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
 
 /*
- * PULSENODE DESIGN SYSTEM - 1:1 color match with helm-vps-monitor.html
- * Source of truth: helm-vps-monitor.html
- *
- * To retheme the entire site, edit ONLY this :root block.
- */
-:root {
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
 
-  /* ====================================================================
-     HELM PALETTE - dark mode (exact values from helm-vps-monitor.html)
-     ==================================================================== */
-
-  /* Accent - violet */
-  --acc:          #8b7cff;
-  --acc-2:        #6d5cff;
-  --acc-soft:     rgba(139,124,255, 0.14);
-  --acc-soft-2:   rgba(139,124,255, 0.08);
-  --acc-border:   rgba(139,124,255, 0.32);
-
-  /* Status */
-  --ok:           #22c55e;
-  --ok-soft:      rgba(34,197,94,   0.14);
-  --warn:         #f59e0b;
-  --warn-soft:    rgba(245,158,11,  0.14);
-  --bad:          #ef4444;
-  --bad-soft:     rgba(239,68,68,   0.14);
-  --info:         #06b6d4;
-  --info-soft:    rgba(6,182,212,   0.14);
-
-  /* Background levels */
-  --bg:           #08080b;
-  --bg-1:         #0c0c10;
-  --bg-2:         #111116;
-  --bg-3:         #16161d;
-  --bg-hover:     rgba(255,255,255, 0.03);
-  --bg-active:    rgba(255,255,255, 0.06);
-  --card:         #0e0e13;
-  --card-elev:    #131319;
-  --body-bg:      radial-gradient(1200px 600px at 100% -200px, var(--acc-soft-2), transparent 60%), var(--bg);
-
-  /* Borders */
-  --border:       rgba(255,255,255, 0.06);
-  --border-2:     rgba(255,255,255, 0.10);
-  --border-3:     rgba(255,255,255, 0.16);
-
-  /* Foreground (text) */
-  --fg:           #ededf2;
-  --fg-2:         #c8c8d2;
-  --fg-3:         #8a8a96;
-  --fg-4:         #5a5a64;
-  --fg-rgb:       237,237,242;
-  --fg-2-rgb:     200,200,210;
-  --fg-3-rgb:     138,138,150;
-  --fg-4-rgb:     90,90,100;
-
-  /* Misc */
-  --grid:         rgba(255,255,255, 0.04);
-  --shadow-soft:  0 1px 0 rgba(255,255,255,0.04) inset;
-  --shadow-card:  0 1px 2px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04);
-  --shadow-glow:  0 0 20px rgb(var(--pn-blue-rgb) / 0.45);
-  --scrim:        rgba(0,0,0,0.6);
-
-  /* Severity (alert table colors from helm .sev classes) */
-  --sev-crit-fg: #fca5a5;  --sev-crit-bg: rgba(239,68,68, 0.18);
-  --sev-high-fg: #fdba74;  --sev-high-bg: rgba(249,115,22,0.18);
-  --sev-med-fg:  #fcd34d;  --sev-med-bg:  rgba(245,158,11,0.18);
-  --sev-low-fg:  #93c5fd;  --sev-low-bg:  rgba(59,130,246,0.18);
-  --sev-info-fg: #67e8f9;  --sev-info-bg: rgba(6,182,212, 0.18);
-
-  /* Sev-bar color squares (from helm .sevbar .seg.* .sq) */
-  --sev-bar-crit: #ef4444;
-  --sev-bar-high: #f97316;
-  --sev-bar-med:  #f59e0b;
-  --sev-bar-low:  #3b82f6;
-
-  /* Radii (from helm --r-* tokens) */
-  --r-sm:   6px;
-  --r-md:   8px;
-  --r-lg:   10px;
-  --r-xl:   14px;
-  --r-2xl:  18px;
-  --r-full: 999px;
-  --radius: var(--r-lg);
-
-  /* Motion */
-  --ease:      cubic-bezier(0.22, 0.61, 0.36, 1);
-  --dur-fast:  120ms;
-  --dur:       200ms;
-  --dur-slow:  360ms;
-
-  /* ====================================================================
-     PULSENODE COMPAT - maps pn-* tokens to helm palette
-     RGB channels enable Tailwind opacity modifiers (bg-pn-navy/50 etc.)
-     ==================================================================== */
-
-  --pn-navy-rgb:       8,   8,  11;   /* --bg     #08080b */
-  --pn-navy-light-rgb: 14,  14,  19;  /* --card   #0e0e13 */
-  --pn-cyan-rgb:       139,124, 255;  /* --acc    #8b7cff */
-  --pn-blue-rgb:       109, 92, 255;  /* --acc-2  #6d5cff */
-  --pn-electric-rgb:   139,124, 255;  /* --acc    #8b7cff */
-  --pn-bg-rgb:         237,237, 242;  /* --fg     #ededf2 */
-  --pn-border-rgb:     255,255, 255;  /* white base for opacity modifiers */
-  --pn-muted-rgb:      138,138, 150;  /* --fg-3   #8a8a96 */
-
-  --pn-navy:       var(--bg);
-  --pn-navy-light: var(--card);
-  --pn-cyan:       var(--acc);
-  --pn-blue:       var(--acc-2);
-  --pn-electric:   var(--acc);
-  --pn-bg:         var(--fg);
-  --pn-border:     var(--border);
-  --pn-muted:      var(--fg-3);
-
-  --helm-bg-1: var(--bg-1);
-  --helm-bg-2: var(--bg-2);
-  --helm-bg-3: var(--bg-3);
-  --helm-fg:   var(--fg);
-  --helm-fg-2: var(--fg-2);
-  --helm-fg-3: var(--fg-3);
-  --helm-fg-4: var(--fg-4);
-  --helm-fg-rgb:   var(--fg-rgb);
-  --helm-fg-2-rgb: var(--fg-2-rgb);
-  --helm-fg-3-rgb: var(--fg-3-rgb);
-  --helm-fg-4-rgb: var(--fg-4-rgb);
-
-  --pn-accent-soft:   var(--acc-soft);
-  --pn-accent-soft-2: var(--acc-soft-2);
-  --pn-accent-border: var(--acc-border);
-
-  /* Semantic aliases */
-  --color-page-bg:    var(--bg);
-  --color-card-bg:    var(--card);
-  --color-text:       var(--fg);
-  --color-text-muted: var(--fg-3);
-  --color-accent:     var(--acc);
-  --color-info:       var(--acc-2);
-  --color-action:     var(--acc);
-  --color-border:     var(--border);
-
-  /* Status semantic aliases */
-  --color-ok:           var(--ok);
-  --color-ok-soft:      var(--ok-soft);
-  --color-error:        var(--bad);
-  --color-error-soft:   var(--bad-soft);
-  --color-warning:      var(--warn);
-  --color-warning-soft: var(--warn-soft);
-  --color-warning-high: #f97316;
-  --color-success:      var(--ok);
-  --color-info-status:  var(--info);
-  --color-info-soft:    var(--info-soft);
-
-  /* DB engine brand colors */
-  --db-postgres:   #336791;
-  --db-redis:      #dc382d;
-  --db-mysql:      #00758f;
-  --db-clickhouse: #fbcd1c;
-  --db-mongo:      #47a248;
-  --db-other:      #8b7cff;
-
-  /* SBOM ecosystem colors */
-  --eco-go:    #00ADD8;
-  --eco-npm:   #cb3837;
-  --eco-deb:   #a81d33;
-  --eco-other: #8b7cff;
-
-  /* shadcn variables - mapped to helm palette */
-  --background:           var(--bg);
-  --foreground:           var(--fg);
-  --card-foreground:      var(--fg);
-  --popover:              var(--card-elev);
-  --popover-foreground:   var(--fg);
-  --primary:              var(--acc);
-  --primary-foreground:   #ffffff;
-  --secondary:            var(--bg-2);
-  --secondary-foreground: var(--fg);
-  --muted:                var(--bg-2);
-  --muted-foreground:     var(--fg-3);
-  --accent:               var(--bg-2);
-  --accent-foreground:    var(--fg);
-  --destructive:          var(--bad);
-  --input:                var(--bg-2);
-  --ring:                 var(--acc-border);
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--border);
+  }
 }
 
-:root[data-theme="light"] {
-  color-scheme: light;
-
-  --acc:          #6d5cff;
-  --acc-2:        #5146dc;
-  --acc-soft:     rgba(109,92,255, 0.10);
-  --acc-soft-2:   rgba(109,92,255, 0.06);
-  --acc-border:   rgba(109,92,255, 0.24);
-
-  --ok:           #16a34a;
-  --ok-soft:      rgba(22,163,74, 0.10);
-  --warn:         #d97706;
-  --warn-soft:    rgba(217,119,6, 0.12);
-  --bad:          #dc2626;
-  --bad-soft:     rgba(220,38,38, 0.10);
-  --info:         #0284c7;
-  --info-soft:    rgba(2,132,199, 0.10);
-
-  --bg:           #ffffff;
-  --bg-1:         #ffffff;
-  --bg-2:         #f6f7fb;
-  --bg-3:         #eceff5;
-  --bg-hover:     rgba(15,23,42, 0.04);
-  --bg-active:    rgba(109,92,255, 0.10);
-  --card:         #ffffff;
-  --card-elev:    #ffffff;
-  --body-bg:      #ffffff;
-
-  --border:       rgba(15,23,42, 0.08);
-  --border-2:     rgba(15,23,42, 0.14);
-  --border-3:     rgba(15,23,42, 0.22);
-
-  --fg:           #10131a;
-  --fg-2:         #384152;
-  --fg-3:         #667085;
-  --fg-4:         #98a2b3;
-  --fg-rgb:       16,19,26;
-  --fg-2-rgb:     56,65,82;
-  --fg-3-rgb:     102,112,133;
-  --fg-4-rgb:     152,162,179;
-
-  --grid:         rgba(15,23,42, 0.08);
-  --shadow-soft:  0 1px 0 rgba(255,255,255,0.85) inset;
-  --shadow-card:  0 1px 2px rgba(15,23,42,0.04), 0 0 0 1px rgba(15,23,42,0.04);
-  --scrim:        rgba(15,23,42,0.36);
-
-  --sev-crit-fg: #b91c1c;  --sev-crit-bg: rgba(220,38,38, 0.10);
-  --sev-high-fg: #c2410c;  --sev-high-bg: rgba(249,115,22,0.12);
-  --sev-med-fg:  #a16207;  --sev-med-bg:  rgba(217,119,6,0.12);
-  --sev-low-fg:  #1d4ed8;  --sev-low-bg:  rgba(59,130,246,0.12);
-  --sev-info-fg: #0369a1;  --sev-info-bg: rgba(2,132,199,0.12);
-
-  --pn-navy-rgb:       255,255,255;
-  --pn-navy-light-rgb: 255,255,255;
-  --pn-cyan-rgb:       109,92,255;
-  --pn-blue-rgb:       81,70,220;
-  --pn-electric-rgb:   109,92,255;
-  --pn-bg-rgb:         16,19,26;
-  --pn-border-rgb:     15,23,42;
-  --pn-muted-rgb:      102,112,133;
-
-  --primary-foreground: #ffffff;
-}
 
 /* ============================================================================
    Base
@@ -300,11 +169,11 @@ html[data-magicui-theme-vt="active"]::view-transition-new(root) {
 .tabular  { font-variant-numeric: tabular-nums; }
 
 .theme-logo-light { display: none; }
-:root[data-theme="light"] .theme-logo-dark { display: none; }
-:root[data-theme="light"] .theme-logo-light { display: block; }
+:root:not([data-theme="dark"]) .theme-logo-dark { display: none; }
+:root:not([data-theme="dark"]) .theme-logo-light { display: block; }
 
 .theme-dark-surface-icon { filter: brightness(0) invert(1); }
-:root[data-theme="light"] .theme-dark-surface-icon { filter: none; }
+:root:not([data-theme="dark"]) .theme-dark-surface-icon { filter: none; }
 
 /* ============================================================================
    Table (pn-table class)
@@ -873,3 +742,12 @@ code[class*="bg-pulseNode-navy"] {
 .focus\:border-pulseNode-cyan\/40:focus {
   border-color: var(--acc-border) !important;
 }
+
+/* ============================================================================
+   Areas — [data-area] sets the hue used by page headers, stat cards, nav.
+   ============================================================================ */
+[data-area="monitor"]  { --hue: var(--area-monitor);  --hue-fg: var(--area-monitor-fg); }
+[data-area="resource"] { --hue: var(--area-resource); --hue-fg: var(--area-resource-fg); }
+[data-area="deploy"]   { --hue: var(--area-deploy);   --hue-fg: var(--area-deploy-fg); }
+[data-area="security"] { --hue: var(--area-security); --hue-fg: var(--area-security-fg); }
+[data-area="neutral"]  { --hue: var(--primary);       --hue-fg: var(--primary); }

@@ -60,7 +60,7 @@ function ProjectCard({ proj, compact }: { proj: Project; compact?: boolean }) {
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
             style={{ background: "var(--bg-3)" }}>
             {proj.External
               ? <Server size={16} style={{ color: "var(--acc)" }} />
@@ -91,7 +91,7 @@ function ProjectCard({ proj, compact }: { proj: Project; compact?: boolean }) {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <StatusBadge status={proj.Status} />
         </div>
       </div>
@@ -136,7 +136,7 @@ function RepoGroup({ repoUrl, members }: { repoUrl: string; members: Project[] }
         className="w-full flex items-center justify-between gap-4 p-4 text-left transition-colors hover:opacity-90"
       >
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
             style={{ background: "var(--bg-3)" }}>
             <Boxes size={16} style={{ color: "var(--acc)" }} />
           </div>
@@ -147,7 +147,7 @@ function RepoGroup({ repoUrl, members }: { repoUrl: string; members: Project[] }
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {members.map(m => <StatusBadge key={m.ID} status={m.Status} />)}
           {expanded ? <ChevronDown size={16} style={{ color: "var(--fg-3)" }} /> : <ChevronRight size={16} style={{ color: "var(--fg-3)" }} />}
         </div>

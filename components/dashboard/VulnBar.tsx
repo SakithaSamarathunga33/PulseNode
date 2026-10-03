@@ -1,34 +1,24 @@
+import { cn } from "@/lib/utils"
+
 interface Vulns { crit: number; high: number; med: number; low: number }
 
+const CHIPS: { key: keyof Vulns; letter: string; cls: string }[] = [
+  { key: "crit", letter: "C", cls: "bg-[var(--sev-crit-bg)] text-[var(--sev-crit-fg)]" },
+  { key: "high", letter: "H", cls: "bg-[var(--sev-high-bg)] text-[var(--sev-high-fg)]" },
+  { key: "med", letter: "M", cls: "bg-[var(--sev-med-bg)] text-[var(--sev-med-fg)]" },
+  { key: "low", letter: "L", cls: "bg-[var(--sev-low-bg)] text-[var(--sev-low-fg)]" },
+]
+
+/** Vulnerability counts by severity (C/H/M/L); "—" when clean. */
 export function VulnBar({ v }: { v: Vulns }) {
-  const total = v.crit + v.high + v.med + v.low
-  if (total === 0) return <span style={{ fontSize: 11, color: "var(--fg-3)", fontFamily: "monospace" }}>—</span>
+  if (v.crit + v.high + v.med + v.low === 0) return <span className="font-mono text-xs text-muted-foreground">—</span>
   return (
-    <div className="flex items-center gap-1.5">
-      {v.crit > 0 && (
-        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-          style={{ background: "var(--bad-soft)", color: "var(--bad)" }}>
-          C:{v.crit}
+    <div className="flex items-center gap-1">
+      {CHIPS.filter(c => v[c.key] > 0).map(c => (
+        <span key={c.key} className={cn("rounded px-1.5 py-0.5 font-mono text-[11px] font-bold tabular-nums", c.cls)}>
+          {c.letter}:{v[c.key]}
         </span>
-      )}
-      {v.high > 0 && (
-        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-          style={{ background: "rgba(249,115,22,0.18)", color: "#f97316" }}>
-          H:{v.high}
-        </span>
-      )}
-      {v.med > 0 && (
-        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-          style={{ background: "var(--warn-soft)", color: "var(--warn)" }}>
-          M:{v.med}
-        </span>
-      )}
-      {v.low > 0 && (
-        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-          style={{ background: "var(--acc-soft-2)", color: "var(--acc-2)" }}>
-          L:{v.low}
-        </span>
-      )}
+      ))}
     </div>
   )
 }

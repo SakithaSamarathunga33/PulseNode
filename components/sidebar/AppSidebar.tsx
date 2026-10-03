@@ -1,391 +1,170 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { Cpu } from "lucide-react"
 import {
-  LayoutDashboard, BarChart3, Activity, Layers, Network,
-  Database, Shield, FileCode2, BellRing,
-  ChevronDown, Cpu, PanelLeftClose, PanelLeftOpen, Settings,
-  FolderGit2, Box, Globe,
-} from "lucide-react"
-import type { LucideIcon } from "lucide-react"
-import { GitHubDark } from "developer-icons"
-import { BorderBeam } from "@/components/magicui/border-beam"
+  Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
+  SidebarHeader, SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, SidebarRail,
+} from "@/components/ui/sidebar"
+import { Progress } from "@/components/ui/progress"
 import { NumberTicker } from "@/components/magicui/number-ticker"
-import { cn } from "@/lib/utils"
 import { getSocket } from "@/lib/socket"
 import { nodeApi } from "@/lib/api"
 import { ALERTS, HOST } from "@/lib/mock-data"
+import { NAV_GROUPS, SETTINGS_ITEM, type NavBadge } from "@/lib/nav"
 import type { Alert, SystemMetrics } from "@/lib/types"
 
-type NavBadge = "images" | "networks" | "databases" | "alerts" | "projects"
-type BadgeCounts = Partial<Record<NavBadge, number>>
-
-type NavItem = {
-  label: string
-  href: string
-  icon: LucideIcon
-  devIcon?: React.ComponentType<React.SVGProps<SVGSVGElement> & { size?: number }>
-  badge?: NavBadge
-}
-
-type NavSection = {
-  label: string
-  items: NavItem[]
-}
-
-const BASE_NAV_SECTIONS: NavSection[] = [
-  {
-    label: "Workspace",
-    items: [
-      { label: "Dashboard",    href: "/containers",   icon: LayoutDashboard },
-      { label: "Runtime",      href: "/runtime",      icon: Box        },
-      { label: "Stats",        href: "/stats",        icon: BarChart3  },
-      { label: "Processes",    href: "/processes",    icon: Activity   },
-    ],
-  },
-  {
-    label: "Resources",
-    items: [
-      { label: "Images",       href: "/images",       icon: Layers,    badge: "images" },
-      { label: "Networks",     href: "/networks",     icon: Network,   badge: "networks"  },
-      { label: "Databases",    href: "/databases",    icon: Database,  badge: "databases"  },
-    ],
-  },
-  {
-    label: "Security",
-    items: [
-      { label: "Scan History", href: "/scan-history", icon: Shield     },
-      { label: "SBOMs",        href: "/sbom-history", icon: FileCode2  },
-      { label: "Alerts",       href: "/alerts",       icon: BellRing, badge: "alerts" },
-    ],
-  },
-]
-
-const COOLIFY_ITEM: NavItem = { label: "Coolify", href: "/coolify", icon: Layers }
-
-const DEPLOY_SECTION: NavSection = {
-  label: "Deploy",
-  items: [
-    { label: "GitHub",   href: "/github",   icon: FolderGit2, devIcon: GitHubDark },
-    { label: "Projects", href: "/projects", icon: FolderGit2, badge: "projects" },
-    { label: "Domain",   href: "/domain",   icon: Globe },
-  ],
-}
+const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
 
 export function AppSidebar() {
-  const [collapsed,       setCollapsed]       = useState(false)
-  const [openSections,    setOpenSections]    = useState<Record<string, boolean>>({ Workspace: true, Resources: true, Security: true, Deploy: true })
-  const [cpu,             setCpu]             = useState(HOST.cpu.usage)
-  const [hasUpdate,       setHasUpdate]       = useState(false)
-  const [badgeCounts,     setBadgeCounts]     = useState<BadgeCounts>({
-    alerts: ALERTS.filter(alert => alert.state === "firing").length,
-  })
-  const [coolifyEnabled,  setCoolifyEnabled]  = useState(false)
   const pathname = usePathname()
-  const router = useRouter()
+  const [cpu, setCpu] = useState(HOST.cpu.usage)
+  const [hasUpdate, setHasUpdate] = useState(false)
+  const [coolifyEnabled, setCoolifyEnabled] = useState(false)
+  const [counts, setCounts] = useState<Partial<Record<NavBadge, number>>>({
+    alerts: ALERTS.filter(a => a.state === "firing").length,
+  })
 
-  // Fetch server config once on mount (non-blocking)
   useEffect(() => {
-    const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
-    fetch(`${GO_API}/config`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.coolifyEnabled) setCoolifyEnabled(true) })
-      .catch(() => {})
-  }, [])
-
-  // Check for updates once on mount (non-blocking)
-  useEffect(() => {
-    const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
-    fetch(`${GO_API}/api/system/version`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.hasUpdate) setHasUpdate(true) })
-      .catch(() => {})
+    fetch(`${GO_API}/config`).then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d?.coolifyEnabled) setCoolifyEnabled(true) }).catch(() => {})
+    fetch(`${GO_API}/api/system/version`).then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d?.hasUpdate) setHasUpdate(true) }).catch(() => {})
   }, [])
 
   useEffect(() => {
     let cancelled = false
-
-    async function loadBadgeCounts() {
-      const results = await Promise.allSettled([
-        nodeApi.get<unknown[]>("/api/docker/images"),
-        nodeApi.get<unknown[]>("/api/docker/networks"),
-        nodeApi.get<unknown[]>("/api/docker/databases"),
-        nodeApi.get<unknown[]>("/api/projects"),
-      ])
+    Promise.allSettled([
+      nodeApi.get<unknown[]>("/api/docker/images"),
+      nodeApi.get<unknown[]>("/api/docker/networks"),
+      nodeApi.get<unknown[]>("/api/docker/databases"),
+      nodeApi.get<unknown[]>("/api/projects"),
+    ]).then(r => {
       if (cancelled) return
-
-      setBadgeCounts(prev => ({
-        ...prev,
-        ...(results[0].status === "fulfilled" ? { images: results[0].value.data.length } : {}),
-        ...(results[1].status === "fulfilled" ? { networks: results[1].value.data.length } : {}),
-        ...(results[2].status === "fulfilled" ? { databases: results[2].value.data.length } : {}),
-        ...(results[3].status === "fulfilled" ? { projects: results[3].value.data.length } : {}),
-      }))
-    }
-
-    loadBadgeCounts()
+      const keys: NavBadge[] = ["images", "networks", "databases", "projects"]
+      setCounts(prev => {
+        const next = { ...prev }
+        r.forEach((res, i) => { if (res.status === "fulfilled") next[keys[i]] = res.value.data.length })
+        return next
+      })
+    })
     return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
     try {
       const socket = getSocket()
-      const handler = (m: SystemMetrics) => setCpu(m.cpu)
-      socket.on("system:metrics", handler)
-      return () => { socket.off("system:metrics", handler) }
-    } catch { /* socket not available in SSR */ }
-  }, [])
-
-  useEffect(() => {
-    try {
-      const socket = getSocket()
-      const handler = (alert: Alert) => {
-        if (alert.state !== "firing") return
-        setBadgeCounts(prev => ({ ...prev, alerts: (prev.alerts ?? 0) + 1 }))
+      const onMetrics = (m: SystemMetrics) => setCpu(m.cpu)
+      const onAlert = (a: Alert) => {
+        if (a.state === "firing") setCounts(p => ({ ...p, alerts: (p.alerts ?? 0) + 1 }))
       }
-      socket.on("alert:new", handler)
-      return () => { socket.off("alert:new", handler) }
-    } catch { /* socket not available in SSR */ }
+      socket.on("system:metrics", onMetrics)
+      socket.on("alert:new", onAlert)
+      return () => { socket.off("system:metrics", onMetrics); socket.off("alert:new", onAlert) }
+    } catch { /* socket unavailable during SSR */ }
   }, [])
 
-  const toggleSection = (label: string) =>
-    setOpenSections(prev => ({ ...prev, [label]: !prev[label] }))
-
-  const navSections: NavSection[] = [
-    ...BASE_NAV_SECTIONS.filter(section => section.label !== "Security").map(section =>
-    section.label === "Workspace" && coolifyEnabled
-      ? { ...section, items: [...section.items, COOLIFY_ITEM] }
-      : section
-    ),
-    DEPLOY_SECTION,
-    BASE_NAV_SECTIONS.find(section => section.label === "Security")!,
-  ]
+  const isActive = (href: string) => pathname === href || pathname?.startsWith(href + "/")
 
   return (
-    <aside
-      className="relative flex-shrink-0 h-screen flex flex-col overflow-hidden z-20 transition-[width] duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
-      style={{
-        width: collapsed ? 52 : 220,
-        background: "var(--bg-1)",
-        borderRight: "1px solid var(--border)",
-      }}
-    >
-      {/* ── Logo ── */}
-      <div
-        className="h-[60px] flex items-center px-3 gap-3 flex-shrink-0"
-        style={{ borderBottom: "1px solid var(--border)" }}
-      >
-        <div className="relative flex-shrink-0 w-7 h-7">
-          <span className="absolute inset-0 rounded-full animate-ping [animation-duration:2s]"
-            style={{ background: "var(--acc)", opacity: 0.2 }} />
-          <span
-            className="relative flex w-7 h-7 rounded-full items-center justify-center"
-            style={{
-              background: "var(--bg-2)",
-              border: "1px solid var(--acc-border)",
-            }}
-          >
-            <Cpu size={12} style={{ color: "var(--acc)" }} />
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="h-14 justify-center border-b border-sidebar-border">
+        <Link href="/containers" className="flex items-center gap-2.5 px-1" aria-label="PulseNode home">
+          <span className="relative grid size-8 shrink-0 place-items-center rounded-lg bg-primary/12 text-primary">
+            <Cpu className="size-4" />
+            <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-success ring-2 ring-sidebar" />
           </span>
-        </div>
-        {!collapsed && (
-          <div className="flex flex-col min-w-0 gap-1 animate-in fade-in slide-in-from-left-2 duration-150 fill-mode-both" style={{ animationDelay: "50ms" }}>
-            <span className="relative block h-[30px] w-[158px] overflow-hidden">
+          <span className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:hidden">
+            <span className="relative block h-6 w-32 overflow-hidden">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/logodark-removebg-preview.png"
-                alt="PulseNode"
-                className="theme-logo-dark h-full w-full object-contain object-left"
-              />
+              <img src="/logodark-removebg-preview.png" alt="PulseNode" className="theme-logo-dark h-full w-full object-contain object-left" />
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/logo-removebg-preview.png"
-                alt="PulseNode"
-                className="theme-logo-light h-full w-full object-contain object-left"
-              />
+              <img src="/logo-removebg-preview.png" alt="PulseNode" className="theme-logo-light h-full w-full object-contain object-left" />
             </span>
-            <span className="text-[9px] tracking-widest uppercase" style={{ color: "var(--fg-3)" }}>
-              vps · console
-            </span>
-          </div>
-        )}
-      </div>
+            <span className="text-[11px] text-muted-foreground">VPS console</span>
+          </span>
+        </Link>
+      </SidebarHeader>
 
-      {/* ── Nav ── */}
-      <nav className="flex-1 overflow-y-auto py-2 px-1.5 space-y-0.5">
-        {navSections.map(section => (
-          <div key={section.label} className="mb-1">
-            {!collapsed && (
-              <button
-                onClick={() => toggleSection(section.label)}
-                className="flex items-center justify-between w-full px-2 py-1.5 mb-0.5 group"
-              >
-                <span
-                  className="text-[9px] font-semibold tracking-[0.14em] uppercase transition-colors"
-                  style={{ color: "var(--fg-4)" }}
-                >
-                  {section.label}
-                </span>
-                <ChevronDown
-                  size={10}
-                  className={cn(
-                    "transition-transform duration-200",
-                    !openSections[section.label] && "-rotate-90"
-                  )}
-                  style={{ color: "var(--fg-4)" }}
-                />
-              </button>
-            )}
-
-            <div
-              className="overflow-hidden transition-all duration-[180ms]"
-              style={{ maxHeight: (collapsed || openSections[section.label]) ? "500px" : "0" }}
-            >
-              {section.items.map(item => {
-                const isActive = pathname === item.href
-                const Icon = item.icon
-                const DevIcon = item.devIcon
-                const badgeCount = item.badge ? badgeCounts[item.badge] : undefined
-                return (
-                  <Link key={item.href} href={item.href}>
-                    <div
-                      className={cn(
-                        "relative flex items-center gap-2.5 rounded-lg mb-px cursor-pointer transition-all duration-150 group overflow-hidden",
-                        collapsed ? "px-0 py-2.5 justify-center" : "px-2.5 py-[7px]",
-                      )}
-                      style={{
-                        background: isActive ? "var(--bg-active)" : "transparent",
-                        borderLeft: isActive ? "2px solid var(--acc)" : "2px solid transparent",
-                      }}
-                      onMouseEnter={e => {
-                        if (!isActive) (e.currentTarget as HTMLDivElement).style.background = "var(--bg-hover)"
-                      }}
-                      onMouseLeave={e => {
-                        if (!isActive) (e.currentTarget as HTMLDivElement).style.background = "transparent"
-                      }}
-                    >
-                      {isActive && (
-                        <BorderBeam
-                          size={100}
-                          duration={6}
-                          colorFrom="var(--acc)"
-                          colorTo="var(--acc-2)"
-                        />
-                      )}
-                      {DevIcon ? (
-                        <DevIcon size={14} className={cn("flex-shrink-0", item.label === "GitHub" && "theme-dark-surface-icon")} />
-                      ) : (
-                        <Icon
-                          size={14}
-                          className="flex-shrink-0 transition-colors"
-                          style={{ color: isActive ? "var(--acc)" : "var(--fg-3)" }}
-                        />
-                      )}
-                      {!collapsed && (
-                        <>
-                          <span
-                            className="text-[13px] flex-1 truncate transition-colors"
-                            style={{ color: isActive ? "var(--fg)" : "var(--fg-2)", fontWeight: isActive ? 500 : 400 }}
-                          >
-                            {item.label}
+      <SidebarContent>
+        {NAV_GROUPS.map(group => {
+          const items = group.items.filter(i => !i.optional || (i.optional === "coolify" && coolifyEnabled))
+          return (
+            <SidebarGroup key={group.label} data-area={group.area}>
+              <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-[var(--hue-fg)]">
+                {group.label}
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {items.map(item => {
+                    const active = isActive(item.href)
+                    const count = item.badge ? counts[item.badge] : undefined
+                    return (
+                      <SidebarMenuItem key={item.href}>
+                        <SidebarMenuButton
+                          render={<Link href={item.href} />}
+                          isActive={active}
+                          tooltip={item.label}
+                          className="data-active:bg-[color-mix(in_srgb,var(--hue)_14%,transparent)] data-active:text-sidebar-foreground data-active:shadow-[inset_2px_0_0_var(--hue)]"
+                        >
+                          <span className="grid size-5 shrink-0 place-items-center rounded-md bg-[color-mix(in_srgb,var(--hue)_16%,transparent)] text-[var(--hue)]">
+                            <item.icon className="size-3.5" />
                           </span>
-                          {badgeCount !== undefined && (
-                            <span
-                              className="text-[10px] font-mono px-1.5 py-0.5 rounded-full min-w-[20px] text-center leading-none"
-                              style={{ background: "var(--bg-3)", color: "var(--fg-3)" }}
-                            >
-                              {badgeCount}
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        ))}
-      </nav>
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                        {count !== undefined && (
+                          <SidebarMenuBadge
+                            className={item.badge === "alerts" && count > 0 ? "bg-danger/15 text-danger" : ""}
+                          >
+                            {count}
+                          </SidebarMenuBadge>
+                        )}
+                      </SidebarMenuItem>
+                    )
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )
+        })}
+      </SidebarContent>
 
-      {/* ── Bottom strip ── */}
-      <div
-        className="p-3 flex-shrink-0 space-y-2"
-        style={{ borderTop: "1px solid var(--border)" }}
-      >
-        {!collapsed && (
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px]" style={{ color: "var(--fg-3)" }}>CPU</span>
-              <span className="text-[10px] font-mono" style={{ color: "var(--fg)" }}>
-                <NumberTicker value={cpu} decimals={1} />%
-              </span>
-            </div>
-            <div className="h-[3px] rounded-full overflow-hidden" style={{ background: "var(--bg-3)" }}>
-              <div
-                className="h-full rounded-full transition-[width] duration-[800ms] ease-out"
-                style={{ background: "var(--acc)", width: `${cpu}%` }}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 status-live"
-                style={{ background: "var(--ok)" }} />
-              <span className="text-[10px] truncate" style={{ color: "var(--fg-3)" }}>{HOST.name}</span>
-              <span className="text-[10px] ml-auto truncate" style={{ color: "var(--fg-4)" }}>{HOST.ip}</span>
-            </div>
-            <p className="text-[9px] text-center pt-0.5 tracking-widest" style={{ color: "var(--fg-4)" }}>
-              Infrastructure at a glance
-            </p>
-          </div>
-        )}
-
-        {/* Settings link */}
-        <button
-          type="button"
-          onClick={() => router.push("/settings")}
-          title="Settings"
-          aria-label="Settings"
-          className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors mb-1 relative ${
-            pathname === "/settings"
-              ? "bg-pn-electric/10 text-pn-electric"
-              : "text-helm-fg3 hover:text-helm-fg hover:bg-pulseNode-border/10"
-          } ${collapsed ? "justify-center" : ""}`}
-        >
-          <Settings size={14} className="flex-shrink-0" />
-          {!collapsed && <span className="font-medium">Settings</span>}
-          {hasUpdate && (
-            <span className={`${collapsed ? "absolute -top-1 -right-1" : "ml-auto"} relative flex h-2 w-2`}>
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
+      <SidebarFooter className="border-t border-sidebar-border">
+        <div className="space-y-2 px-1 pt-1 group-data-[collapsible=icon]:hidden">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">CPU</span>
+            <span className="font-mono tabular-nums">
+              <NumberTicker value={cpu} decimals={1} />%
             </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setCollapsed(v => !v)}
-          className="w-full flex items-center justify-center py-1.5 rounded-lg transition-colors"
-          style={{
-            background: "var(--bg-2)",
-            color: "var(--fg-3)",
-            border: "1px solid var(--border)",
-          }}
-          onMouseEnter={e => {
-            (e.currentTarget as HTMLButtonElement).style.color = "var(--fg)"
-            ;(e.currentTarget as HTMLButtonElement).style.background = "var(--bg-3)"
-          }}
-          onMouseLeave={e => {
-            (e.currentTarget as HTMLButtonElement).style.color = "var(--fg-3)"
-            ;(e.currentTarget as HTMLButtonElement).style.background = "var(--bg-2)"
-          }}
-        >
-          {collapsed
-            ? <PanelLeftOpen size={13} />
-            : <><PanelLeftClose size={12} /><span className="ml-2 text-xs">Collapse</span></>
-          }
-        </button>
-      </div>
-    </aside>
+          </div>
+          <Progress value={cpu} className="h-1" />
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="size-1.5 shrink-0 rounded-full bg-success status-live" />
+            <span className="truncate">{HOST.name}</span>
+            <span className="ml-auto truncate font-mono">{HOST.ip}</span>
+          </div>
+        </div>
+        <SidebarMenu>
+          <SidebarMenuItem data-area="neutral">
+            <SidebarMenuButton
+              render={<Link href={SETTINGS_ITEM.href} />}
+              isActive={isActive(SETTINGS_ITEM.href)}
+              tooltip={hasUpdate ? "Settings — update available" : "Settings"}
+            >
+              <SETTINGS_ITEM.icon />
+              <span>Settings</span>
+              {hasUpdate && (
+                <span className="ml-auto flex items-center gap-1 rounded-full bg-warning/15 px-1.5 py-0.5 text-[11px] font-medium text-warning group-data-[collapsible=icon]:hidden">
+                  <span className="size-1.5 rounded-full bg-warning" /> Update
+                </span>
+              )}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
   )
 }

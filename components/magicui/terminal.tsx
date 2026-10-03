@@ -194,7 +194,7 @@ export const TerminalWindow = ({
     style={{ borderColor: "var(--border)", background: "#0d1117" }}
   >
     <div
-      className="flex flex-shrink-0 items-center gap-2 px-4 py-3"
+      className="flex shrink-0 items-center gap-2 px-4 py-3"
       style={{ borderBottom: "1px solid var(--border)" }}
     >
       <div className="flex flex-row gap-x-2">

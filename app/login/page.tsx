@@ -136,7 +136,7 @@ function LoginForm() {
                 autoFocus
                 autoComplete="off"
                 required
-                className="w-full px-3 py-2 rounded-lg text-sm font-mono bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg placeholder:text-helm-fg3 focus:outline-none focus:border-pn-cyan/40"
+                className="w-full px-3 py-2 rounded-lg text-sm font-mono bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg placeholder:text-helm-fg3 focus:outline-hidden focus:border-pn-cyan/40"
               />
               <p className="text-[11px] text-helm-fg3">
                 Find it on the server: <code className="font-mono">docker compose logs go-api | grep setup_token</code>
@@ -153,7 +153,7 @@ function LoginForm() {
               autoFocus={!setup}
               autoComplete="username"
               required
-              className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg placeholder:text-helm-fg3 focus:outline-none focus:border-pn-cyan/40"
+              className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg placeholder:text-helm-fg3 focus:outline-hidden focus:border-pn-cyan/40"
             />
           </div>
 
@@ -168,7 +168,7 @@ function LoginForm() {
               autoComplete={setup ? "new-password" : "current-password"}
               minLength={setup ? 8 : undefined}
               required
-              className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg placeholder:text-helm-fg3 focus:outline-none focus:border-pn-cyan/40"
+              className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg placeholder:text-helm-fg3 focus:outline-hidden focus:border-pn-cyan/40"
             />
           </div>
 
@@ -183,7 +183,7 @@ function LoginForm() {
                 onChange={e => setConfirm(e.target.value)}
                 autoComplete="new-password"
                 required
-                className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg placeholder:text-helm-fg3 focus:outline-none focus:border-pn-cyan/40"
+                className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg placeholder:text-helm-fg3 focus:outline-hidden focus:border-pn-cyan/40"
               />
             </div>
           )}
@@ -197,7 +197,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 bg-[var(--acc)] hover:bg-[var(--acc-2)] disabled:opacity-60 text-white rounded-lg py-2.5 text-sm font-semibold shadow-[0_1px_0_rgba(255,255,255,0.16)_inset,0_10px_24px_-14px_rgba(139,124,255,0.9)] transition-colors"
+            className="w-full flex items-center justify-center gap-2 bg-(--acc) hover:bg-(--acc-2) disabled:opacity-60 text-white rounded-lg py-2.5 text-sm font-semibold shadow-[0_1px_0_rgba(255,255,255,0.16)_inset,0_10px_24px_-14px_rgba(139,124,255,0.9)] transition-colors"
           >
             {loading && <Loader2 size={14} className="animate-spin" />}
             {setup ? "Create account & sign in" : "Sign in"}

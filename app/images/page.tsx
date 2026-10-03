@@ -49,10 +49,10 @@ const IMAGE_ICON_MAP: Array<[RegExp, DeveloperIcon]> = [
 
 function RegistryIcon({ repo }: { repo: string }) {
   for (const [re, Icon] of IMAGE_ICON_MAP) {
-    if (re.test(repo)) return <Icon size={22} className={Icon === GitHubDark ? "flex-shrink-0 theme-dark-surface-icon" : "flex-shrink-0"} />
+    if (re.test(repo)) return <Icon size={22} className={Icon === GitHubDark ? "shrink-0 theme-dark-surface-icon" : "shrink-0"} />
   }
   // Default: Docker Hub or unknown
-  return <Docker size={22} className="flex-shrink-0" />
+  return <Docker size={22} className="shrink-0" />
 }
 
 /* ── Helper: parse MB from size string ──────────────────────────────── */
@@ -207,7 +207,7 @@ export default function ImagesPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search images…"
-            className="pl-8 pr-3 py-1.5 rounded-lg bg-pulseNode-navyLight border border-pulseNode-border/15 text-sm text-helm-fg placeholder:text-helm-fg3 focus:outline-none focus:border-pn-cyan/40 w-56"
+            className="pl-8 pr-3 py-1.5 rounded-lg bg-pulseNode-navyLight border border-pulseNode-border/15 text-sm text-helm-fg placeholder:text-helm-fg3 focus:outline-hidden focus:border-pn-cyan/40 w-56"
           />
         </div>
         <FilterChip label="Registry" value="All" />
@@ -340,7 +340,7 @@ export default function ImagesPage() {
               onChange={e => setPullImage(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") handlePull() }}
               placeholder="image:tag"
-              className="w-full px-3 py-2 rounded-lg text-sm font-mono focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg text-sm font-mono focus:outline-hidden"
               style={{ background: "var(--bg-2)", border: "1px solid var(--border)", color: "var(--fg)" }}
             />
             {pullMsg && (

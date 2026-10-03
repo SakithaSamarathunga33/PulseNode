@@ -71,7 +71,7 @@ function HeartbeatBar({ statuses }: { statuses: BeatStatus[] }) {
       {statuses.map((s, i) => (
         <div
           key={i}
-          className="w-[5px] h-5 rounded-sm flex-shrink-0"
+          className="w-[5px] h-5 rounded-sm shrink-0"
           style={{ background: s === "down" ? "var(--bad)" : s === "up" ? "var(--ok)" : "var(--bg-3)" }}
         />
       ))}
@@ -82,7 +82,7 @@ function HeartbeatBar({ statuses }: { statuses: BeatStatus[] }) {
 function StatCard({ label, value, sub, icon }: { label: string; value: string; sub?: string; icon: React.ReactNode }) {
   return (
     <div className="rounded-xl px-5 py-4 flex items-center gap-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-      <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "var(--bg-3)" }}>
+      <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--bg-3)" }}>
         {icon}
       </div>
       <div>
@@ -320,7 +320,7 @@ export default function RuntimePage() {
                     <td>
                       <div className="flex items-center gap-2 min-w-[120px]">
                         <Bar value={c.cpu} />
-                        <span className="text-[12px] font-mono w-12 text-right flex-shrink-0"
+                        <span className="text-[12px] font-mono w-12 text-right shrink-0"
                           style={{ color: c.cpu >= 80 ? "var(--bad)" : c.cpu >= 60 ? "var(--warn)" : "var(--fg)" }}>
                           {c.cpu.toFixed(1)}%
                         </span>
@@ -329,7 +329,7 @@ export default function RuntimePage() {
                     <td>
                       <div className="flex items-center gap-2 min-w-[140px]">
                         <Bar value={c.ramPct} color={c.ramPct >= 80 ? "var(--bad)" : c.ramPct >= 60 ? "var(--warn)" : "var(--pn-blue)"} />
-                        <span className="text-[12px] font-mono w-16 text-right flex-shrink-0" style={{ color: "var(--fg)" }}>
+                        <span className="text-[12px] font-mono w-16 text-right shrink-0" style={{ color: "var(--fg)" }}>
                           {fmtMb(c.ramMb)}
                         </span>
                       </div>
@@ -416,7 +416,7 @@ export default function RuntimePage() {
                       <p className="text-[11px] font-mono truncate" style={{ color: "var(--fg-3)" }}>{c.uptime}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 flex-shrink-0">
+                  <div className="flex items-center gap-4 shrink-0">
                     <HeartbeatBar statuses={bucketBeats(beats, RANGE_MS[range])} />
                     <span
                       className="text-[12px] font-mono w-14 text-right"

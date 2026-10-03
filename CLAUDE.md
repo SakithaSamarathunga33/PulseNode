@@ -48,9 +48,17 @@ Rules:
 - Empty/placeholder `JWT_SECRET`/`AES_KEY` are replaced by random keys persisted in the data dir; `db.Encrypt` errors instead of storing plaintext.
 - Builder: commands run with the `passEnv` allow-list only (no panel secrets); the GitHub token goes via `gitAuthEnv` (env `http.extraheader`), never the clone URL; user compose files must pass `composeViolations` (no privileged/host namespaces/cap_add/devices/host binds/traefik labels/out-of-repo files).
 
+### Workflow rule: go live on this VPS first, then commit + push
+Every change to this project is deployed and verified on this VPS **before** it is committed and pushed. Pushing to `main` triggers a release (new GHCR images for every user), so nothing gets pushed that hasn't run live here.
+1. Make the change and run the checks: `cd backend && go test ./...`, `npx tsc --noEmit`, `npm run build` (whichever apply).
+2. Deploy from the working tree to the live stack (project `pulsenode`, port 8080) — build from source, **without** the ghcr overlay, and only the affected services (`go-api` for `backend/`, `web` for the Next.js app, `caddy` for the Caddyfile):
+   `docker compose --env-file .env.local -f docker-compose.yml -f docker-compose.nossl.yml up -d --build go-api web`
+3. Verify live: containers healthy (`docker compose -p pulsenode ps`), logs clean (`docker logs pulsenode-go-api-1`), and the change works on `http://127.0.0.1:8080`.
+4. Only then commit and push. If it fails live, fix it first — or roll back by re-running step 2 from the last good commit.
+
 ### Local dev / verify
-- After changing Go code or a Dockerfile, rebuild just that service (old containers keep serving until the new image is ready): `docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d --build go-api` (or `web`). The dev box's workspace is bind-mounted at `/workspace` in go-api.
-- Most `/api/*` endpoints are auth-gated (401 without a token), so you can't curl them directly to verify — exercise the underlying logic with `docker exec vps-go-api-1 …` (e.g. the git commands behind `version()`) instead.
+- Old containers keep serving until a rebuilt image is ready, so step 2 above has little downtime. The dev box's workspace is bind-mounted at `/workspace` in go-api.
+- Most `/api/*` endpoints are auth-gated (401 without a token), so you can't curl them directly to verify — exercise the underlying logic with `docker exec pulsenode-go-api-1 …` (e.g. the git commands behind `version()`) instead.
 - Build logs render in a chrome-only `TerminalWindow` (live stream, no typing animation) in `components/magicui/terminal.tsx` — distinct from the sequencing `Terminal` in the same file.
 
 # CLAUDE.md

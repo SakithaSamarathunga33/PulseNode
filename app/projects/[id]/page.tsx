@@ -86,7 +86,7 @@ function ExternalProjectView({ project }: { project: Project }) {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      <div className="flex-shrink-0 px-6 pt-5 pb-4 space-y-3" style={{ borderBottom: "1px solid var(--border)" }}>
+      <div className="shrink-0 px-6 pt-5 pb-4 space-y-3" style={{ borderBottom: "1px solid var(--border)" }}>
         <Link href="/projects" className="text-xs flex items-center gap-1 w-fit" style={{ color: "var(--fg-3)" }}>
           <ChevronLeft size={13} /> Projects
         </Link>
@@ -156,7 +156,7 @@ function ExternalProjectView({ project }: { project: Project }) {
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-col">
-        <div className="flex-shrink-0 p-6 pb-0">
+        <div className="shrink-0 p-6 pb-0">
           <div className="rounded-xl p-5" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
             <p className="text-[11px] mb-3" style={{ color: "var(--fg-4)" }}>
               Hosted on this VPS behind a domain, but not deployed through PulseNode — read-only details, pulled live from Docker.
@@ -491,7 +491,7 @@ export default function ProjectDetailPage() {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Header */}
-      <div className="flex-shrink-0 px-6 pt-5 pb-4 space-y-3" style={{ borderBottom: "1px solid var(--border)" }}>
+      <div className="shrink-0 px-6 pt-5 pb-4 space-y-3" style={{ borderBottom: "1px solid var(--border)" }}>
         <div className="flex items-center gap-2">
           <Link href="/projects" className="text-xs flex items-center gap-1" style={{ color: "var(--fg-3)" }}>
             <ChevronLeft size={13} /> Projects
@@ -554,7 +554,7 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex-shrink-0 px-6 flex gap-1 pt-3 pb-0" style={{ borderBottom: "1px solid var(--border)" }}>
+      <div className="shrink-0 px-6 flex gap-1 pt-3 pb-0" style={{ borderBottom: "1px solid var(--border)" }}>
         {([
           { key: "settings", label: "Settings", icon: Settings2 },
           { key: "logs",     label: "Logs",     icon: Terminal  },
@@ -582,12 +582,12 @@ export default function ProjectDetailPage() {
           <div className="h-full flex flex-col">
             {/* Deployment selector */}
             {deployments.length > 0 && (
-              <div className="flex-shrink-0 px-6 py-2 flex items-center gap-2" style={{ borderBottom: "1px solid var(--border)" }}>
+              <div className="shrink-0 px-6 py-2 flex items-center gap-2" style={{ borderBottom: "1px solid var(--border)" }}>
                 <span className="text-xs" style={{ color: "var(--fg-3)" }}>Deployment:</span>
                 <select
                   value={activeDep ?? ""}
                   onChange={e => setActiveDep(e.target.value)}
-                  className="text-xs rounded px-2 py-1 outline-none"
+                  className="text-xs rounded px-2 py-1 outline-hidden"
                   style={{ background: "var(--bg-2)", color: "var(--fg)", border: "1px solid var(--border)" }}
                 >
                   {deployments.map(d => (
@@ -762,7 +762,7 @@ export default function ProjectDetailPage() {
                     role="switch"
                     aria-checked={form.autoDeploy}
                     onClick={() => setForm(f => ({ ...f, autoDeploy: !f.autoDeploy }))}
-                    className="relative w-10 h-6 rounded-full flex-shrink-0 transition-colors"
+                    className="relative w-10 h-6 rounded-full shrink-0 transition-colors"
                     style={{ background: form.autoDeploy ? "var(--acc)" : "var(--bg-3)", border: "1px solid var(--border)" }}
                   >
                     <span
@@ -777,7 +777,7 @@ export default function ProjectDetailPage() {
                   <input
                     value={form.name}
                     onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
                     style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
                   />
                 </Field>
@@ -787,7 +787,7 @@ export default function ProjectDetailPage() {
                   <input
                     value={form.branch}
                     onChange={e => setForm(f => ({ ...f, branch: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-lg text-sm outline-none font-mono"
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-hidden font-mono"
                     style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
                   />
                 </Field>
@@ -798,7 +798,7 @@ export default function ProjectDetailPage() {
                     value={form.domain}
                     onChange={e => setForm(f => ({ ...f, domain: e.target.value }))}
                     placeholder="app.yourdomain.com"
-                    className="w-full px-3 py-2 rounded-lg text-sm outline-none font-mono"
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-hidden font-mono"
                     style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
                   />
                 </Field>
@@ -809,7 +809,7 @@ export default function ProjectDetailPage() {
                     type="number"
                     value={form.port}
                     onChange={e => setForm(f => ({ ...f, port: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
                     style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
                   />
                 </Field>
@@ -849,7 +849,7 @@ export default function ProjectDetailPage() {
                     onChange={e => setForm(f => ({ ...f, envText: e.target.value }))}
                     placeholder={"NODE_ENV=production\nPORT=3000"}
                     rows={4}
-                    className="w-full px-3 py-2 rounded-lg text-sm outline-none font-mono resize-y"
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-hidden font-mono resize-y"
                     style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
                   />
                 </Field>
@@ -862,7 +862,7 @@ export default function ProjectDetailPage() {
                       onChange={e => setForm(f => ({ ...f, backendEnvText: e.target.value }))}
                       placeholder={"NODE_ENV=production\nDATABASE_URL=postgres://…\nBACKEND_PORT=3001"}
                       rows={4}
-                      className="w-full px-3 py-2 rounded-lg text-sm outline-none font-mono resize-y"
+                      className="w-full px-3 py-2 rounded-lg text-sm outline-hidden font-mono resize-y"
                       style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
                     />
                   </Field>

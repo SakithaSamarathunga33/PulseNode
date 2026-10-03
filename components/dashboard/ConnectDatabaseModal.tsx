@@ -78,7 +78,7 @@ export function ConnectDatabaseModal({
   if (!mounted) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
       <div className="bg-pulseNode-navyLight rounded-2xl border border-pulseNode-border/20 shadow-2xl w-full max-w-lg">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-pulseNode-border/10">
@@ -98,7 +98,7 @@ export function ConnectDatabaseModal({
               onChange={e => { setConnStr(e.target.value); setPhase("input"); setTestResult(null) }}
               placeholder={ENGINE_EXAMPLES.postgres}
               rows={3}
-              className="w-full bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg font-mono text-xs rounded-lg px-3 py-2.5 outline-none focus:border-pn-electric/50 resize-none placeholder:text-helm-fg3/40"
+              className="w-full bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg font-mono text-xs rounded-lg px-3 py-2.5 outline-hidden focus:border-pn-electric/50 resize-none placeholder:text-helm-fg3/40"
             />
             <div className="flex gap-2 flex-wrap">
               {Object.entries(ENGINE_EXAMPLES).map(([eng, ex]) => (
@@ -122,7 +122,7 @@ export function ConnectDatabaseModal({
               value={alias}
               onChange={e => setAlias(e.target.value)}
               placeholder="My Production DB"
-              className="w-full bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg text-xs rounded-lg px-3 py-2 outline-none focus:border-pn-electric/50 placeholder:text-helm-fg3/40"
+              className="w-full bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg text-xs rounded-lg px-3 py-2 outline-hidden focus:border-pn-electric/50 placeholder:text-helm-fg3/40"
             />
           </div>
 
@@ -139,7 +139,7 @@ export function ConnectDatabaseModal({
           {/* Error */}
           {phase === "error" && (
             <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              <span className="text-red-400 flex-shrink-0">✕</span>
+              <span className="text-red-400 shrink-0">✕</span>
               <p className="text-xs text-red-400 font-mono break-all">{errMsg}</p>
             </div>
           )}
@@ -159,7 +159,7 @@ export function ConnectDatabaseModal({
                 className={`flex-1 rounded-xl py-2 text-sm font-semibold transition-colors ${
                   phase === "tested"
                     ? "bg-emerald-600 hover:bg-emerald-500 text-white"
-                    : "bg-[var(--acc)] hover:bg-[var(--acc-2)] text-white shadow-sm shadow-[var(--acc-soft)]"
+                    : "bg-(--acc) hover:bg-(--acc-2) text-white shadow-xs shadow-(--acc-soft)"
                 }`}
               >
                 {phase === "tested" ? "Save to monitoring" : "Test Connection"}

@@ -195,7 +195,7 @@ function FilterChip({ label, value }: { label: string; value: string }) {
 
 function MiniBar({ value, color = "var(--pn-cyan)" }: { value: number; color?: string }) {
   return (
-    <div className="w-[60px] h-[3px] bg-pulseNode-navy rounded-full overflow-hidden flex-shrink-0">
+    <div className="w-[60px] h-[3px] bg-pulseNode-navy rounded-full overflow-hidden shrink-0">
       <div className="h-full rounded-full transition-all duration-500"
         style={{ width: `${Math.min(100, value)}%`, backgroundColor: color }} />
     </div>
@@ -251,7 +251,7 @@ function ActionMenu({ proc, onRequestKill, onRequestSuspend, onClose }: ActionMe
           style={{ color: "var(--warn)" }}
           onMouseEnter={e => (e.currentTarget.style.background = "var(--warn-soft)")}
           onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-          <PauseCircle size={14} className="flex-shrink-0" />
+          <PauseCircle size={14} className="shrink-0" />
           <div>
             <p className="font-semibold leading-tight">Suspend</p>
             <p className="text-[10px] leading-tight mt-0.5" style={{ color: "var(--fg-3)" }}>SIGSTOP · pause execution</p>
@@ -262,7 +262,7 @@ function ActionMenu({ proc, onRequestKill, onRequestSuspend, onClose }: ActionMe
           style={{ color: "var(--bad)" }}
           onMouseEnter={e => (e.currentTarget.style.background = "var(--bad-soft)")}
           onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-          <XCircle size={14} className="flex-shrink-0" />
+          <XCircle size={14} className="shrink-0" />
           <div>
             <p className="font-semibold leading-tight">Kill process</p>
             <p className="text-[10px] leading-tight mt-0.5" style={{ color: "var(--fg-3)" }}>SIGKILL · force terminate</p>
@@ -309,7 +309,7 @@ function ProcessConfirmDialog({ dialog, onClose, onConfirmKill, onConfirmSuspend
         </div>
         <div className="flex items-center gap-3 px-5 py-3"
           style={{ borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", background: "var(--bg-2)" }}>
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-bold"
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-[10px] font-bold"
             style={{ background: isKill ? "var(--bad-soft)" : "var(--warn-soft)", color: isKill ? "var(--bad)" : "var(--warn)" }}>
             {proc.pid}
           </div>
@@ -591,7 +591,7 @@ export default function ProcessesPage() {
           <div className="gsap-enter flex items-center gap-2 flex-wrap">
             <input type="text" placeholder="Search processes…" value={search}
               onChange={e => setSearch(e.target.value)}
-              className="flex-1 min-w-[180px] max-w-[280px] px-3 py-1.5 rounded-lg bg-pulseNode-navyLight border border-pulseNode-border/20 text-xs text-helm-fg placeholder:text-helm-fg3 focus:outline-none focus:ring-1 focus:ring-pulseNode-cyan/40"
+              className="flex-1 min-w-[180px] max-w-[280px] px-3 py-1.5 rounded-lg bg-pulseNode-navyLight border border-pulseNode-border/20 text-xs text-helm-fg placeholder:text-helm-fg3 focus:outline-hidden focus:ring-1 focus:ring-pulseNode-cyan/40"
             />
             <FilterChip label="User" value="All" />
             <FilterChip label="State" value="All" />
@@ -633,7 +633,7 @@ export default function ProcessesPage() {
                       <td className="dim">{proc.user}</td>
                       <td>
                         <div className="flex items-center gap-2">
-                          {proc.type === "pm2" && <span className="bg-pn-cyan/10 text-pn-cyan text-[9px] px-1.5 py-0.5 rounded font-bold flex-shrink-0">PM2</span>}
+                          {proc.type === "pm2" && <span className="bg-pn-cyan/10 text-pn-cyan text-[9px] px-1.5 py-0.5 rounded font-bold shrink-0">PM2</span>}
                           <div className="min-w-0">
                             <p className="text-[12px] font-semibold text-helm-fg truncate max-w-[300px]">
                               {proc.name || proc.cmd.split("/").pop()?.split(" ")[0] || proc.cmd}

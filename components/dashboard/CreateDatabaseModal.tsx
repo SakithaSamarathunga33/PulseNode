@@ -39,7 +39,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
         <code className="flex-1 text-[11px] text-helm-fg font-mono break-all">{value}</code>
         <button
           onClick={copy}
-          className="flex-shrink-0 text-[10px] text-pn-electric hover:text-pn-electric/80 transition-colors font-medium"
+          className="shrink-0 text-[10px] text-pn-electric hover:text-pn-electric/80 transition-colors font-medium"
         >
           {copied ? "✓ Copied" : "Copy"}
         </button>
@@ -118,7 +118,7 @@ export function CreateDatabaseModal({ onClose, onCreated }: { onClose: () => voi
   if (!mounted) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
       <div className="bg-pulseNode-navyLight rounded-2xl border border-pulseNode-border/20 shadow-2xl w-full max-w-lg">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-pulseNode-border/10">
@@ -161,7 +161,7 @@ export function CreateDatabaseModal({ onClose, onCreated }: { onClose: () => voi
                   value={name}
                   onChange={e => setName(e.target.value.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9_.-]/g, ""))}
                   placeholder={engine ? `my-${engine}` : "my-database"}
-                  className="w-full px-3 py-2 rounded-lg text-sm font-mono focus:outline-none"
+                  className="w-full px-3 py-2 rounded-lg text-sm font-mono focus:outline-hidden"
                   style={{
                     background: "var(--bg-2)",
                     border: "1px solid var(--border)",
@@ -224,7 +224,7 @@ export function CreateDatabaseModal({ onClose, onCreated }: { onClose: () => voi
                 </div>
               </div>
               <p className="text-[10px] text-helm-fg3">The container uses <code className="font-mono">--restart unless-stopped</code> and will survive VPS reboots.</p>
-              <button onClick={onClose} className="w-full bg-[var(--acc)] hover:bg-[var(--acc-2)] text-white rounded-xl py-2 text-sm font-semibold shadow-sm shadow-[var(--acc-soft)] transition-colors">
+              <button onClick={onClose} className="w-full bg-(--acc) hover:bg-(--acc-2) text-white rounded-xl py-2 text-sm font-semibold shadow-xs shadow-(--acc-soft) transition-colors">
                 Done
               </button>
             </div>
@@ -241,7 +241,7 @@ export function CreateDatabaseModal({ onClose, onCreated }: { onClose: () => voi
                 <button onClick={onClose} className="flex-1 border border-pulseNode-border/20 text-helm-fg3 rounded-xl py-2 text-sm transition-colors">
                   Close
                 </button>
-                <button onClick={() => setPhase("pick")} className="flex-1 bg-[var(--acc)] hover:bg-[var(--acc-2)] text-white rounded-xl py-2 text-sm font-semibold shadow-sm shadow-[var(--acc-soft)] transition-colors">
+                <button onClick={() => setPhase("pick")} className="flex-1 bg-(--acc) hover:bg-(--acc-2) text-white rounded-xl py-2 text-sm font-semibold shadow-xs shadow-(--acc-soft) transition-colors">
                   Try again
                 </button>
               </div>

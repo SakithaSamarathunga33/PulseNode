@@ -173,7 +173,7 @@ export default function NetworksPage() {
                   <td>
                     <div className="flex items-center gap-2">
                       <span
-                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        className="w-2 h-2 rounded-full shrink-0"
                         style={{
                           background: net.driver === "bridge"
                             ? "var(--pn-cyan)"

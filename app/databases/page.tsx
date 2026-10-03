@@ -160,7 +160,7 @@ function BackupModal({ db, onClose }: { db: Database; onClose: () => void }) {
   const running = state.phase === "starting" || state.phase === "dumping"
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs"
       onClick={e => { if (e.target === e.currentTarget && !running) onClose() }}>
       <div className="w-full max-w-md rounded-2xl p-6 space-y-5"
         style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
@@ -179,7 +179,7 @@ function BackupModal({ db, onClose }: { db: Database; onClose: () => void }) {
               <div>
                 <label className="text-xs mb-1.5 block font-medium" style={{ color: "var(--fg-3)" }}>Database</label>
                 <select value={selDb} onChange={e => { setSelDb(e.target.value); setSelTable("") }}
-                  className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
                   style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}>
                   <option value="">All databases</option>
                   {dbs.map(d => <option key={d} value={d}>{d}</option>)}
@@ -193,7 +193,7 @@ function BackupModal({ db, onClose }: { db: Database; onClose: () => void }) {
                   <span className="ml-1.5 font-normal" style={{ color: "var(--fg-3)" }}>(optional — all if blank)</span>
                 </label>
                 <select value={selTable} onChange={e => setSelTable(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
                   style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}>
                   <option value="">All tables</option>
                   {tables.map(t => <option key={t} value={t}>{t}</option>)}
@@ -313,7 +313,7 @@ function RestoreModal({ db, onClose }: { db: Database; onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs"
       onClick={e => { if (e.target === e.currentTarget && !loading) onClose() }}>
       <div className="w-full max-w-md rounded-2xl p-6 space-y-5"
         style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
@@ -338,7 +338,7 @@ function RestoreModal({ db, onClose }: { db: Database; onClose: () => void }) {
               <div>
                 <label className="text-xs mb-1.5 block font-medium" style={{ color: "var(--fg-3)" }}>Target database</label>
                 <select value={selDb} onChange={e => setSelDb(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
                   style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}>
                   <option value="">Default database</option>
                   {dbs.map(d => <option key={d} value={d}>{d}</option>)}
@@ -351,7 +351,7 @@ function RestoreModal({ db, onClose }: { db: Database; onClose: () => void }) {
               </label>
               <input type="file" accept=".sql,.archive,.rdb,.dump,.gz"
                 onChange={e => setFile(e.target.files?.[0] ?? null)}
-                className="w-full text-xs rounded-lg px-3 py-2 outline-none"
+                className="w-full text-xs rounded-lg px-3 py-2 outline-hidden"
                 style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }} />
               {file && (
                 <p className="text-xs mt-1" style={{ color: "var(--fg-3)" }}>
@@ -508,7 +508,7 @@ function ConnectionStringPanel({ dbName, database }: { dbName: string; database?
             </div>
             <button
               onClick={copy}
-              className="pn-icon-btn flex-shrink-0"
+              className="pn-icon-btn shrink-0"
               title={copyFailed ? "Copy failed — select the text and copy manually" : "Copy"}
               aria-label="Copy connection string"
               style={copyFailed ? { color: "var(--bad)" } : copied ? { color: "var(--ok)" } : undefined}
@@ -582,7 +582,7 @@ function TableDataModal({ db, database, table, onClose }: {
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
       onClick={onClose}
     >
       <div
@@ -590,8 +590,8 @@ function TableDataModal({ db, database, table, onClose }: {
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex flex-shrink-0 items-center gap-3 border-b border-pulseNode-border/10 bg-pulseNode-navy px-5 py-3">
-          <span className="grid size-8 flex-shrink-0 place-items-center rounded-lg border border-pulseNode-border/20 bg-pulseNode-navyLight">
+        <div className="flex shrink-0 items-center gap-3 border-b border-pulseNode-border/10 bg-pulseNode-navy px-5 py-3">
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-pulseNode-border/20 bg-pulseNode-navyLight">
             <Table2 size={16} className="text-pn-electric" />
           </span>
           <div className="min-w-0">
@@ -629,7 +629,7 @@ function TableDataModal({ db, database, table, onClose }: {
           )}
           {error && !loading && (
             <div className="m-4 flex min-w-[380px] items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-3">
-              <span className="flex-shrink-0 text-red-400">✕</span>
+              <span className="shrink-0 text-red-400">✕</span>
               <p className="break-all font-mono text-xs text-red-400">{error}</p>
             </div>
           )}
@@ -644,7 +644,7 @@ function TableDataModal({ db, database, table, onClose }: {
 
         {/* Pagination footer */}
         {isPaginatable && !error && (
-          <div className="flex flex-shrink-0 items-center justify-between gap-3 border-t border-pulseNode-border/10 bg-pulseNode-navy px-4 py-2.5">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-pulseNode-border/10 bg-pulseNode-navy px-4 py-2.5">
             <span className="font-mono text-[11px] text-helm-fg3">
               {loading
                 ? "Loading…"
@@ -662,7 +662,7 @@ function TableDataModal({ db, database, table, onClose }: {
                 <ChevronLeft size={12} />
                 Prev
               </button>
-              <span className="min-w-[3rem] text-center font-mono text-[11px] text-helm-fg3">
+              <span className="min-w-12 text-center font-mono text-[11px] text-helm-fg3">
                 Page {page + 1}
               </span>
               <button
@@ -753,12 +753,12 @@ function DbDetails({ db }: { db: Database }) {
           {!loading && displayTables.length > 0 && (
             <div className="border-b border-pulseNode-border/10 px-3 py-2">
               <div className="flex items-center gap-2 rounded-md border border-pulseNode-border/15 bg-pulseNode-navy px-2 py-1.5">
-                <Search size={12} className="flex-shrink-0 text-helm-fg3" />
+                <Search size={12} className="shrink-0 text-helm-fg3" />
                 <input
                   value={filter}
                   onChange={e => setFilter(e.target.value)}
                   placeholder="Filter tables…"
-                  className="min-w-0 flex-1 bg-transparent text-xs text-helm-fg outline-none placeholder:text-helm-fg3/50"
+                  className="min-w-0 flex-1 bg-transparent text-xs text-helm-fg outline-hidden placeholder:text-helm-fg3/50"
                 />
               </div>
             </div>
@@ -775,15 +775,15 @@ function DbDetails({ db }: { db: Database }) {
                   className="group flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-pn-electric/5"
                   title={`View data · SELECT * FROM ${t.name} LIMIT 100`}
                 >
-                  <Table2 size={14} className="flex-shrink-0 text-helm-fg3 group-hover:text-pn-electric" />
+                  <Table2 size={14} className="shrink-0 text-helm-fg3 group-hover:text-pn-electric" />
                   <span className="min-w-0 flex-1 truncate font-mono text-xs text-helm-fg">{t.name}</span>
-                  <span className="flex-shrink-0 font-mono text-[10px] tabular-nums text-helm-fg3">
+                  <span className="shrink-0 font-mono text-[10px] tabular-nums text-helm-fg3">
                     {t.rows.toLocaleString()} rows
                   </span>
                   {t.totalSize && (
-                    <span className="hidden flex-shrink-0 font-mono text-[10px] text-helm-fg4 sm:inline">{t.totalSize}</span>
+                    <span className="hidden shrink-0 font-mono text-[10px] text-helm-fg4 sm:inline">{t.totalSize}</span>
                   )}
-                  <ChevronRight size={13} className="flex-shrink-0 text-helm-fg4 opacity-0 transition-opacity group-hover:opacity-100" />
+                  <ChevronRight size={13} className="shrink-0 text-helm-fg4 opacity-0 transition-opacity group-hover:opacity-100" />
                 </button>
               ))}
             </div>
@@ -911,7 +911,7 @@ function DeleteDialog({ db, onConfirm, onClose }: {
         </div>
         <div className="flex items-center gap-3 px-5 py-3"
           style={{ borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", background: "var(--bg-2)" }}>
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
             style={{ background: "var(--bad-soft)", border: "1px solid var(--bad)" }}>
             <Trash2 size={13} style={{ color: "var(--bad)" }} />
           </div>
@@ -983,7 +983,7 @@ function DatabaseRow({
         <td className="min-w-[240px]">
           <div className="flex min-w-0 items-center gap-3">
             <span
-              className="grid size-8 flex-shrink-0 place-items-center rounded-lg border"
+              className="grid size-8 shrink-0 place-items-center rounded-lg border"
               style={{ borderColor: "var(--border)", background: "var(--bg-2)" }}
             >
               <DbIcon engine={db.engine} size={20} />
@@ -1245,7 +1245,7 @@ export default function DatabasesPage() {
                   onClick={() => setStatusFilter(filter)}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-colors ${
                     statusFilter === filter
-                      ? "bg-pulseNode-navyLight text-helm-fg shadow-sm"
+                      ? "bg-pulseNode-navyLight text-helm-fg shadow-xs"
                       : "text-helm-fg3 hover:text-helm-fg"
                   }`}
                 >

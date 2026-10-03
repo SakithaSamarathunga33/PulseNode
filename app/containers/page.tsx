@@ -44,9 +44,9 @@ const IMAGE_ICONS: Array<[RegExp, DeveloperIcon]> = [
 
 function ImageIcon({ image }: { image: string }) {
   for (const [re, Icon] of IMAGE_ICONS) {
-    if (re.test(image)) return <Icon size={16} className="flex-shrink-0" />
+    if (re.test(image)) return <Icon size={16} className="shrink-0" />
   }
-  return <Docker size={16} className="flex-shrink-0" />
+  return <Docker size={16} className="shrink-0" />
 }
 
 type ContainerHistory = Record<string, { cpuHist: number[]; ramHist: number[] }>
@@ -70,7 +70,7 @@ function MiniSpark({
   )
   const d = `M ${pts.join(" L ")}`
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="block flex-shrink-0">
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="block shrink-0">
       <path d={`${d} L ${width},${height} L 0,${height} Z`} fill={color} fillOpacity={0.14} />
       <path d={d} fill="none" stroke={color} strokeWidth={1.3} strokeLinejoin="round" strokeLinecap="round" />
     </svg>
@@ -149,7 +149,7 @@ function LogsPanel({ container, onClose }: { container: Container; onClose: () =
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 flex-shrink-0"
+      <div className="flex items-center justify-between px-4 py-3 shrink-0"
         style={{ borderBottom: "1px solid var(--border)" }}>
         <div className="flex items-center gap-2">
           <FileText size={14} style={{ color: "var(--acc)" }} />
@@ -161,7 +161,7 @@ function LogsPanel({ container, onClose }: { container: Container; onClose: () =
           <select
             value={tail}
             onChange={e => setTail(Number(e.target.value))}
-            className="text-xs px-2 py-1 rounded focus:outline-none"
+            className="text-xs px-2 py-1 rounded focus:outline-hidden"
             style={{ background: "var(--bg-3)", border: "1px solid var(--border)", color: "var(--fg-2)" }}
           >
             {[50, 100, 200, 500, 1000].map(n => (
@@ -186,7 +186,7 @@ function LogsPanel({ container, onClose }: { container: Container; onClose: () =
       </div>
 
       {/* Live badge */}
-      <div className="flex items-center gap-1.5 px-4 py-1.5 flex-shrink-0"
+      <div className="flex items-center gap-1.5 px-4 py-1.5 shrink-0"
         style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-2)" }}>
         <span className="w-1.5 h-1.5 rounded-full status-live" style={{ background: "var(--ok)" }} />
         <span className="text-[10px]" style={{ color: "var(--fg-3)" }}>Live · refreshes every 3s</span>
@@ -242,7 +242,7 @@ function TerminalPanel({ container, onClose }: { container: Container; onClose: 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 flex-shrink-0"
+      <div className="flex items-center justify-between px-4 py-3 shrink-0"
         style={{ borderBottom: "1px solid var(--border)" }}>
         <div className="flex items-center gap-2">
           <Terminal size={14} style={{ color: "var(--ok)" }} />
@@ -287,7 +287,7 @@ function TerminalPanel({ container, onClose }: { container: Container; onClose: 
       </div>
 
       {/* Input */}
-      <div className="flex items-center gap-2 px-3 py-2.5 flex-shrink-0"
+      <div className="flex items-center gap-2 px-3 py-2.5 shrink-0"
         style={{ borderTop: "1px solid var(--border)", background: "var(--bg-2)" }}>
         <span className="font-mono text-[11px]" style={{ color: "var(--acc)" }}>$</span>
         <input
@@ -298,7 +298,7 @@ function TerminalPanel({ container, onClose }: { container: Container; onClose: 
           onKeyDown={e => { if (e.key === "Enter") run() }}
           placeholder={running ? "running…" : "type a command…"}
           disabled={running}
-          className="flex-1 bg-transparent font-mono text-[11px] focus:outline-none"
+          className="flex-1 bg-transparent font-mono text-[11px] focus:outline-hidden"
           style={{ color: "var(--fg)", caretColor: "var(--acc)" }}
           autoFocus
         />
@@ -338,7 +338,7 @@ function RemoveDialog({ container, onConfirm, onClose }: {
         </div>
         <div className="flex items-center gap-3 px-5 py-3"
           style={{ borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", background: "var(--bg-2)" }}>
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
             style={{ background: "var(--bad-soft)", border: "1px solid var(--bad)" }}>
             <Trash2 size={13} style={{ color: "var(--bad)" }} />
           </div>
@@ -807,7 +807,7 @@ export default function ContainersPage() {
           placeholder="Filter…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="flex-1 min-w-[160px] max-w-[240px] px-3 py-1.5 rounded-lg text-xs focus:outline-none"
+          className="flex-1 min-w-[160px] max-w-[240px] px-3 py-1.5 rounded-lg text-xs focus:outline-hidden"
           style={{
             background: "var(--bg-2)",
             border: "1px solid var(--border)",
@@ -993,7 +993,7 @@ export default function ContainersPage() {
             <CacheTerminal
               sequence={false}
               startOnView={false}
-              className="max-w-full border-[var(--border-2)] bg-[var(--bg-2)]"
+              className="max-w-full border-(--border-2) bg-(--bg-2)"
             >
               {cacheLines.map((line, i) => (
                 <AnimatedSpan
@@ -1003,14 +1003,14 @@ export default function ContainersPage() {
                       ? "text-green-400 font-mono text-xs"
                       : line.startsWith("✗")
                       ? "text-red-400 font-mono text-xs"
-                      : "font-mono text-xs text-[var(--fg-3)]"
+                      : "font-mono text-xs text-(--fg-3)"
                   }
                 >
                   {line}
                 </AnimatedSpan>
               ))}
               {cacheState === "running" && (
-                <AnimatedSpan className="font-mono text-xs text-[var(--fg-3)]">
+                <AnimatedSpan className="font-mono text-xs text-(--fg-3)">
                   <span className="animate-pulse">▋</span>
                 </AnimatedSpan>
               )}

@@ -79,7 +79,7 @@ function EcosystemBar({ eco }: { eco: { go: number; npm: number; deb: number; ot
         {(["go", "npm", "deb", "other"] as const).map(k => (
           <div key={k} className="flex items-center gap-1">
             <span
-              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+              className="w-1.5 h-1.5 rounded-full shrink-0"
               style={{ background: ECOSYSTEM_COLORS[k] }}
             />
             <span className="text-[9px] text-helm-fg3 truncate">{ECOSYSTEM_LABELS[k]}</span>
@@ -150,7 +150,7 @@ export default function SBOMHistoryPage() {
           </svg>
           <input
             placeholder="Search images…"
-            className="pl-8 pr-3 py-1.5 rounded-lg bg-pulseNode-navyLight border border-pulseNode-border/15 text-xs text-helm-fg placeholder:text-helm-fg4 focus:outline-none focus:border-pulseNode-cyan/40 w-52"
+            className="pl-8 pr-3 py-1.5 rounded-lg bg-pulseNode-navyLight border border-pulseNode-border/15 text-xs text-helm-fg placeholder:text-helm-fg4 focus:outline-hidden focus:border-pulseNode-cyan/40 w-52"
           />
         </div>
         <FilterChip label="Format" value="All" />
@@ -182,7 +182,7 @@ export default function SBOMHistoryPage() {
           >
             {/* Card Header */}
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-lg bg-pulseNode-navy border border-pulseNode-border/10 flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-pulseNode-navy border border-pulseNode-border/10 flex items-center justify-center shrink-0">
                 <Package size={14} className="text-pulseNode-cyan" />
               </div>
               <div className="flex-1 min-w-0">
@@ -192,7 +192,7 @@ export default function SBOMHistoryPage() {
                   <FormatBadge format={sbom.format} />
                 </div>
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-1 shrink-0">
                 <button className="border border-pulseNode-border/20 text-helm-fg3 hover:text-helm-fg px-2 py-1 rounded-lg text-xs transition-colors">
                   <Download size={11} />
                 </button>

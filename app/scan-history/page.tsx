@@ -180,7 +180,7 @@ export default function ScanHistoryPage() {
               { label: "Low",      color: "var(--pn-blue)" },
             ].map(l => (
               <div key={l.label} className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: l.color }} />
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: l.color }} />
                 <span className="text-[10px] text-helm-fg3">{l.label}</span>
               </div>
             ))}
@@ -221,7 +221,7 @@ export default function ScanHistoryPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search scans…"
-              className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-pulseNode-navy border border-pulseNode-border/15 text-xs text-helm-fg placeholder:text-helm-fg4 focus:outline-none focus:border-pulseNode-cyan/40"
+              className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-pulseNode-navy border border-pulseNode-border/15 text-xs text-helm-fg placeholder:text-helm-fg4 focus:outline-hidden focus:border-pulseNode-cyan/40"
             />
           </div>
           <FilterChip label="Severity" value="≥ Medium" />
@@ -253,7 +253,7 @@ export default function ScanHistoryPage() {
                     <td className="mono-cell dim">{scan.id}</td>
                     <td>
                       <div className="flex items-center gap-2">
-                        <Package size={13} className="text-helm-fg3 flex-shrink-0" />
+                        <Package size={13} className="text-helm-fg3 shrink-0" />
                         <span className="font-mono text-xs text-helm-fg truncate max-w-[180px]">
                           {scan.image}
                         </span>
@@ -371,7 +371,7 @@ export default function ScanHistoryPage() {
               onChange={e => setScanTarget(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") runScan() }}
               placeholder="image:tag"
-              className="w-full px-3 py-2 rounded-lg text-sm font-mono focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg text-sm font-mono focus:outline-hidden"
               style={{ background: "var(--bg-2)", border: "1px solid var(--border)", color: "var(--fg)" }}
             />
             {scanMsg && (

@@ -240,7 +240,7 @@ function NewProjectForm() {
                 placeholder="Search repositories…"
                 value={repoSearch}
                 onChange={e => setRepoSearch(e.target.value)}
-                className="w-full text-sm outline-none bg-transparent"
+                className="w-full text-sm outline-hidden bg-transparent"
                 style={{ color: "var(--fg)" }}
               />
             </div>
@@ -274,7 +274,7 @@ function NewProjectForm() {
                       </p>
                     </div>
                     {selectedRepo?.full_name === repo.full_name && (
-                      <Check size={14} className="ml-auto flex-shrink-0" style={{ color: "var(--acc)" }} />
+                      <Check size={14} className="ml-auto shrink-0" style={{ color: "var(--acc)" }} />
                     )}
                   </button>
                 ))
@@ -288,7 +288,7 @@ function NewProjectForm() {
               <select
                 value={selectedBranch}
                 onChange={e => setSelectedBranch(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
                 style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
               >
                 {branches.map(b => <option key={b} value={b}>{b}</option>)}
@@ -403,7 +403,7 @@ function NewProjectForm() {
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
                 style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
               />
             </div>
@@ -419,7 +419,7 @@ function NewProjectForm() {
                   value={domain}
                   onChange={e => setDomain(e.target.value)}
                   placeholder="app.yourdomain.com"
-                  className="flex-1 px-3 py-2 rounded-lg text-sm outline-none font-mono"
+                  className="flex-1 px-3 py-2 rounded-lg text-sm outline-hidden font-mono"
                   style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
                 />
                 <button
@@ -447,7 +447,7 @@ function NewProjectForm() {
                   type="number"
                   value={port}
                   onChange={e => setPort(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
                   style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
                 />
               </div>
@@ -458,7 +458,7 @@ function NewProjectForm() {
                     type="number"
                     value={backendPort}
                     onChange={e => setBackendPort(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
                     style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
                   />
                   <p className="text-[10px] mt-1" style={{ color: "var(--fg-4)" }}>Port your backend listens on</p>
@@ -504,7 +504,7 @@ function NewProjectForm() {
                 onChange={e => setEnvText(e.target.value)}
                 placeholder={"NODE_ENV=production\nPORT=3000\nDATABASE_URL=postgres://…"}
                 rows={4}
-                className="w-full px-3 py-2 rounded-lg text-sm outline-none font-mono resize-y"
+                className="w-full px-3 py-2 rounded-lg text-sm outline-hidden font-mono resize-y"
                 style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
               />
               <p className="text-[10px] mt-1" style={{ color: "var(--fg-4)" }}>
@@ -523,7 +523,7 @@ function NewProjectForm() {
                   onChange={e => setBackendEnvText(e.target.value)}
                   placeholder={"NODE_ENV=production\nDATABASE_URL=postgres://…\nJWT_SECRET=…"}
                   rows={4}
-                  className="w-full px-3 py-2 rounded-lg text-sm outline-none font-mono resize-y"
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-hidden font-mono resize-y"
                   style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
                 />
                 <p className="text-[10px] mt-1" style={{ color: "var(--fg-4)" }}>

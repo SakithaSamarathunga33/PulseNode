@@ -1,30 +1,27 @@
 "use client"
 
+import { cn } from "@/lib/utils"
+
 interface ProgressBarProps {
   value: number
   tone?: "ok" | "warn" | "bad" | "info" | ""
   className?: string
 }
 
-const FILL_COLORS = {
-  ok:   "var(--ok)",
-  warn: "var(--warn)",
-  bad:  "var(--bad)",
-  info: "var(--acc-2)",
-  "":   "var(--acc)",
-}
+const FILL = {
+  ok: "bg-success", warn: "bg-warning", bad: "bg-danger", info: "bg-info", "": "bg-primary",
+} as const
 
+/** Thin usage bar. With no tone it turns amber above 70% and red above 85%. */
 export function ProgressBar({ value, tone = "", className }: ProgressBarProps) {
   const t = tone || (value > 85 ? "bad" : value > 70 ? "warn" : "ok")
+  const pct = Math.max(0, Math.min(100, value))
   return (
     <div
-      className={`h-[3px] rounded-full overflow-hidden${className ? ` ${className}` : ""}`}
-      style={{ background: "var(--bg-3)" }}
+      role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}
+      className={cn("h-1.5 overflow-hidden rounded-full bg-muted", className)}
     >
-      <div
-        className="h-full rounded-full transition-[width] duration-[600ms] ease-out"
-        style={{ backgroundColor: FILL_COLORS[t as keyof typeof FILL_COLORS], width: `${Math.min(100, value)}%` }}
-      />
+      <div className={cn("h-full rounded-full transition-[width] duration-500 ease-out", FILL[t as keyof typeof FILL])} style={{ width: `${pct}%` }} />
     </div>
   )
 }

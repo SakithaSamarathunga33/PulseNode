@@ -136,12 +136,12 @@ function QueryResult({ result }: { result: DbQueryResult }) {
       {/* Fullscreen modal */}
       {expanded && (
         <div
-          className="fixed inset-0 z-50 flex flex-col bg-pulseNode-navy/95 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex flex-col bg-pulseNode-navy/95 backdrop-blur-xs"
           onKeyDown={e => e.key === "Escape" && setExpanded(false)}
           tabIndex={-1}
         >
           {/* Modal header */}
-          <div className="flex items-center gap-3 px-5 py-3 border-b border-pulseNode-border/20 bg-pulseNode-navyLight flex-shrink-0">
+          <div className="flex items-center gap-3 px-5 py-3 border-b border-pulseNode-border/20 bg-pulseNode-navyLight shrink-0">
             <span className="text-sm font-semibold text-helm-fg">Query Results</span>
             <span className="text-[10px] text-helm-fg3 bg-pulseNode-border/20 rounded px-1.5 py-0.5">
               {result.rowCount} rows · {result.columns.length} columns · {result.durationMs}ms
@@ -363,11 +363,11 @@ export function DatabaseQueryEditor({
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="flex-1 bg-pulseNode-navy font-mono text-xs text-helm-fg p-3 resize-none outline-none placeholder:text-helm-fg3/40 min-h-0"
+            className="flex-1 bg-pulseNode-navy font-mono text-xs text-helm-fg p-3 resize-none outline-hidden placeholder:text-helm-fg3/40 min-h-0"
             spellCheck={false}
           />
           {/* Toolbar */}
-          <div className="flex items-center gap-2 px-3 py-2 border-t border-pulseNode-border/10 flex-shrink-0">
+          <div className="flex items-center gap-2 px-3 py-2 border-t border-pulseNode-border/10 shrink-0">
             <Button size="sm" onClick={() => runQuery()} disabled={loading || !hasQuery}>
               <Play size={13} />
               {loading ? "Running…" : "Run"}
@@ -398,7 +398,7 @@ export function DatabaseQueryEditor({
                 ? "bg-amber-500/10 border-amber-500/20"
                 : "bg-red-500/10 border-red-500/20"
             }`}>
-              <span className={`flex-shrink-0 mt-0.5 ${isWarn ? "text-amber-400" : "text-red-400"}`}>
+              <span className={`shrink-0 mt-0.5 ${isWarn ? "text-amber-400" : "text-red-400"}`}>
                 {isWarn ? "⚠" : "✕"}
               </span>
               <p className={`text-xs font-mono break-all ${isWarn ? "text-amber-400" : "text-red-400"}`}>

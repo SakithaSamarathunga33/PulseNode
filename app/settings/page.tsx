@@ -396,17 +396,17 @@ export default function SettingsPage() {
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase tracking-wider text-helm-fg3 font-semibold">Username</label>
                     <input value={newUsername} onChange={e => setNewUsername(e.target.value)} required
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-none focus:border-pn-cyan/40" />
+                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-hidden focus:border-pn-cyan/40" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase tracking-wider text-helm-fg3 font-semibold">Password</label>
                     <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={8}
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-none focus:border-pn-cyan/40" />
+                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-hidden focus:border-pn-cyan/40" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase tracking-wider text-helm-fg3 font-semibold">Confirm password</label>
                     <input type="password" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} required minLength={8}
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-none focus:border-pn-cyan/40" />
+                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-hidden focus:border-pn-cyan/40" />
                   </div>
                 </div>
                 <button type="submit" disabled={secLoading || !newUsername || !newPassword || !confirmPwd}
@@ -425,17 +425,17 @@ export default function SettingsPage() {
                   <div className="space-y-1">
                     <label className="text-[10px] text-helm-fg3">Current password</label>
                     <input type="password" value={curPassword} onChange={e => setCurPassword(e.target.value)} required
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-none focus:border-pn-cyan/40" />
+                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-hidden focus:border-pn-cyan/40" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] text-helm-fg3">New password</label>
                     <input type="password" value={chgPassword} onChange={e => setChgPassword(e.target.value)} required minLength={8}
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-none focus:border-pn-cyan/40" />
+                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-hidden focus:border-pn-cyan/40" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] text-helm-fg3">Confirm new password</label>
                     <input type="password" value={chgConfirm} onChange={e => setChgConfirm(e.target.value)} required minLength={8}
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-none focus:border-pn-cyan/40" />
+                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-hidden focus:border-pn-cyan/40" />
                   </div>
                   <button type="submit" disabled={secLoading || !curPassword || !chgPassword || !chgConfirm}
                     className="px-4 py-1.5 rounded-lg border border-pulseNode-border/20 text-helm-fg3 hover:text-helm-fg disabled:opacity-50 text-xs transition-colors">
