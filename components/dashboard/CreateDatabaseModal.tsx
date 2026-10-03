@@ -1,11 +1,15 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { createPortal } from "react-dom"
-import { Loader2 } from "lucide-react"
+import { Check, Copy, Loader2, Clock, CheckCircle2, XCircle } from "lucide-react"
 import { DbIcon } from "@/components/dashboard/DbIcon"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { nodeApi } from "@/lib/api"
-import { copyText } from "@/lib/utils"
+import { cn, copyText } from "@/lib/utils"
 
 const ENGINES = [
   { id: "postgres", label: "PostgreSQL", desc: "Relational · postgres:16-alpine" },
@@ -34,22 +38,19 @@ function CopyField({ label, value }: { label: string; value: string }) {
   }
   return (
     <div className="space-y-1">
-      <div className="text-[10px] uppercase tracking-wider text-helm-fg3 font-semibold">{label}</div>
-      <div className="flex items-center gap-2 bg-pulseNode-navy rounded-lg px-3 py-2 border border-pulseNode-border/20">
-        <code className="flex-1 text-[11px] text-helm-fg font-mono break-all">{value}</code>
-        <button
-          onClick={copy}
-          className="shrink-0 text-[10px] text-pn-electric hover:text-pn-electric/80 transition-colors font-medium"
-        >
-          {copied ? "✓ Copied" : "Copy"}
-        </button>
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+      <div className="flex items-center gap-2 rounded-lg border bg-muted/40 py-1.5 pl-3 pr-1.5">
+        <code className="min-w-0 flex-1 break-all font-mono text-xs">{value}</code>
+        <Button variant="ghost" size="xs" onClick={copy} aria-label={`Copy ${label.toLowerCase()}`}>
+          {copied ? <Check className="text-success" /> : <Copy />}
+          {copied ? "Copied" : "Copy"}
+        </Button>
       </div>
     </div>
   )
 }
 
 export function CreateDatabaseModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [mounted,  setMounted]  = useState(false)
   const [phase,    setPhase]    = useState<Phase>("pick")
   const [engine,   setEngine]   = useState("")
   const [name,     setName]     = useState("")
@@ -57,8 +58,6 @@ export function CreateDatabaseModal({ onClose, onCreated }: { onClose: () => voi
   const [creds,    setCreds]    = useState<Creds | null>(null)
   const [errMsg,   setErrMsg]   = useState("")
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
@@ -115,141 +114,121 @@ export function CreateDatabaseModal({ onClose, onCreated }: { onClose: () => voi
     }, 3000)
   }
 
-  if (!mounted) return null
+  return (
+    <Dialog open disablePointerDismissal onOpenChange={open => { if (!open && (phase === "pick" || phase === "error")) onClose() }}>
+      <DialogContent className="max-h-[90vh] gap-4 overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Create database</DialogTitle>
+          <DialogDescription>Spin up a new container on this VPS</DialogDescription>
+        </DialogHeader>
 
-  return createPortal(
-    <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-      <div className="bg-pulseNode-navyLight rounded-2xl border border-pulseNode-border/20 shadow-2xl w-full max-w-lg">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-pulseNode-border/10">
-          <div>
-            <h2 className="text-base font-bold text-helm-fg">Create Database</h2>
-            <p className="text-xs text-helm-fg3 mt-0.5">Spin up a new container on this VPS</p>
-          </div>
-          <button onClick={onClose} className="text-helm-fg3 hover:text-helm-fg transition-colors text-lg">✕</button>
-        </div>
-
-        <div className="p-5 space-y-5">
-          {/* Engine + name picker */}
-          {phase === "pick" && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                {ENGINES.map(e => (
-                  <button
-                    key={e.id}
-                    onClick={() => setEngine(e.id)}
-                    className={`flex flex-col items-start gap-1.5 p-3 rounded-xl border transition-all text-left ${
-                      engine === e.id
-                        ? "border-pn-electric/60 bg-pn-electric/10"
-                        : "border-pulseNode-border/20 hover:border-pulseNode-border/40"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <DbIcon engine={e.id} size={22} />
-                      <span className="font-semibold text-sm text-helm-fg">{e.label}</span>
-                    </div>
-                    <span className="text-[10px] text-helm-fg3">{e.desc}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold uppercase tracking-wider text-helm-fg3">
-                  Database name <span className="text-helm-fg4 font-normal">(optional)</span>
-                </label>
-                <input
-                  value={name}
-                  onChange={e => setName(e.target.value.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9_.-]/g, ""))}
-                  placeholder={engine ? `my-${engine}` : "my-database"}
-                  className="w-full px-3 py-2 rounded-lg text-sm font-mono focus:outline-hidden"
-                  style={{
-                    background: "var(--bg-2)",
-                    border: "1px solid var(--border)",
-                    color: "var(--fg)",
-                  }}
-                  onFocus={e => { (e.target as HTMLInputElement).style.borderColor = "var(--acc-border)" }}
-                  onBlur={e =>  { (e.target as HTMLInputElement).style.borderColor = "var(--border)" }}
-                />
-                <p className="text-[10px] text-helm-fg3">
-                  Leave blank to auto-generate. Used as the container and database name — letters, numbers, dots, dashes and underscores only.
-                </p>
-              </div>
-
-              <div className="text-[11px] text-helm-fg3 bg-pulseNode-navy/50 rounded-lg px-3 py-2">
-                ⏱ First-time pulls may take 1–5 minutes depending on image size and network speed.
-              </div>
-              <div className="flex gap-3">
-                <button onClick={onClose} className="flex-1 border border-pulseNode-border/20 text-helm-fg3 hover:text-helm-fg rounded-xl py-2 text-sm transition-colors">
-                  Cancel
-                </button>
+        {/* Engine + name picker */}
+        {phase === "pick" && (
+          <>
+            <div role="group" aria-label="Database engine" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {ENGINES.map(e => (
                 <button
-                  onClick={provision}
-                  disabled={!engine}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-pulseNode-border/20 disabled:text-helm-fg3 text-white rounded-xl py-2 text-sm font-semibold transition-colors"
+                  key={e.id}
+                  type="button"
+                  aria-pressed={engine === e.id}
+                  onClick={() => setEngine(e.id)}
+                  className={cn(
+                    "flex flex-col items-start gap-1 rounded-lg border p-3 text-left outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+                    engine === e.id
+                      ? "border-primary bg-primary/8 ring-1 ring-primary"
+                      : "hover:bg-muted/60",
+                  )}
                 >
-                  Create {engine ? ENGINES.find(e => e.id === engine)?.label : ""}
+                  <span className="flex items-center gap-2">
+                    <DbIcon engine={e.id} size={22} />
+                    <span className="text-sm font-semibold">{e.label}</span>
+                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">{e.desc}</span>
                 </button>
-              </div>
-            </>
-          )}
+              ))}
+            </div>
 
-          {/* Provisioning */}
-          {phase === "provisioning" && (
-            <div className="flex flex-col items-center gap-4 py-6">
-              <Loader2 className="w-10 h-10 animate-spin text-pn-electric" />
-              <div className="text-center">
-                <p className="text-sm font-medium text-helm-fg">Provisioning {engine}…</p>
-                <p className="text-xs text-helm-fg3 mt-1">{progress}</p>
+            <div className="space-y-1.5">
+              <Label htmlFor="create-db-name">
+                Database name <span className="font-normal text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="create-db-name"
+                value={name}
+                onChange={e => setName(e.target.value.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9_.-]/g, ""))}
+                placeholder={engine ? `my-${engine}` : "my-database"}
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave blank to auto-generate. Used as the container and database name — letters, numbers, dots, dashes and underscores only.
+              </p>
+            </div>
+
+            <Alert>
+              <Clock />
+              <AlertDescription>First-time pulls may take 1–5 minutes depending on image size and network speed.</AlertDescription>
+            </Alert>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose}>Cancel</Button>
+              <Button onClick={provision} disabled={!engine}>
+                Create {engine ? ENGINES.find(e => e.id === engine)?.label : ""}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+
+        {/* Provisioning */}
+        {phase === "provisioning" && (
+          <div role="status" className="flex flex-col items-center gap-4 py-6">
+            <Loader2 className="size-9 animate-spin text-primary" />
+            <div className="text-center">
+              <p className="text-sm font-medium">Provisioning {engine}…</p>
+              <p className="mt-1 text-xs text-muted-foreground">{progress}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Success */}
+        {phase === "done" && creds && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-success">
+              <CheckCircle2 className="size-5" />
+              <span className="font-semibold">{engine} is running</span>
+            </div>
+            <CopyField label="Connection string" value={creds.connection_string} />
+            <CopyField label="Password" value={creds.password} />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border bg-muted/40 p-2.5">
+                <div className="mb-1 text-xs text-muted-foreground">User</div>
+                <div className="font-mono text-sm">{creds.username}</div>
+              </div>
+              <div className="rounded-lg border bg-muted/40 p-2.5">
+                <div className="mb-1 text-xs text-muted-foreground">Port</div>
+                <div className="font-mono text-sm tabular-nums">{creds.host_port}</div>
               </div>
             </div>
-          )}
+            <p className="text-xs text-muted-foreground">The container uses <code className="font-mono">--restart unless-stopped</code> and will survive VPS reboots.</p>
+            <DialogFooter>
+              <Button onClick={onClose}>Done</Button>
+            </DialogFooter>
+          </div>
+        )}
 
-          {/* Success */}
-          {phase === "done" && creds && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-emerald-400">
-                <span className="text-xl">✓</span>
-                <span className="font-semibold">{engine} is running</span>
-              </div>
-              <CopyField label="Connection String" value={creds.connection_string} />
-              <CopyField label="Password" value={creds.password} />
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="bg-pulseNode-navy rounded-lg p-2.5">
-                  <div className="text-helm-fg3 text-[9px] uppercase tracking-wider mb-1">User</div>
-                  <div className="text-helm-fg font-mono">{creds.username}</div>
-                </div>
-                <div className="bg-pulseNode-navy rounded-lg p-2.5">
-                  <div className="text-helm-fg3 text-[9px] uppercase tracking-wider mb-1">Port</div>
-                  <div className="text-helm-fg font-mono">{creds.host_port}</div>
-                </div>
-              </div>
-              <p className="text-[10px] text-helm-fg3">The container uses <code className="font-mono">--restart unless-stopped</code> and will survive VPS reboots.</p>
-              <button onClick={onClose} className="w-full bg-(--acc) hover:bg-(--acc-2) text-white rounded-xl py-2 text-sm font-semibold shadow-xs shadow-(--acc-soft) transition-colors">
-                Done
-              </button>
-            </div>
-          )}
-
-          {/* Error */}
-          {phase === "error" && (
-            <div className="space-y-4">
-              <div className="flex items-start gap-2 text-red-400">
-                <span>✕</span>
-                <p className="text-sm font-mono break-all">{errMsg}</p>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={onClose} className="flex-1 border border-pulseNode-border/20 text-helm-fg3 rounded-xl py-2 text-sm transition-colors">
-                  Close
-                </button>
-                <button onClick={() => setPhase("pick")} className="flex-1 bg-(--acc) hover:bg-(--acc-2) text-white rounded-xl py-2 text-sm font-semibold shadow-xs shadow-(--acc-soft) transition-colors">
-                  Try again
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>,
-    document.body,
+        {/* Error */}
+        {phase === "error" && (
+          <div className="space-y-4">
+            <Alert variant="destructive">
+              <XCircle />
+              <AlertDescription className="break-all font-mono text-xs">{errMsg}</AlertDescription>
+            </Alert>
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose}>Close</Button>
+              <Button onClick={() => setPhase("pick")}>Try again</Button>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

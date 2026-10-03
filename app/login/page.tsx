@@ -2,7 +2,12 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Loader2 } from "lucide-react"
+import { AlertCircle, Loader2 } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { BorderBeam } from "@/components/magicui/border-beam"
 
 const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
@@ -90,15 +95,15 @@ function LoginForm() {
 
   if (checking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-pulseNode-navy">
-        <Loader2 className="animate-spin text-helm-fg3" size={24} />
+      <div className="grid min-h-screen place-items-center bg-background text-foreground">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" aria-label="Loading" />
       </div>
     )
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center bg-pulseNode-navy p-4 relative"
+    <main
+      className="relative flex min-h-screen items-center justify-center bg-background p-4 text-foreground"
       style={{
         backgroundImage: "url('/file_0000000053ac720b95e22d8410d1da4d.png')",
         backgroundSize: "cover",
@@ -106,113 +111,99 @@ function LoginForm() {
         backgroundRepeat: "no-repeat",
       }}
     >
-      <div className="absolute inset-0 pointer-events-none" style={{ background: "rgba(8,8,11,0.55)" }} />
-      <div className="w-full max-w-sm relative z-10">
-        <div className="text-center mb-8">
+      <div className="pointer-events-none absolute inset-0 bg-black/55" />
+      <Card className="relative z-10 w-full max-w-sm overflow-hidden motion-safe:animate-in fade-in-0 duration-300">
+        <BorderBeam size={120} duration={8} borderWidth={2} colorFrom="var(--primary)" colorTo="var(--chart-5)" />
+        <CardHeader className="items-center text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/logodark-removebg-preview.png"
-            alt="PulseNode"
-            className="mx-auto h-20 w-auto"
-          />
-          <p className="text-sm text-helm-fg3 mt-3">
+          <img src="/logodark-removebg-preview.png" alt="PulseNode" className="mx-auto h-16 w-auto" />
+          <h1 className="sr-only">{setup ? "Create your PulseNode admin account" : "Sign in to PulseNode"}</h1>
+          <CardDescription className="pt-2">
             {setup ? "Create your admin account" : "Sign in to your dashboard"}
-          </p>
-        </div>
-
-        <form
-          onSubmit={handleSubmit}
-          className="relative overflow-hidden rounded-xl border border-pulseNode-border/20 bg-pulseNode-navyLight p-6 space-y-4"
-        >
-          <BorderBeam size={120} duration={8} borderWidth={2} />
-          {setup && (
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {setup && (
+              <div className="space-y-1.5">
+                <Label htmlFor="setup-token">Setup token</Label>
+                <Input
+                  id="setup-token"
+                  value={token}
+                  onChange={e => setToken(e.target.value)}
+                  autoFocus
+                  autoComplete="off"
+                  required
+                  className="font-mono"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Find it on the server: <code className="font-mono">docker compose logs go-api | grep setup_token</code>
+                </p>
+              </div>
+            )}
             <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-helm-fg3">
-                Setup token
-              </label>
-              <input
-                value={token}
-                onChange={e => setToken(e.target.value)}
-                autoFocus
-                autoComplete="off"
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                autoFocus={!setup}
+                autoComplete="username"
                 required
-                className="w-full px-3 py-2 rounded-lg text-sm font-mono bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg placeholder:text-helm-fg3 focus:outline-hidden focus:border-pn-cyan/40"
               />
-              <p className="text-[11px] text-helm-fg3">
-                Find it on the server: <code className="font-mono">docker compose logs go-api | grep setup_token</code>
-              </p>
             </div>
-          )}
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-helm-fg3">
-              Username
-            </label>
-            <input
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              autoFocus={!setup}
-              autoComplete="username"
-              required
-              className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg placeholder:text-helm-fg3 focus:outline-hidden focus:border-pn-cyan/40"
-            />
-          </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-helm-fg3">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              autoComplete={setup ? "new-password" : "current-password"}
-              minLength={setup ? 8 : undefined}
-              required
-              className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg placeholder:text-helm-fg3 focus:outline-hidden focus:border-pn-cyan/40"
-            />
-          </div>
-
-          {setup && (
             <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-helm-fg3">
-                Confirm password
-              </label>
-              <input
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
                 type="password"
-                value={confirm}
-                onChange={e => setConfirm(e.target.value)}
-                autoComplete="new-password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                autoComplete={setup ? "new-password" : "current-password"}
+                minLength={setup ? 8 : undefined}
                 required
-                className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg placeholder:text-helm-fg3 focus:outline-hidden focus:border-pn-cyan/40"
               />
+              {setup && <p className="text-xs text-muted-foreground">At least 8 characters.</p>}
             </div>
-          )}
 
-          {error && (
-            <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              {error}
-            </p>
-          )}
+            {setup && (
+              <div className="space-y-1.5">
+                <Label htmlFor="confirm">Confirm password</Label>
+                <Input
+                  id="confirm"
+                  type="password"
+                  value={confirm}
+                  onChange={e => setConfirm(e.target.value)}
+                  autoComplete="new-password"
+                  required
+                />
+              </div>
+            )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-2 bg-(--acc) hover:bg-(--acc-2) disabled:opacity-60 text-white rounded-lg py-2.5 text-sm font-semibold shadow-[0_1px_0_rgba(255,255,255,0.16)_inset,0_10px_24px_-14px_rgba(139,124,255,0.9)] transition-colors"
-          >
-            {loading && <Loader2 size={14} className="animate-spin" />}
-            {setup ? "Create account & sign in" : "Sign in"}
-          </button>
-        </form>
-      </div>
-    </div>
+            {error && (
+              <Alert variant="destructive" role="alert">
+                <AlertCircle />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button type="submit" size="lg" className="w-full" disabled={loading}>
+              {loading && <Loader2 className="animate-spin" />}
+              {setup ? "Create account & sign in" : "Sign in"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </main>
   )
 }
 
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-pulseNode-navy">
-        <Loader2 className="animate-spin text-helm-fg3" size={24} />
+      <div className="grid min-h-screen place-items-center bg-background text-foreground">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" aria-label="Loading" />
       </div>
     }>
       <LoginForm />

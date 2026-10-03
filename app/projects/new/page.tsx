@@ -1,8 +1,21 @@
 "use client"
 
 import { useState, useEffect, useCallback, Suspense } from "react"
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { GitFork, GitBranch, Globe, ChevronRight, ChevronLeft, RefreshCw, Shuffle, Check, Layers, Boxes } from "lucide-react"
+import { Rocket, GitFork, GitBranch, Globe, ChevronRight, ChevronLeft, Loader2, Shuffle, Check, Layers, Boxes, Lock, AlertCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { PageHeader, PageBody } from "@/components/pn/PageHeader"
+import { SearchInput } from "@/components/pn/SearchInput"
+import { FormField, ChoiceGroup, BUILD_METHODS } from "@/components/projects/forms"
+import { cn } from "@/lib/utils"
 
 const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
 
@@ -199,424 +212,346 @@ function NewProjectForm() {
     r.full_name.toLowerCase().includes(repoSearch.toLowerCase())
   )
 
+  const combined = monorepo && deployMode === "combined"
+  const STEPS = ["Repository", "Configure", "Deploy"]
+
+  const summary: { label: string; value: string }[] = [
+    { label: "Repository", value: selectedRepo?.full_name ?? "" },
+    { label: "Branch", value: selectedBranch },
+    { label: "Name", value: name },
+    { label: "Domain", value: domain },
+    ...(combined
+      ? [
+          { label: "Layout", value: "monorepo (/ + /api)" },
+          { label: "Frontend port", value: port },
+          { label: "Backend port", value: backendPort },
+        ]
+      : monorepo && deployMode === "separate"
+      ? [
+          { label: "Layout", value: `separate (${component}/ only)` },
+          { label: "Port", value: port },
+        ]
+      : [{ label: "Port", value: port }]),
+    { label: "Build", value: buildMethod },
+  ]
+
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-semibold" style={{ color: "var(--fg)" }}>New Project</h1>
-        <p className="text-sm mt-1" style={{ color: "var(--fg-3)" }}>Deploy from a GitHub repository</p>
-      </div>
-
-      {/* Step indicator */}
-      <div className="flex items-center gap-2">
-        {["Repository", "Configure", "Deploy"].map((label, i) => (
-          <div key={label} className="flex items-center gap-2 flex-1 last:flex-none">
-            <div className="flex items-center gap-1.5">
-              <div
-                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
-                style={{
-                  background: step > i + 1 ? "var(--ok)" : step === i + 1 ? "var(--acc)" : "var(--bg-3)",
-                  color: step >= i + 1 ? "#fff" : "var(--fg-3)",
-                }}
-              >
-                {step > i + 1 ? <Check size={10} /> : i + 1}
-              </div>
-              <span className="text-xs" style={{ color: step === i + 1 ? "var(--fg)" : "var(--fg-3)" }}>
-                {label}
-              </span>
-            </div>
-            {i < 2 && <div className="flex-1 h-px mx-1" style={{ background: "var(--border)" }} />}
-          </div>
-        ))}
-      </div>
-
-      {/* Step 1 — Select repository */}
-      {step === 1 && (
-        <div className="space-y-4">
-          <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-            <div className="p-3" style={{ background: "var(--bg-2)", borderBottom: "1px solid var(--border)" }}>
-              <input
-                type="text"
-                placeholder="Search repositories…"
-                value={repoSearch}
-                onChange={e => setRepoSearch(e.target.value)}
-                className="w-full text-sm outline-hidden bg-transparent"
-                style={{ color: "var(--fg)" }}
-              />
-            </div>
-            <div className="max-h-72 overflow-y-auto" style={{ background: "var(--bg-1)" }}>
-              {reposLoading ? (
-                <div className="flex items-center justify-center py-10">
-                  <RefreshCw size={16} className="animate-spin" style={{ color: "var(--fg-3)" }} />
-                </div>
-              ) : filteredRepos.length === 0 ? (
-                <p className="text-center text-sm py-10" style={{ color: "var(--fg-3)" }}>
-                  No repositories found
-                </p>
-              ) : (
-                filteredRepos.map(repo => (
-                  <button
-                    key={repo.full_name}
-                    onClick={() => selectRepo(repo)}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:opacity-80"
-                    style={{
-                      background: selectedRepo?.full_name === repo.full_name ? "var(--acc)/10" : "transparent",
-                      borderBottom: "1px solid var(--border)",
-                    }}
-                  >
-                    <GitFork size={14} style={{ color: "var(--fg-3)", flexShrink: 0 }} />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: "var(--fg)" }}>
-                        {repo.full_name}
-                      </p>
-                      <p className="text-xs" style={{ color: "var(--fg-3)" }}>
-                        {repo.private ? "Private" : "Public"} · {repo.default_branch}
-                      </p>
-                    </div>
-                    {selectedRepo?.full_name === repo.full_name && (
-                      <Check size={14} className="ml-auto shrink-0" style={{ color: "var(--acc)" }} />
-                    )}
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-
-          {selectedRepo && (
-            <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-              <p className="text-xs font-medium" style={{ color: "var(--fg-3)" }}>Branch</p>
-              <select
-                value={selectedBranch}
-                onChange={e => setSelectedBranch(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
-                style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
-              >
-                {branches.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
-            </div>
-          )}
-
-          <button
-            onClick={() => goToStep2()}
-            disabled={!selectedRepo}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium disabled:opacity-40 transition-colors"
-            style={{ background: "var(--acc)", color: "#fff" }}
-          >
-            Continue
-            <ChevronRight size={14} />
-          </button>
-        </div>
-      )}
-
-      {/* Step 2 — Configure */}
-      {step === 2 && (
-        <div className="space-y-4">
-          <div className="rounded-xl p-5 space-y-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-            <div className="flex items-center gap-2 text-sm pb-2" style={{ borderBottom: "1px solid var(--border)", color: "var(--fg-3)" }}>
-              <GitFork size={13} />
-              <span>{selectedRepo?.full_name}</span>
-              <GitBranch size={13} className="ml-1" />
-              <span>{selectedBranch}</span>
-            </div>
-
-            {/* Monorepo: choose combined vs separate deploy */}
-            {monorepo && (
-              <div className="rounded-lg p-3 space-y-2" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-                <p className="text-xs font-medium" style={{ color: "var(--fg-3)" }}>
-                  frontend/ + backend/ detected — deploy as…
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setDeployMode("combined")}
-                    className="p-2.5 rounded-lg text-left transition-colors"
-                    style={{
-                      background: deployMode === "combined" ? "var(--acc)/10" : "var(--bg-2)",
-                      border: `1px solid ${deployMode === "combined" ? "var(--acc)" : "var(--border)"}`,
-                    }}
-                  >
-                    <p className="text-xs font-medium" style={{ color: deployMode === "combined" ? "var(--acc)" : "var(--fg)" }}>
-                      One project
-                    </p>
-                    <p className="text-[10px] mt-0.5" style={{ color: "var(--fg-4)" }}>Shared domain · / and /api</p>
-                  </button>
-                  <button
-                    onClick={() => setDeployMode("separate")}
-                    className="p-2.5 rounded-lg text-left transition-colors"
-                    style={{
-                      background: deployMode === "separate" ? "var(--acc)/10" : "var(--bg-2)",
-                      border: `1px solid ${deployMode === "separate" ? "var(--acc)" : "var(--border)"}`,
-                    }}
-                  >
-                    <p className="text-xs font-medium" style={{ color: deployMode === "separate" ? "var(--acc)" : "var(--fg)" }}>
-                      Separate projects
-                    </p>
-                    <p className="text-[10px] mt-0.5" style={{ color: "var(--fg-4)" }}>Own domain · one at a time</p>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {monorepo && deployMode === "combined" && (
-              <div className="rounded-lg p-3 flex gap-2.5" style={{ background: "var(--acc)/10", border: "1px solid var(--acc)" }}>
-                <Layers size={15} style={{ color: "var(--acc)", flexShrink: 0, marginTop: 1 }} />
-                <div className="text-xs leading-relaxed" style={{ color: "var(--fg)" }}>
-                  <span className="font-medium">One project, two services.</span>{" "}
-                  Two containers will deploy on this domain: <span className="font-mono">frontend → /</span> and{" "}
-                  <span className="font-mono">backend → /api</span>. Keep build method on <span className="font-medium">Auto-detect</span>.
-                  Your frontend should call <span className="font-mono">/api/…</span>.
-                </div>
-              </div>
-            )}
-
-            {monorepo && deployMode === "separate" && (
-              <div className="rounded-lg p-3 space-y-2.5" style={{ background: "var(--acc)/10", border: "1px solid var(--acc)" }}>
-                <div className="flex gap-2.5">
-                  <Boxes size={15} style={{ color: "var(--acc)", flexShrink: 0, marginTop: 1 }} />
-                  <p className="text-xs leading-relaxed" style={{ color: "var(--fg)" }}>
-                    Deploys only one folder as its own independent project — its own domain, build, env vars, and rollback history.
-                    Add the other folder later from the Projects page.
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["frontend", "backend"] as const).map(c => (
-                    <button
-                      key={c}
-                      onClick={() => setComponent(c)}
-                      className="p-2.5 rounded-lg text-left capitalize transition-colors"
-                      style={{
-                        background: component === c ? "var(--acc)" : "var(--bg-2)",
-                        color: component === c ? "#fff" : "var(--fg)",
-                        border: `1px solid ${component === c ? "var(--acc)" : "var(--border)"}`,
-                      }}
-                    >
-                      <p className="text-xs font-medium">{c}/</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Name */}
-            <div>
-              <label className="text-xs mb-1.5 block font-medium" style={{ color: "var(--fg-3)" }}>Project Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
-                style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
-              />
-            </div>
-
-            {/* Domain */}
-            <div>
-              <label className="text-xs mb-1.5 block font-medium" style={{ color: "var(--fg-3)" }}>
-                Domain
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={domain}
-                  onChange={e => setDomain(e.target.value)}
-                  placeholder="app.yourdomain.com"
-                  className="flex-1 px-3 py-2 rounded-lg text-sm outline-hidden font-mono"
-                  style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
-                />
-                <button
-                  onClick={() => setDomain(randomName() + "." + (rootDomain || "example.com"))}
-                  title="Generate subdomain"
-                  className="px-3 py-2 rounded-lg transition-colors"
-                  style={{ background: "var(--bg-3)", color: "var(--fg-3)", border: "1px solid var(--border)" }}
+    <>
+      <PageHeader
+        icon={Rocket}
+        title="New project"
+        description="Deploy from a GitHub repository"
+        actions={
+          <Button variant="outline" nativeButton={false} render={<Link href="/projects" />}>Cancel</Button>
+        }
+      />
+      <PageBody className="max-w-3xl">
+        {/* Step indicator */}
+        <ol className="flex items-center gap-2" aria-label="Progress">
+          {STEPS.map((label, i) => {
+            const n = i + 1
+            const done = step > n
+            const active = step === n
+            return (
+              <li key={label} className="flex flex-1 items-center gap-2 last:flex-none" aria-current={active ? "step" : undefined}>
+                <span
+                  className={cn(
+                    "grid size-7 shrink-0 place-items-center rounded-full border text-xs font-semibold tabular-nums",
+                    done && "border-success bg-success text-background",
+                    active && "border-[var(--hue)] bg-[var(--hue)] text-background",
+                    !done && !active && "bg-muted text-muted-foreground",
+                  )}
                 >
-                  <Shuffle size={14} />
-                </button>
-              </div>
-              <p className="text-[10px] mt-1" style={{ color: "var(--fg-4)" }}>
-                <Globe size={9} className="inline mr-1" />
-                Must point to this server via DNS
-              </p>
-            </div>
+                  {done ? <Check className="size-3.5" aria-hidden /> : n}
+                </span>
+                <span className={cn("text-sm", active ? "font-medium" : "text-muted-foreground")}>
+                  {label}
+                  <span className="sr-only">{done ? " (completed)" : active ? " (current step)" : ""}</span>
+                </span>
+                {i < STEPS.length - 1 && <span className={cn("mx-1 h-px flex-1", done ? "bg-success" : "bg-border")} aria-hidden />}
+              </li>
+            )
+          })}
+        </ol>
 
-            {/* Port(s) */}
-            <div className={monorepo && deployMode === "combined" ? "grid grid-cols-2 gap-3" : ""}>
-              <div>
-                <label className="text-xs mb-1.5 block font-medium" style={{ color: "var(--fg-3)" }}>
-                  {monorepo && deployMode === "combined" ? "Frontend Port" : "Container Port"}
-                </label>
-                <input
-                  type="number"
-                  value={port}
-                  onChange={e => setPort(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
-                  style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
+        {/* Step 1 — Select repository */}
+        {step === 1 && (
+          <div className="space-y-4 motion-safe:animate-in fade-in-0 duration-300">
+            <Card className="gap-0 overflow-hidden p-0">
+              <div className="border-b p-3">
+                <SearchInput
+                  aria-label="Search repositories"
+                  placeholder="Search repositories…"
+                  value={repoSearch}
+                  onChange={e => setRepoSearch(e.target.value)}
+                  className="max-w-none"
                 />
               </div>
-              {monorepo && deployMode === "combined" && (
-                <div>
-                  <label className="text-xs mb-1.5 block font-medium" style={{ color: "var(--fg-3)" }}>Backend Port</label>
-                  <input
-                    type="number"
-                    value={backendPort}
-                    onChange={e => setBackendPort(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
-                    style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
-                  />
-                  <p className="text-[10px] mt-1" style={{ color: "var(--fg-4)" }}>Port your backend listens on</p>
-                </div>
-              )}
-            </div>
-
-            {/* Build method */}
-            <div>
-              <label className="text-xs mb-1.5 block font-medium" style={{ color: "var(--fg-3)" }}>Build Method</label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: "auto",       label: "Auto-detect",  desc: "Compose → Dockerfile → Nixpacks" },
-                  { value: "compose",    label: "Docker Compose", desc: "docker-compose.yml" },
-                  { value: "dockerfile", label: "Dockerfile",   desc: "docker build" },
-                  { value: "nixpacks",   label: "Nixpacks",     desc: "Zero-config build" },
-                ].map(opt => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setBuildMethod(opt.value)}
-                    className="p-3 rounded-lg text-left transition-colors"
-                    style={{
-                      background: buildMethod === opt.value ? "var(--acc)/10" : "var(--bg-3)",
-                      border: `1px solid ${buildMethod === opt.value ? "var(--acc)" : "var(--border)"}`,
-                    }}
-                  >
-                    <p className="text-xs font-medium" style={{ color: buildMethod === opt.value ? "var(--acc)" : "var(--fg)" }}>
-                      {opt.label}
-                    </p>
-                    <p className="text-[10px] mt-0.5" style={{ color: "var(--fg-4)" }}>{opt.desc}</p>
-                  </button>
-                ))}
+              <div role="radiogroup" aria-label="Repositories" className="max-h-80 overflow-y-auto">
+                {reposLoading ? (
+                  <div className="space-y-2 p-3" aria-busy="true">
+                    {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-12" />)}
+                  </div>
+                ) : filteredRepos.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-muted-foreground">No repositories found</p>
+                ) : (
+                  filteredRepos.map(repo => {
+                    const on = selectedRepo?.full_name === repo.full_name
+                    return (
+                      <button
+                        key={repo.full_name}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        onClick={() => selectRepo(repo)}
+                        className={cn(
+                          "flex w-full items-center gap-3 border-b px-4 py-3 text-left outline-none transition-colors last:border-b-0 hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
+                          on && "bg-[color-mix(in_srgb,var(--hue)_10%,transparent)]",
+                        )}
+                      >
+                        <GitFork className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-mono text-sm font-medium">{repo.full_name}</p>
+                          <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                            {repo.private && <Lock className="size-3" aria-hidden />}
+                            {repo.private ? "Private" : "Public"} · <span className="font-mono">{repo.default_branch}</span>
+                          </p>
+                        </div>
+                        {on && <Check className="size-4 shrink-0 text-[var(--hue-fg)]" aria-label="Selected" />}
+                      </button>
+                    )
+                  })
+                )}
               </div>
-            </div>
+            </Card>
 
-            {/* Env vars */}
-            <div>
-              <label className="text-xs mb-1.5 block font-medium" style={{ color: "var(--fg-3)" }}>
-                {monorepo && deployMode === "combined" ? "Frontend Environment Variables" : "Environment Variables"}
-              </label>
-              <textarea
-                value={envText}
-                onChange={e => setEnvText(e.target.value)}
-                placeholder={"NODE_ENV=production\nPORT=3000\nDATABASE_URL=postgres://…"}
-                rows={4}
-                className="w-full px-3 py-2 rounded-lg text-sm outline-hidden font-mono resize-y"
-                style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
-              />
-              <p className="text-[10px] mt-1" style={{ color: "var(--fg-4)" }}>
-                {monorepo && deployMode === "combined" ? "Goes to the frontend container only · one KEY=VALUE per line" : "One KEY=VALUE per line"}
-              </p>
-            </div>
-
-            {/* Backend env vars (combined monorepo only) */}
-            {monorepo && deployMode === "combined" && (
-              <div>
-                <label className="text-xs mb-1.5 block font-medium" style={{ color: "var(--fg-3)" }}>
-                  Backend Environment Variables
-                </label>
-                <textarea
-                  value={backendEnvText}
-                  onChange={e => setBackendEnvText(e.target.value)}
-                  placeholder={"NODE_ENV=production\nDATABASE_URL=postgres://…\nJWT_SECRET=…"}
-                  rows={4}
-                  className="w-full px-3 py-2 rounded-lg text-sm outline-hidden font-mono resize-y"
-                  style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
-                />
-                <p className="text-[10px] mt-1" style={{ color: "var(--fg-4)" }}>
-                  Goes to the backend container only — your backend secrets stay out of the frontend
-                </p>
-              </div>
+            {selectedRepo && (
+              <Card>
+                <CardContent>
+                  <FormField label="Branch" htmlFor="branch-select">
+                    <Select
+                      value={selectedBranch}
+                      onValueChange={v => setSelectedBranch(v as string)}
+                      items={branches.map(b => ({ value: b, label: b }))}
+                    >
+                      <SelectTrigger id="branch-select" className="w-full font-mono">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {branches.map(b => <SelectItem key={b} value={b} className="font-mono">{b}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                </CardContent>
+              </Card>
             )}
-          </div>
 
-          <div className="flex gap-2">
-            <button
-              onClick={() => setStep(1)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm"
-              style={{ background: "var(--bg-2)", color: "var(--fg-3)", border: "1px solid var(--border)" }}
-            >
-              <ChevronLeft size={14} />
-              Back
-            </button>
-            <button
-              onClick={() => setStep(3)}
-              disabled={!name || !domain}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium disabled:opacity-40"
-              style={{ background: "var(--acc)", color: "#fff" }}
-            >
-              Review & Deploy
-              <ChevronRight size={14} />
-            </button>
+            <Button size="lg" className="w-full" onClick={() => goToStep2()} disabled={!selectedRepo}>
+              Continue
+              <ChevronRight className="size-4" />
+            </Button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Step 3 — Review & deploy */}
-      {step === 3 && (
-        <div className="space-y-4">
-          <div className="rounded-xl p-5 space-y-3" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--fg-3)" }}>Summary</p>
-            {[
-              { label: "Repository", value: selectedRepo?.full_name ?? "" },
-              { label: "Branch",     value: selectedBranch },
-              { label: "Name",       value: name },
-              { label: "Domain",     value: domain },
-              ...(monorepo && deployMode === "combined"
-                ? [
-                    { label: "Layout",        value: "monorepo (/ + /api)" },
-                    { label: "Frontend Port", value: port },
-                    { label: "Backend Port",  value: backendPort },
-                  ]
-                : monorepo && deployMode === "separate"
-                ? [
-                    { label: "Layout", value: `separate (${component}/ only)` },
-                    { label: "Port",   value: port },
-                  ]
-                : [{ label: "Port", value: port }]),
-              { label: "Build",      value: buildMethod },
-            ].map(row => (
-              <div key={row.label} className="flex items-center justify-between text-sm">
-                <span style={{ color: "var(--fg-3)" }}>{row.label}</span>
-                <span className="font-mono text-xs" style={{ color: "var(--fg)" }}>{row.value}</span>
-              </div>
-            ))}
+        {/* Step 2 — Configure */}
+        {step === 2 && (
+          <div className="space-y-4 motion-safe:animate-in fade-in-0 duration-300">
+            <Card>
+              <CardContent className="space-y-5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b pb-3 text-sm text-muted-foreground">
+                  <span className="flex min-w-0 items-center gap-1.5"><GitFork className="size-4 shrink-0" /><span className="truncate font-mono">{selectedRepo?.full_name}</span></span>
+                  <span className="flex items-center gap-1.5"><GitBranch className="size-4 shrink-0" /><span className="font-mono">{selectedBranch}</span></span>
+                </div>
+
+                {/* Monorepo: choose combined vs separate deploy */}
+                {monorepo && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">
+                      <span className="font-mono">frontend/</span> + <span className="font-mono">backend/</span> detected — deploy as…
+                    </p>
+                    <ChoiceGroup
+                      label="Monorepo deploy mode"
+                      value={deployMode}
+                      onChange={setDeployMode}
+                      options={[
+                        { value: "combined", label: "One project", desc: "Shared domain · / and /api" },
+                        { value: "separate", label: "Separate projects", desc: "Own domain · one at a time" },
+                      ]}
+                    />
+                  </div>
+                )}
+
+                {monorepo && deployMode === "combined" && (
+                  <Alert>
+                    <Layers />
+                    <AlertDescription>
+                      <span className="font-medium text-foreground">One project, two services.</span>{" "}
+                      Two containers will deploy on this domain: <span className="font-mono">frontend → /</span> and{" "}
+                      <span className="font-mono">backend → /api</span>. Keep build method on <span className="font-medium">Auto-detect</span>.
+                      Your frontend should call <span className="font-mono">/api/…</span>.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {monorepo && deployMode === "separate" && (
+                  <div className="space-y-3">
+                    <Alert>
+                      <Boxes />
+                      <AlertDescription>
+                        Deploys only one folder as its own independent project — its own domain, build, env vars, and rollback history.
+                        Add the other folder later from the Projects page.
+                      </AlertDescription>
+                    </Alert>
+                    <ChoiceGroup
+                      label="Folder to deploy"
+                      value={component}
+                      onChange={setComponent}
+                      options={[
+                        { value: "frontend", label: "frontend/" },
+                        { value: "backend", label: "backend/" },
+                      ]}
+                    />
+                  </div>
+                )}
+
+                <FormField label="Project name" htmlFor="np-name">
+                  <Input id="np-name" value={name} onChange={e => setName(e.target.value)} />
+                </FormField>
+
+                <FormField
+                  label="Domain"
+                  htmlFor="np-domain"
+                  hint={<span className="flex items-center gap-1"><Globe className="size-3" aria-hidden />Must point to this server via DNS</span>}
+                >
+                  <div className="flex gap-2">
+                    <Input
+                      id="np-domain"
+                      value={domain}
+                      onChange={e => setDomain(e.target.value)}
+                      placeholder="app.yourdomain.com"
+                      className="font-mono"
+                    />
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            aria-label="Generate random subdomain"
+                            onClick={() => setDomain(randomName() + "." + (rootDomain || "example.com"))}
+                          />
+                        }
+                      >
+                        <Shuffle className="size-4" />
+                      </TooltipTrigger>
+                      <TooltipContent>Generate subdomain</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </FormField>
+
+                <div className={cn("grid gap-3", combined && "sm:grid-cols-2")}>
+                  <FormField label={combined ? "Frontend port" : "Container port"} htmlFor="np-port">
+                    <Input id="np-port" type="number" inputMode="numeric" value={port} onChange={e => setPort(e.target.value)} className="tabular-nums" />
+                  </FormField>
+                  {combined && (
+                    <FormField label="Backend port" htmlFor="np-bport" hint="Port your backend listens on">
+                      <Input id="np-bport" type="number" inputMode="numeric" value={backendPort} onChange={e => setBackendPort(e.target.value)} className="tabular-nums" />
+                    </FormField>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="text-sm leading-none font-medium">Build method</p>
+                  <ChoiceGroup label="Build method" value={buildMethod} onChange={setBuildMethod} options={[...BUILD_METHODS]} />
+                </div>
+
+                <FormField
+                  label={combined ? "Frontend environment variables" : "Environment variables"}
+                  htmlFor="np-env"
+                  hint={combined ? "Goes to the frontend container only · one KEY=VALUE per line" : "One KEY=VALUE per line"}
+                >
+                  <Textarea
+                    id="np-env"
+                    value={envText}
+                    onChange={e => setEnvText(e.target.value)}
+                    placeholder={"NODE_ENV=production\nPORT=3000\nDATABASE_URL=postgres://…"}
+                    rows={4}
+                    spellCheck={false}
+                    className="resize-y font-mono"
+                  />
+                </FormField>
+
+                {combined && (
+                  <FormField
+                    label="Backend environment variables"
+                    htmlFor="np-benv"
+                    hint="Goes to the backend container only — your backend secrets stay out of the frontend"
+                  >
+                    <Textarea
+                      id="np-benv"
+                      value={backendEnvText}
+                      onChange={e => setBackendEnvText(e.target.value)}
+                      placeholder={"NODE_ENV=production\nDATABASE_URL=postgres://…\nJWT_SECRET=…"}
+                      rows={4}
+                      spellCheck={false}
+                      className="resize-y font-mono"
+                    />
+                  </FormField>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="flex gap-2">
+              <Button variant="outline" size="lg" onClick={() => setStep(1)}>
+                <ChevronLeft className="size-4" />
+                Back
+              </Button>
+              <Button size="lg" className="flex-1" onClick={() => setStep(3)} disabled={!name || !domain}>
+                Review &amp; deploy
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
           </div>
+        )}
 
-          {error && (
-            <p className="text-sm px-3 py-2 rounded-lg" style={{ background: "var(--err)/10", color: "var(--err)" }}>
-              {error}
-            </p>
-          )}
+        {/* Step 3 — Review & deploy */}
+        {step === 3 && (
+          <div className="space-y-4 motion-safe:animate-in fade-in-0 duration-300">
+            <Card>
+              <CardContent>
+                <h2 className="mb-3 text-sm font-semibold">Summary</h2>
+                <dl className="divide-y">
+                  {summary.map(row => (
+                    <div key={row.label} className="flex items-center justify-between gap-4 py-2 text-sm">
+                      <dt className="text-muted-foreground">{row.label}</dt>
+                      <dd className="min-w-0 truncate font-mono text-xs tabular-nums">{row.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </CardContent>
+            </Card>
 
-          <div className="flex gap-2">
-            <button
-              onClick={() => setStep(2)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm"
-              style={{ background: "var(--bg-2)", color: "var(--fg-3)", border: "1px solid var(--border)" }}
-            >
-              <ChevronLeft size={14} />
-              Back
-            </button>
-            <button
-              onClick={deploy}
-              disabled={creating}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium disabled:opacity-60"
-              style={{ background: "var(--acc)", color: "#fff" }}
-            >
-              {creating ? (
-                <><RefreshCw size={14} className="animate-spin" /> Deploying…</>
-              ) : (
-                <>Deploy Project</>
-              )}
-            </button>
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="flex gap-2">
+              <Button variant="outline" size="lg" onClick={() => setStep(2)} disabled={creating}>
+                <ChevronLeft className="size-4" />
+                Back
+              </Button>
+              <Button size="lg" className="flex-1" onClick={deploy} disabled={creating}>
+                {creating ? <><Loader2 className="size-4 animate-spin" /> Deploying…</> : <><Rocket className="size-4" /> Deploy project</>}
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </PageBody>
+    </>
   )
 }
 

@@ -1,12 +1,24 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { useGSAP } from "@gsap/react"
-import gsap from "gsap"
-import { Box, RefreshCw, ArrowUpDown, Cpu, MemoryStick, Activity } from "lucide-react"
+import { useState, useEffect } from "react"
+import Link from "next/link"
+import { Box, Cpu, MemoryStick, Activity, ArrowUp, ArrowDown, ChevronsUpDown, AlertCircle, Flame } from "lucide-react"
 import { nodeApi } from "@/lib/api"
 import type { Container } from "@/lib/types"
-import Link from "next/link"
+import { PageHeader, PageBody } from "@/components/pn/PageHeader"
+import { LiveBadge } from "@/components/pn/LiveBadge"
+import { EmptyState } from "@/components/pn/EmptyState"
+import { Segmented } from "@/components/pn/Segmented"
+import { StatCard } from "@/components/dashboard/StatCard"
+import { Pill } from "@/components/dashboard/Pill"
+import { ProgressBar } from "@/components/dashboard/ProgressBar"
+import { Card, CardAction, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
 
 const BAR_COUNT = 50
 const RANGE_OPTIONS = ["24h", "3d", "7d"] as const
@@ -56,40 +68,62 @@ function fmtMb(mb: number) {
   return mb < 1024 ? `${Math.round(mb)} MB` : `${(mb / 1024).toFixed(2)} GB`
 }
 
-function Bar({ value, warn = 60, danger = 80, color }: { value: number; warn?: number; danger?: number; color?: string }) {
-  const c = color ?? (value >= danger ? "var(--bad)" : value >= warn ? "var(--warn)" : "var(--pn-cyan)")
+function usageTone(v: number): "ok" | "warn" | "bad" {
+  return v >= 80 ? "bad" : v >= 60 ? "warn" : "ok"
+}
+
+const TEXT_TONE = { ok: "text-foreground", warn: "text-warning", bad: "text-danger" } as const
+
+function HeartbeatBar({ statuses, windowMs }: { statuses: BeatStatus[]; windowMs: number }) {
+  const bucketMs = windowMs / BAR_COUNT
+  const now = Date.now()
+  const fmt = (t: number) => new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
   return (
-    <div className="flex-1 h-[5px] rounded-full overflow-hidden" style={{ background: "var(--bg-3)" }}>
-      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, value)}%`, background: c }} />
+    <div className="flex items-center gap-[3px]" role="img" aria-label={`Heartbeat history, oldest to newest: ${statuses.filter(s => s === "up").length} up, ${statuses.filter(s => s === "down").length} down, ${statuses.filter(s => s !== "up" && s !== "down").length} no data`}>
+      {statuses.map((s, i) => {
+        const end = now - (BAR_COUNT - 1 - i) * bucketMs
+        const label = s === "down" ? "Down" : s === "up" ? "Up" : "No data"
+        return (
+          <div
+            key={i}
+            title={`${label} · ${fmt(end - bucketMs)} – ${fmt(end)}`}
+            className={cn(
+              "h-5 w-[5px] shrink-0 rounded-sm",
+              s === "down" ? "bg-[repeating-linear-gradient(45deg,var(--danger)_0_2px,color-mix(in_srgb,var(--danger)_35%,transparent)_2px_4px)]" : s === "up" ? "bg-success" : "bg-muted",
+            )}
+          />
+        )
+      })}
     </div>
   )
 }
 
-function HeartbeatBar({ statuses }: { statuses: BeatStatus[] }) {
+function SortHead({
+  label, k, sortKey, sortDir, onSort, className,
+}: { label: string; k: SortKey; sortKey: SortKey; sortDir: "asc" | "desc"; onSort: (k: SortKey) => void; className?: string }) {
+  const active = sortKey === k
+  const Icon = !active ? ChevronsUpDown : sortDir === "asc" ? ArrowUp : ArrowDown
   return (
-    <div className="flex items-center gap-[3px]">
-      {statuses.map((s, i) => (
-        <div
-          key={i}
-          className="w-[5px] h-5 rounded-sm shrink-0"
-          style={{ background: s === "down" ? "var(--bad)" : s === "up" ? "var(--ok)" : "var(--bg-3)" }}
-        />
-      ))}
-    </div>
+    <TableHead aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"} className={className}>
+      <button
+        type="button"
+        onClick={() => onSort(k)}
+        className={cn(
+          "-mx-1 inline-flex items-center gap-1 rounded px-1 py-0.5 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
+          active && "text-foreground",
+        )}
+      >
+        {label}
+        <Icon className={cn("size-3.5", !active && "opacity-50")} />
+      </button>
+    </TableHead>
   )
 }
 
-function StatCard({ label, value, sub, icon }: { label: string; value: string; sub?: string; icon: React.ReactNode }) {
+function TableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
-    <div className="rounded-xl px-5 py-4 flex items-center gap-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-      <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--bg-3)" }}>
-        {icon}
-      </div>
-      <div>
-        <p className="text-[11px]" style={{ color: "var(--fg-3)" }}>{label}</p>
-        <p className="text-xl font-bold leading-tight" style={{ color: "var(--fg)" }}>{value}</p>
-        {sub && <p className="text-[11px]" style={{ color: "var(--fg-3)" }}>{sub}</p>}
-      </div>
+    <div className="space-y-3 p-4">
+      {Array.from({ length: rows }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
     </div>
   )
 }
@@ -98,17 +132,14 @@ export default function RuntimePage() {
   const [view, setView]             = useState<"resources" | "uptime">("resources")
   const [containers, setContainers] = useState<ContainerStat[]>([])
   const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState(false)
   const [sortKey, setSortKey]       = useState<SortKey>("cpu")
   const [sortDir, setSortDir]       = useState<"asc" | "desc">("desc")
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [allContainers, setAllContainers] = useState<Container[]>([])
+  const [allLoaded, setAllLoaded]   = useState(false)
   const [heartbeats, setHeartbeats] = useState<ContainerHeartbeats[]>([])
   const [range, setRange]           = useState<Range>("24h")
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  useGSAP(() => {
-    gsap.fromTo(".gsap-enter", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.07, ease: "power2.out" })
-  }, { scope: containerRef, dependencies: [loading, view] })
 
   function fetchStats() {
     nodeApi.get<ContainerStat[]>("/api/docker/container-stats")
@@ -116,9 +147,10 @@ export default function RuntimePage() {
         if (Array.isArray(data)) {
           setContainers(data)
           setLastUpdate(new Date())
+          setError(false)
         }
       })
-      .catch(() => {})
+      .catch(() => setError(true))
       .finally(() => setLoading(false))
   }
 
@@ -135,6 +167,7 @@ export default function RuntimePage() {
       nodeApi.get<Container[]>("/api/docker/containers")
         .then(({ data }) => { if (Array.isArray(data)) setAllContainers(data) })
         .catch(() => {})
+        .finally(() => setAllLoaded(true))
     }
     fetchAll()
     const id = setInterval(() => { if (!document.hidden) fetchAll() }, 5000)
@@ -171,266 +204,202 @@ export default function RuntimePage() {
   const totalRamMb  = containers.reduce((s, c) => s + c.ramMb, 0)
   const avgCpu      = containers.length ? totalCpu / containers.length : 0
   const hottest     = containers.length ? [...containers].sort((a, b) => b.cpu - a.cpu)[0] : null
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw size={20} className="animate-spin" style={{ color: "var(--fg-3)" }} />
-      </div>
-    )
-  }
+  const upCount     = allContainers.filter(c => c.state === "running").length
 
   return (
-    <div ref={containerRef} className="p-6 space-y-6">
+    <>
+      <PageHeader
+        icon={Box}
+        title="Runtime Monitor"
+        description={view === "resources"
+          ? "Live CPU and memory usage for all running Docker containers"
+          : "Up/down history for every container, recorded every 60s"}
+        actions={
+          view === "resources" ? (
+            <LiveBadge stale={error}>
+              {error ? "Updates failing" : "Live · every 3s"}
+              {lastUpdate && !error && (
+                <span className="font-normal tabular-nums text-muted-foreground">
+                  · {lastUpdate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                </span>
+              )}
+            </LiveBadge>
+          ) : (
+            <LiveBadge>History · every 60s</LiveBadge>
+          )
+        }
+      >
+        <Tabs value={view} onValueChange={v => setView(v as "resources" | "uptime")}>
+          <TabsList variant="line">
+            <TabsTrigger value="resources"><Cpu className="size-3.5" />Resources</TabsTrigger>
+            <TabsTrigger value="uptime"><Activity className="size-3.5" />Uptime</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </PageHeader>
 
-      {/* Header */}
-      <div className="gsap-enter flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2" style={{ color: "var(--fg)" }}>
-            <Box size={18} style={{ color: "var(--acc)" }} />
-            Runtime Monitor
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: "var(--fg-3)" }}>
-            {view === "resources"
-              ? "Live CPU and memory usage for all running Docker containers"
-              : "Uptime Kuma–style up/down history for every container"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-xs" style={{ color: "var(--fg-3)" }}>
-          <span className="w-1.5 h-1.5 rounded-full bg-green-400 status-live" />
-          {view === "resources" ? "Live · refreshes every 3s" : "History recorded every 60s"}
-          {lastUpdate && view === "resources" && (
-            <span className="ml-1">· {lastUpdate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
-          )}
-        </div>
-      </div>
+      <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
+        {view === "resources" && (
+          <>
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle />
+                <AlertTitle>Could not load container stats</AlertTitle>
+                <AlertDescription>The last request to the stats endpoint failed. Retrying every 3 seconds.</AlertDescription>
+              </Alert>
+            )}
 
-      {/* View tabs */}
-      <div className="gsap-enter flex items-center gap-0" style={{ borderBottom: "1px solid var(--border)" }}>
-        {([
-          { key: "resources", label: "Resources", icon: <Cpu size={13} /> },
-          { key: "uptime",     label: "Uptime",    icon: <Activity size={13} /> },
-        ] as const).map(t => (
-          <button
-            key={t.key}
-            onClick={() => setView(t.key)}
-            className="px-4 py-2 text-xs font-medium transition-colors flex items-center gap-1.5"
-            style={{
-              color: view === t.key ? "var(--fg)" : "var(--fg-3)",
-              borderBottom: view === t.key ? "2px solid var(--acc)" : "2px solid transparent",
-              marginBottom: "-1px",
-            }}
-          >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
-      </div>
+            {loading ? (
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[104px] rounded-xl" />)}
+              </div>
+            ) : containers.length > 0 && (
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <StatCard label="Running containers" value={containers.length} icon={Box} />
+                <StatCard
+                  label="Avg CPU usage" value={avgCpu.toFixed(1)} unit="%" icon={Cpu}
+                  sub={`Total ${totalCpu.toFixed(1)}%`} animate={false}
+                />
+                <StatCard label="Total RAM used" value={fmtMb(totalRamMb)} icon={MemoryStick} />
+                <StatCard
+                  label="Highest CPU" value={hottest ? hottest.cpu.toFixed(1) : "—"} unit={hottest ? "%" : undefined}
+                  icon={Flame} tone={hottest && hottest.cpu > 70 ? "bad" : "warn"}
+                  sub={hottest?.name} animate={false}
+                />
+              </div>
+            )}
 
-      {/* Summary cards */}
-      {view === "resources" && containers.length > 0 && (
-        <div className="gsap-enter grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatCard
-            label="Running containers"
-            value={String(containers.length)}
-            icon={<Box size={16} style={{ color: "var(--acc)" }} />}
-          />
-          <StatCard
-            label="Avg CPU usage"
-            value={`${avgCpu.toFixed(1)}%`}
-            sub={`Total: ${totalCpu.toFixed(1)}%`}
-            icon={<Cpu size={16} style={{ color: "var(--pn-cyan)" }} />}
-          />
-          <StatCard
-            label="Total RAM used"
-            value={fmtMb(totalRamMb)}
-            icon={<MemoryStick size={16} style={{ color: "var(--pn-blue)" }} />}
-          />
-          <StatCard
-            label="Highest CPU"
-            value={hottest ? `${hottest.cpu.toFixed(1)}%` : "—"}
-            sub={hottest?.name}
-            icon={<Cpu size={16} style={{ color: hottest && hottest.cpu > 70 ? "var(--bad)" : "var(--warn)" }} />}
-          />
-        </div>
-      )}
+            <Card className="gap-0 py-0">
+              <CardHeader className="border-b py-3">
+                <CardTitle>Containers</CardTitle>
+                <CardDescription>{containers.length} running</CardDescription>
+                <CardAction>
+                  <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/containers" />}>Manage</Button>
+                </CardAction>
+              </CardHeader>
 
-      {/* Container table */}
-      {view === "resources" && (
-      <div className="gsap-enter rounded-xl overflow-hidden" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
-          <span className="text-sm font-semibold" style={{ color: "var(--fg)" }}>
-            Containers
-            <span className="ml-2 text-[11px] font-normal" style={{ color: "var(--fg-3)" }}>
-              {containers.length} running
-            </span>
-          </span>
-          <Link href="/containers" className="text-xs transition-opacity hover:opacity-70" style={{ color: "var(--acc)" }}>
-            Manage →
-          </Link>
-        </div>
+              {loading ? (
+                <TableSkeleton />
+              ) : containers.length === 0 ? (
+                <EmptyState
+                  icon={Box} title="No running containers" className="rounded-none border-0"
+                  description="Containers that are running will show their CPU and memory here."
+                />
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <SortHead label="Container" k="name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                        <TableHead>Image</TableHead>
+                        <SortHead label="CPU" k="cpu" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                        <SortHead label="RAM" k="ramMb" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                        <TableHead>RAM %</TableHead>
+                        <TableHead className="text-right">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sorted.map(c => (
+                        <TableRow key={c.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Box className="size-4 shrink-0 text-[var(--hue-fg)]" />
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium">{c.name}</p>
+                                <p className="font-mono text-xs text-muted-foreground">{c.id}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground" title={c.image}>
+                            {c.image.length > 36 ? c.image.slice(0, 36) + "…" : c.image}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex min-w-[140px] items-center gap-2">
+                              <ProgressBar value={c.cpu} tone={usageTone(c.cpu)} className="flex-1" />
+                              <span className={cn("w-14 shrink-0 text-right font-mono text-xs tabular-nums", TEXT_TONE[usageTone(c.cpu)])}>
+                                {c.cpu.toFixed(1)}%
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex min-w-[160px] items-center gap-2">
+                              <ProgressBar value={c.ramPct} tone={usageTone(c.ramPct)} className="flex-1" />
+                              <span className="w-[4.5rem] shrink-0 text-right font-mono text-xs tabular-nums">{fmtMb(c.ramMb)}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className={cn("font-mono text-xs tabular-nums", TEXT_TONE[usageTone(c.ramPct)])}>
+                              {c.ramPct.toFixed(1)}%
+                            </span>
+                            {c.ramLimitMb > 0 && (
+                              <span className="ml-1.5 text-xs text-muted-foreground">of {fmtMb(c.ramLimitMb)}</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Pill tone="ok" dot>running</Pill>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </Card>
+          </>
+        )}
 
-        {containers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 py-16">
-            <Box size={32} style={{ color: "var(--fg-4)" }} />
-            <p className="text-sm" style={{ color: "var(--fg-3)" }}>No running containers</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="pn-table w-full">
-              <thead>
-                <tr>
-                  <th>
-                    <button className="flex items-center gap-1 hover:opacity-70 transition-opacity" onClick={() => toggleSort("name")}>
-                      Container {sortKey === "name" && <ArrowUpDown size={10} />}
-                    </button>
-                  </th>
-                  <th>Image</th>
-                  <th>
-                    <button className="flex items-center gap-1 hover:opacity-70 transition-opacity" onClick={() => toggleSort("cpu")}>
-                      CPU% {sortKey === "cpu" && <ArrowUpDown size={10} />}
-                    </button>
-                  </th>
-                  <th>
-                    <button className="flex items-center gap-1 hover:opacity-70 transition-opacity" onClick={() => toggleSort("ramMb")}>
-                      RAM {sortKey === "ramMb" && <ArrowUpDown size={10} />}
-                    </button>
-                  </th>
-                  <th>RAM %</th>
-                  <th className="right">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map(c => (
-                  <tr key={c.id}>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <Box size={13} style={{ color: "var(--acc)", flexShrink: 0 }} />
-                        <div>
-                          <p className="text-[12px] font-semibold" style={{ color: "var(--fg)" }}>{c.name}</p>
-                          <p className="text-[10px] font-mono" style={{ color: "var(--fg-4)" }}>{c.id}</p>
+        {view === "uptime" && (
+          <Card className="gap-0 py-0">
+            <CardHeader className="border-b py-3">
+              <CardTitle>Uptime</CardTitle>
+              <CardDescription>{upCount} / {allContainers.length} up</CardDescription>
+              <CardAction>
+                <Segmented
+                  aria-label="History range"
+                  value={range}
+                  onChange={setRange}
+                  options={RANGE_OPTIONS.map(r => ({ value: r, label: r }))}
+                />
+              </CardAction>
+            </CardHeader>
+
+            {!allLoaded ? (
+              <TableSkeleton />
+            ) : allContainers.length === 0 ? (
+              <EmptyState icon={Activity} title="No containers found" className="rounded-none border-0"
+                description="Uptime history appears once containers exist." />
+            ) : (
+              <ul className="divide-y">
+                {allContainers.map(c => {
+                  const beats = heartbeats.find(h => h.name === c.name)?.beats ?? []
+                  const ups = beats.filter(b => b.up).length
+                  const pct = beats.length ? (ups / beats.length) * 100 : null
+                  const isUp = c.state === "running"
+                  return (
+                    <li key={c.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-3.5">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <Pill tone={isUp ? "ok" : "bad"} dot>{isUp ? "Up" : "Down"}</Pill>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{c.name}</p>
+                          <p className="truncate font-mono text-xs text-muted-foreground">{c.uptime}</p>
                         </div>
                       </div>
-                    </td>
-                    <td>
-                      <span className="text-[11px] font-mono" style={{ color: "var(--fg-3)" }}>
-                        {c.image.length > 36 ? c.image.slice(0, 36) + "…" : c.image}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2 min-w-[120px]">
-                        <Bar value={c.cpu} />
-                        <span className="text-[12px] font-mono w-12 text-right shrink-0"
-                          style={{ color: c.cpu >= 80 ? "var(--bad)" : c.cpu >= 60 ? "var(--warn)" : "var(--fg)" }}>
-                          {c.cpu.toFixed(1)}%
+                      <div className="flex max-w-full shrink-0 items-center gap-4 overflow-x-auto">
+                        <HeartbeatBar statuses={bucketBeats(beats, RANGE_MS[range])} windowMs={RANGE_MS[range]} />
+                        <span className={cn(
+                          "w-14 text-right font-mono text-xs tabular-nums",
+                          pct === null ? "text-muted-foreground" : pct >= 99 ? "text-success" : pct >= 90 ? "text-warning" : "text-danger",
+                        )}>
+                          {pct === null ? "—" : `${pct.toFixed(1)}%`}
                         </span>
                       </div>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2 min-w-[140px]">
-                        <Bar value={c.ramPct} color={c.ramPct >= 80 ? "var(--bad)" : c.ramPct >= 60 ? "var(--warn)" : "var(--pn-blue)"} />
-                        <span className="text-[12px] font-mono w-16 text-right shrink-0" style={{ color: "var(--fg)" }}>
-                          {fmtMb(c.ramMb)}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[12px] font-mono" style={{ color: c.ramPct >= 80 ? "var(--bad)" : c.ramPct >= 60 ? "var(--warn)" : "var(--fg)" }}>
-                          {c.ramPct.toFixed(1)}%
-                        </span>
-                        {c.ramLimitMb > 0 && (
-                          <span className="text-[10px]" style={{ color: "var(--fg-4)" }}>
-                            of {fmtMb(c.ramLimitMb)}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="right">
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium"
-                        style={{ background: "color-mix(in srgb, var(--ok) 15%, transparent)", color: "var(--ok)" }}>
-                        <span className="w-1 h-1 rounded-full status-live" style={{ background: "var(--ok)" }} />
-                        running
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </Card>
         )}
-      </div>
-      )}
-
-      {/* Uptime tab — Uptime Kuma–style heartbeat history */}
-      {view === "uptime" && (
-        <div className="gsap-enter rounded-xl overflow-hidden" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          <div className="flex items-center justify-between px-5 py-3 flex-wrap gap-2" style={{ borderBottom: "1px solid var(--border)" }}>
-            <span className="text-sm font-semibold" style={{ color: "var(--fg)" }}>
-              Uptime
-              <span className="ml-2 text-[11px] font-normal" style={{ color: "var(--fg-3)" }}>
-                {allContainers.filter(c => c.state === "running").length} / {allContainers.length} up
-              </span>
-            </span>
-            <div className="flex items-center rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-              {RANGE_OPTIONS.map(r => (
-                <button
-                  key={r}
-                  onClick={() => setRange(r)}
-                  className="px-2.5 py-1 text-[11px] font-medium transition-colors"
-                  style={{
-                    background: range === r ? "var(--acc)" : "transparent",
-                    color: range === r ? "#fff" : "var(--fg-3)",
-                  }}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {allContainers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-16">
-              <Activity size={32} style={{ color: "var(--fg-4)" }} />
-              <p className="text-sm" style={{ color: "var(--fg-3)" }}>No containers found</p>
-            </div>
-          ) : (
-            allContainers.map(c => {
-              const beats  = heartbeats.find(h => h.name === c.name)?.beats ?? []
-              const upCount = beats.filter(b => b.up).length
-              const pct    = beats.length ? (upCount / beats.length) * 100 : null
-              const isUp   = c.state === "running"
-              return (
-                <div
-                  key={c.id}
-                  className="flex items-center justify-between gap-4 px-5 py-3.5 flex-wrap"
-                  style={{ borderBottom: "1px solid var(--border)" }}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span
-                      className={`w-2.5 h-2.5 rounded-full flex-shrink-0${isUp ? " status-live" : ""}`}
-                      style={{ background: isUp ? "var(--ok)" : "var(--bad)" }}
-                    />
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-semibold truncate" style={{ color: "var(--fg)" }}>{c.name}</p>
-                      <p className="text-[11px] font-mono truncate" style={{ color: "var(--fg-3)" }}>{c.uptime}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4 shrink-0">
-                    <HeartbeatBar statuses={bucketBeats(beats, RANGE_MS[range])} />
-                    <span
-                      className="text-[12px] font-mono w-14 text-right"
-                      style={{ color: pct === null ? "var(--fg-3)" : pct >= 99 ? "var(--ok)" : pct >= 90 ? "var(--warn)" : "var(--bad)" }}
-                    >
-                      {pct === null ? "—" : `${pct.toFixed(1)}%`}
-                    </span>
-                  </div>
-                </div>
-              )
-            })
-          )}
-        </div>
-      )}
-    </div>
+      </PageBody>
+    </>
   )
 }

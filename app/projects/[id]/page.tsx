@@ -1,15 +1,34 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback, type ReactNode } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
-import {
-  RefreshCw, Play, Trash2, Globe, GitBranch, Circle, Clock,
-  ChevronLeft, Terminal, History, Settings2, ExternalLink, Check, Save, Zap, RotateCcw, Webhook,
-  Server, Square, RotateCw, Box,
-} from "lucide-react"
 import Link from "next/link"
+import {
+  Play, Trash2, Globe, GitBranch, ChevronLeft, Terminal, History, Settings2, ExternalLink,
+  Save, Zap, RotateCcw, Webhook, Server, Square, RotateCw, Box, Loader2, AlertCircle, FolderGit2,
+  Clock, ScrollText,
+} from "lucide-react"
+import { toast } from "sonner"
 import { getSocket } from "@/lib/socket"
 import { TerminalWindow } from "@/components/magicui/terminal"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { PageHeader, PageBody } from "@/components/pn/PageHeader"
+import { EmptyState } from "@/components/pn/EmptyState"
+import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
+import { Pill } from "@/components/dashboard/Pill"
+import { FormField, ChoiceGroup, BUILD_METHODS } from "@/components/projects/forms"
+import { cn } from "@/lib/utils"
 
 const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
 
@@ -30,18 +49,40 @@ type Deployment = {
 type LogLine = { stream: string; line: string; ts: string }
 type WebhookStatus = { installed: boolean; supported: boolean; url: string; error?: string }
 
-const STATUS_COLOR: Record<string, string> = {
-  running: "var(--ok)", building: "var(--acc)",
-  failed: "var(--err)", idle: "var(--fg-4)", queued: "var(--acc)",
+const STATUS_TONE: Record<string, "ok" | "warn" | "bad" | "info" | "outline"> = {
+  running: "ok", success: "ok", building: "info", queued: "info",
+  failed: "bad", idle: "outline",
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+function StatusPill({ status }: { status: string }) {
   return (
-    <div>
-      <label className="text-xs mb-1.5 block font-medium" style={{ color: "var(--fg-3)" }}>{label}</label>
-      {children}
-      {hint && <p className="text-[10px] mt-1" style={{ color: "var(--fg-4)" }}>{hint}</p>}
-    </div>
+    <Pill tone={STATUS_TONE[status] ?? "outline"} dot className="capitalize">
+      {status || "unknown"}
+    </Pill>
+  )
+}
+
+function DomainLink({ domain }: { domain: string }) {
+  return (
+    <a
+      href={`https://${domain}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 rounded-sm font-mono text-[var(--hue-fg)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+    >
+      <Globe className="size-3.5" aria-hidden />
+      {domain}
+      <ExternalLink className="size-3" aria-hidden />
+      <span className="sr-only">(opens in a new tab)</span>
+    </a>
+  )
+}
+
+function BackLink() {
+  return (
+    <Link href="/projects" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+      <ChevronLeft className="size-3.5" aria-hidden /> Projects
+    </Link>
   )
 }
 
@@ -57,7 +98,6 @@ function ExternalProjectView({ project }: { project: Project }) {
   const [logs, setLogs] = useState("")
   const [loadingLogs, setLoadingLogs] = useState(true)
   const [acting, setActing] = useState<string | null>(null)
-  const logsRef = useRef<HTMLDivElement>(null)
 
   const fetchLogs = useCallback(async () => {
     setLoadingLogs(true)
@@ -69,9 +109,6 @@ function ExternalProjectView({ project }: { project: Project }) {
   }, [containerID])
 
   useEffect(() => { fetchLogs() }, [fetchLogs])
-  useEffect(() => {
-    if (logsRef.current) logsRef.current.scrollTop = logsRef.current.scrollHeight
-  }, [logs])
 
   const runAction = async (action: "start" | "stop" | "restart") => {
     setActing(action)
@@ -85,114 +122,67 @@ function ExternalProjectView({ project }: { project: Project }) {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
-      <div className="shrink-0 px-6 pt-5 pb-4 space-y-3" style={{ borderBottom: "1px solid var(--border)" }}>
-        <Link href="/projects" className="text-xs flex items-center gap-1 w-fit" style={{ color: "var(--fg-3)" }}>
-          <ChevronLeft size={13} /> Projects
-        </Link>
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-lg font-semibold flex items-center gap-2" style={{ color: "var(--fg)" }}>
-              <Server size={16} style={{ color: "var(--acc)" }} />
-              {project.Name}
-              <span
-                className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full capitalize"
-                style={{
-                  background: (STATUS_COLOR[status] ?? "var(--fg-4)") + "20",
-                  color: STATUS_COLOR[status] ?? "var(--fg-4)",
-                }}
-              >
-                <Circle size={6} fill="currentColor" />
-                {status}
-              </span>
-            </h1>
-            <div className="flex items-center gap-3 text-xs mt-1" style={{ color: "var(--fg-3)" }}>
-              <a
-                href={`https://${project.Domain}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 hover:underline"
-                style={{ color: "var(--acc)" }}
-              >
-                <Globe size={11} />
-                {project.Domain}
-                <ExternalLink size={9} />
-              </a>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => runAction("restart")}
-              disabled={acting !== null}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
-              style={{ background: "var(--bg-2)", color: "var(--fg)", border: "1px solid var(--border)" }}
-            >
-              <RotateCw size={13} className={acting === "restart" ? "animate-spin" : ""} />
+    <div className="flex h-full min-h-0 flex-col">
+      <PageHeader
+        icon={Server}
+        title={<span className="flex items-center gap-2">{project.Name}<StatusPill status={status} /></span>}
+        description={<span className="flex flex-wrap items-center gap-x-3 gap-y-1"><BackLink /><DomainLink domain={project.Domain} /></span>}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => runAction("restart")} disabled={acting !== null}>
+              <RotateCw className={cn("size-4", acting === "restart" && "animate-spin")} />
               Restart
-            </button>
+            </Button>
             {status === "running" ? (
-              <button
-                onClick={() => runAction("stop")}
-                disabled={acting !== null}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
-                style={{ background: "var(--bg-2)", color: "var(--err)", border: "1px solid var(--border)" }}
-              >
-                <Square size={13} />
+              <Button variant="outline" className="text-danger hover:text-danger" onClick={() => runAction("stop")} disabled={acting !== null}>
+                <Square className="size-4" />
                 Stop
-              </button>
+              </Button>
             ) : (
-              <button
-                onClick={() => runAction("start")}
-                disabled={acting !== null}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
-                style={{ background: "var(--acc)", color: "#fff" }}
-              >
-                <Play size={13} />
+              <Button onClick={() => runAction("start")} disabled={acting !== null}>
+                <Play className="size-4" />
                 Start
-              </button>
+              </Button>
             )}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-hidden flex flex-col">
-        <div className="shrink-0 p-6 pb-0">
-          <div className="rounded-xl p-5" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-            <p className="text-[11px] mb-3" style={{ color: "var(--fg-4)" }}>
+          </>
+        }
+      />
+      <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 sm:p-6">
+        <Card className="shrink-0">
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
               Hosted on this VPS behind a domain, but not deployed through PulseNode — read-only details, pulled live from Docker.
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+            <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {[
                 { label: "Image", value: project.Image || "—" },
                 { label: "Ports", value: project.Ports || "—" },
                 { label: "Container", value: containerID || "—" },
                 { label: "Created", value: project.CreatedAt || "—" },
               ].map(row => (
-                <div key={row.label}>
-                  <p className="text-[10px] mb-0.5" style={{ color: "var(--fg-4)" }}>{row.label}</p>
-                  <p className="font-mono text-xs truncate flex items-center gap-1" style={{ color: "var(--fg)" }}>
-                    {row.label === "Container" && <Box size={11} style={{ color: "var(--fg-4)" }} />}
-                    {row.value}
-                  </p>
+                <div key={row.label} className="min-w-0">
+                  <dt className="mb-0.5 text-xs text-muted-foreground">{row.label}</dt>
+                  <dd className="flex items-center gap-1 truncate font-mono text-xs" title={row.value}>
+                    {row.label === "Container" && <Box className="size-3 shrink-0 text-muted-foreground" aria-hidden />}
+                    <span className="truncate">{row.value}</span>
+                  </dd>
                 </div>
               ))}
-            </div>
-          </div>
-        </div>
+            </dl>
+          </CardContent>
+        </Card>
 
-        <div className="flex-1 min-h-0 p-6">
-          <TerminalWindow className="h-full" bodyRef={logsRef} title={`${project.Name} — container logs`}>
-            {loadingLogs ? (
-              <p style={{ color: "#6b7280" }}>Loading logs…</p>
-            ) : logs ? (
-              logs.split("\n").map((line, i) => (
-                <div key={i} style={{ color: "#e2e8f0", wordBreak: "break-all" }}>{line}</div>
-              ))
-            ) : (
-              <p style={{ color: "#6b7280" }}>No logs.</p>
-            )}
-          </TerminalWindow>
-        </div>
+        <TerminalWindow className="min-h-64 flex-1" title={`${project.Name} — container logs`}>
+          {loadingLogs ? (
+            <p className="text-[var(--t-muted)]">Loading logs…</p>
+          ) : logs ? (
+            logs.split("\n").map((line, i) => (
+              <div key={i}>{line}</div>
+            ))
+          ) : (
+            <p className="text-[var(--t-muted)]">No logs.</p>
+          )}
+        </TerminalWindow>
       </div>
     </div>
   )
@@ -221,7 +211,8 @@ export default function ProjectDetailPage() {
   const [deleting, setDeleting]         = useState(false)
   const [webhook, setWebhook]           = useState<WebhookStatus | null>(null)
   const [installingHook, setInstallingHook] = useState(false)
-  const logsRef                         = useRef<HTMLDivElement>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [rollbackTarget, setRollbackTarget] = useState<Deployment | null>(null)
   const activeDepRef                    = useRef<string | null>(null)
 
   // Editable settings form
@@ -232,7 +223,6 @@ export default function ProjectDetailPage() {
   // Whether this project's repo is a frontend/+backend/ monorepo (null = unknown).
   const [monorepo, setMonorepo] = useState<boolean | null>(null)
   const [saving, setSaving]     = useState(false)
-  const [savedAt, setSavedAt]   = useState(0)
   const [settingsErr, setSettingsErr] = useState("")
 
   const fetchProject = useCallback(async () => {
@@ -334,13 +324,6 @@ export default function ProjectDetailPage() {
     return () => socket.off("deploy:log", handler)
   }, [fetchProject, fetchDeployments])
 
-  // Auto-scroll logs
-  useEffect(() => {
-    if (logsRef.current) {
-      logsRef.current.scrollTop = logsRef.current.scrollHeight
-    }
-  }, [logs])
-
   // On a 401 the browser session has expired — bounce to login so the user can
   // re-authenticate instead of hitting a silent failure. Returns true if it
   // handled an auth failure (caller should stop).
@@ -364,7 +347,7 @@ export default function ProjectDetailPage() {
         setTab("logs")
         fetchProject()
       } else {
-        alert(d.error ?? "Redeploy failed")
+        toast.error(d.error ?? "Redeploy failed")
       }
     } finally { setDeploying(false) }
   }
@@ -374,14 +357,12 @@ export default function ProjectDetailPage() {
     try {
       const r = await fetch(`${GO_API}/api/projects/${id}/webhook`, { method: "POST" })
       const d = await r.json()
-      if (d.error && !d.installed) alert(d.error)
+      if (d.error && !d.installed) toast.error(d.error)
       await fetchWebhook()
     } finally { setInstallingHook(false) }
   }
 
   const rollback = async (dep: Deployment) => {
-    const label = dep.CommitSHA ? dep.CommitSHA.slice(0, 7) : dep.ID.slice(0, 10)
-    if (!confirm(`Roll back to ${label}? This redeploys that build's image with zero downtime.`)) return
     setRolling(dep.ID)
     try {
       const r = await fetch(`${GO_API}/api/projects/${id}/deployments/${dep.ID}/rollback`, { method: "POST" })
@@ -393,9 +374,9 @@ export default function ProjectDetailPage() {
         setTab("logs")
         fetchProject()
       } else {
-        alert(d.error ?? "Rollback failed")
+        toast.error(d.error ?? "Rollback failed")
       }
-    } finally { setRolling(null) }
+    } finally { setRolling(null); setRollbackTarget(null) }
   }
 
   const parseEnvVars = (text: string): Record<string, string> => {
@@ -438,7 +419,7 @@ export default function ProjectDetailPage() {
         return false
       }
       await fetchProject()
-      setSavedAt(Date.now())
+      toast.success("Settings saved")
       if (redeploy) await triggerDeploy()
       return true
     } catch (e) {
@@ -448,11 +429,11 @@ export default function ProjectDetailPage() {
   }
 
   const deleteProject = async () => {
-    if (!confirm(`Delete project "${project?.Name}"? This cannot be undone.`)) return
     setDeleting(true)
     await fetch(`${GO_API}/api/projects/${id}`, { method: "DELETE" })
     router.push("/projects")
   }
+
 
   // nixpacks/BuildKit write normal build output to stderr, so colour by content
   // — red is reserved for actual errors, not the whole stderr stream.
@@ -461,26 +442,38 @@ export default function ProjectDetailPage() {
     /(^|[^a-z])(error|errors|failed|failure|fatal|panic|exit status [1-9])/i.test(line)
 
   const logColor = (stream: string, line: string) => {
-    if (isErrorLine(line)) return "#f87171"
-    if (stream === "system") return "#a78bfa"
-    return "#e2e8f0"
+    if (isErrorLine(line)) return "text-[var(--t-err)]"
+    if (stream === "system") return "text-[var(--t-sys)]"
+    return "text-[var(--t-fg)]"
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw size={20} className="animate-spin" style={{ color: "var(--fg-3)" }} />
-      </div>
+      <>
+        <PageHeader icon={FolderGit2} title="Loading project…" />
+        <PageBody>
+          <div className="space-y-3" aria-busy="true">
+            <Skeleton className="h-10 w-72" />
+            <Skeleton className="h-40" />
+            <Skeleton className="h-64" />
+          </div>
+        </PageBody>
+      </>
     )
   }
   if (!project) {
     return (
-      <div className="p-6">
-        <p style={{ color: "var(--fg-3)" }}>Project not found.</p>
-        <Link href="/projects" className="text-sm underline mt-2 block" style={{ color: "var(--acc)" }}>
-          ← Back to projects
-        </Link>
-      </div>
+      <>
+        <PageHeader icon={FolderGit2} title="Project not found" description={<BackLink />} />
+        <PageBody>
+          <EmptyState
+            icon={FolderGit2}
+            title="Project not found"
+            description="It may have been deleted."
+            action={<Button nativeButton={false} render={<Link href="/projects" />}>Back to projects</Button>}
+          />
+        </PageBody>
+      </>
     )
   }
 
@@ -488,429 +481,353 @@ export default function ProjectDetailPage() {
     return <ExternalProjectView project={project} />
   }
 
+  const setF = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm(f => ({ ...f, [k]: v }))
+  const busy = saving || deploying
+
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
-      {/* Header */}
-      <div className="shrink-0 px-6 pt-5 pb-4 space-y-3" style={{ borderBottom: "1px solid var(--border)" }}>
-        <div className="flex items-center gap-2">
-          <Link href="/projects" className="text-xs flex items-center gap-1" style={{ color: "var(--fg-3)" }}>
-            <ChevronLeft size={13} /> Projects
-          </Link>
-        </div>
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-lg font-semibold flex items-center gap-2" style={{ color: "var(--fg)" }}>
-              {project.Name}
-              <span
-                className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full capitalize"
-                style={{
-                  background: (STATUS_COLOR[project.Status] ?? "var(--fg-4)") + "20",
-                  color: STATUS_COLOR[project.Status] ?? "var(--fg-4)",
-                }}
+    <div className="flex h-full min-h-0 flex-col">
+      <Tabs
+        value={tab}
+        onValueChange={v => setTab(v as typeof tab)}
+        className="h-full min-h-0 gap-0"
+      >
+        <PageHeader
+          icon={FolderGit2}
+          title={<span className="flex items-center gap-2">{project.Name}<StatusPill status={project.Status} /></span>}
+          description={
+            <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <BackLink />
+              <span className="inline-flex items-center gap-1 font-mono"><GitBranch className="size-3.5" aria-hidden />{project.Branch}</span>
+              <DomainLink domain={project.Domain} />
+            </span>
+          }
+          actions={
+            <>
+              <Button
+                onClick={triggerDeploy}
+                disabled={deploying}
+                title={`Redeploy the latest commit on ${project.Branch || "the deploy branch"}`}
               >
-                <Circle size={6} fill="currentColor" />
-                {project.Status}
-              </span>
-            </h1>
-            <div className="flex items-center gap-3 text-xs mt-1" style={{ color: "var(--fg-3)" }}>
-              <span className="flex items-center gap-1">
-                <GitBranch size={11} />
-                {project.Branch}
-              </span>
-              <a
-                href={`https://${project.Domain}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 hover:underline"
-                style={{ color: "var(--acc)" }}
-              >
-                <Globe size={11} />
-                {project.Domain}
-                <ExternalLink size={9} />
-              </a>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={triggerDeploy}
-              disabled={deploying}
-              title={`Redeploy the latest commit on ${project.Branch || "the deploy branch"}`}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
-              style={{ background: "var(--acc)", color: "#fff" }}
-            >
-              {deploying ? <RefreshCw size={13} className="animate-spin" /> : <Play size={13} />}
-              {deploying ? "Deploying…" : "Redeploy"}
-            </button>
-            <button
-              onClick={deleteProject}
-              disabled={deleting}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
-              style={{ background: "var(--bg-2)", color: "var(--err)", border: "1px solid var(--border)" }}
-            >
-              <Trash2 size={13} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="shrink-0 px-6 flex gap-1 pt-3 pb-0" style={{ borderBottom: "1px solid var(--border)" }}>
-        {([
-          { key: "settings", label: "Settings", icon: Settings2 },
-          { key: "logs",     label: "Logs",     icon: Terminal  },
-          { key: "history",  label: "History",  icon: History   },
-        ] as const).map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className="flex items-center gap-1.5 px-3 pb-2 text-xs font-medium border-b-2 transition-colors"
-            style={{
-              borderColor: tab === key ? "var(--acc)" : "transparent",
-              color: tab === key ? "var(--acc)" : "var(--fg-3)",
-            }}
-          >
-            <Icon size={12} />
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        {/* Logs tab */}
-        {tab === "logs" && (
-          <div className="h-full flex flex-col">
-            {/* Deployment selector */}
-            {deployments.length > 0 && (
-              <div className="shrink-0 px-6 py-2 flex items-center gap-2" style={{ borderBottom: "1px solid var(--border)" }}>
-                <span className="text-xs" style={{ color: "var(--fg-3)" }}>Deployment:</span>
-                <select
-                  value={activeDep ?? ""}
-                  onChange={e => setActiveDep(e.target.value)}
-                  className="text-xs rounded px-2 py-1 outline-hidden"
-                  style={{ background: "var(--bg-2)", color: "var(--fg)", border: "1px solid var(--border)" }}
+                {deploying ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
+                {deploying ? "Deploying…" : "Redeploy"}
+              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label="Delete project"
+                      className="text-danger hover:text-danger"
+                      disabled={deleting}
+                      onClick={() => setConfirmDelete(true)}
+                    />
+                  }
                 >
-                  {deployments.map(d => (
-                    <option key={d.ID} value={d.ID}>
-                      {d.ID.slice(0, 14)} — {d.Status} — {age(d.CreatedAt)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <div className="flex-1 min-h-0 p-4">
-              <TerminalWindow
-                className="h-full"
-                bodyRef={logsRef}
-                title={`${activeDep ? activeDep.slice(0, 14) + " — " : ""}pulsenode build`}
+                  <Trash2 className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent>Delete project</TooltipContent>
+              </Tooltip>
+            </>
+          }
+        >
+          <TabsList variant="line">
+            <TabsTrigger value="settings"><Settings2 className="size-4" />Settings</TabsTrigger>
+            <TabsTrigger value="logs"><Terminal className="size-4" />Logs</TabsTrigger>
+            <TabsTrigger value="history"><History className="size-4" />History</TabsTrigger>
+          </TabsList>
+        </PageHeader>
+
+        {/* Logs tab */}
+        <TabsContent value="logs" className="flex min-h-0 flex-1 flex-col gap-3 p-4 sm:p-6">
+          {deployments.length > 0 && (
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <Label htmlFor="dep-select" className="text-xs text-muted-foreground">Deployment</Label>
+              <Select
+                value={activeDep ?? ""}
+                onValueChange={v => setActiveDep(v as string)}
+                items={deployments.map(d => ({ value: d.ID, label: `${d.ID.slice(0, 14)} — ${d.Status} — ${age(d.CreatedAt)}` }))}
               >
-                {logs.length === 0 ? (
-                  <p style={{ color: "#6b7280" }}>Waiting for logs…</p>
-                ) : (
-                  logs.map((entry, i) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <span className="select-none shrink-0" style={{ color: "#374151" }}>
-                        {new Date(entry.ts).toLocaleTimeString()}
-                      </span>
-                      <span style={{ color: logColor(entry.stream, entry.line), wordBreak: "break-all" }}>
-                        {entry.line}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </TerminalWindow>
+                <SelectTrigger id="dep-select" size="sm" className="w-full max-w-sm font-mono text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {deployments.map(d => (
+                    <SelectItem key={d.ID} value={d.ID} className="font-mono text-xs">
+                      {d.ID.slice(0, 14)} — {d.Status} — {age(d.CreatedAt)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </div>
-        )}
+          )}
+          <TerminalWindow
+            className="min-h-64 flex-1"
+            title={`${activeDep ? activeDep.slice(0, 14) + " — " : ""}pulsenode build`}
+          >
+            {logs.length === 0 ? (
+              <p className="text-[var(--t-muted)]">Waiting for logs…</p>
+            ) : (
+              logs.map((entry, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <span className="shrink-0 text-[var(--t-dim)] tabular-nums select-none">
+                    {new Date(entry.ts).toLocaleTimeString()}
+                  </span>
+                  <span className={cn("min-w-0 flex-1", logColor(entry.stream, entry.line))}>
+                    {entry.line}
+                  </span>
+                </div>
+              ))
+            )}
+          </TerminalWindow>
+        </TabsContent>
 
         {/* History tab */}
-        {tab === "history" && (
-          <div className="h-full overflow-y-auto p-6 space-y-2">
+        <TabsContent value="history" className="min-h-0 flex-1 overflow-auto">
+          <PageBody className="max-w-4xl space-y-2">
             {deployments.length === 0 ? (
-              <p className="text-sm" style={{ color: "var(--fg-3)" }}>No deployments yet.</p>
+              <EmptyState icon={History} title="No deployments yet" description="Deployments appear here after the first deploy." />
             ) : deployments.map(dep => (
-              <div
+              <Card
                 key={dep.ID}
                 onClick={() => { setActiveDep(dep.ID); setTab("logs") }}
-                className="w-full rounded-xl p-4 text-left transition-colors hover:opacity-80 cursor-pointer"
-                style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
+                className="cursor-pointer gap-2 py-4 transition-colors hover:border-[color-mix(in_srgb,var(--hue)_45%,var(--border))]"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span
-                    className="flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full capitalize"
-                    style={{
-                      background: (STATUS_COLOR[dep.Status] ?? "var(--fg-4)") + "20",
-                      color: STATUS_COLOR[dep.Status] ?? "var(--fg-4)",
-                    }}
-                  >
-                    <Circle size={6} fill="currentColor" />
-                    {dep.Status}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    {dep.Status === "success" && dep.ImageTag && (
-                      <button
-                        onClick={e => { e.stopPropagation(); rollback(dep) }}
-                        disabled={rolling !== null}
-                        title="Redeploy this build's image (zero-downtime)"
-                        className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md font-medium disabled:opacity-50"
-                        style={{ background: "var(--bg-3)", color: "var(--acc)", border: "1px solid var(--border)" }}
-                      >
-                        <RotateCcw size={11} className={rolling === dep.ID ? "animate-spin" : ""} />
-                        {rolling === dep.ID ? "Rolling…" : "Rollback"}
-                      </button>
+                <CardContent className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusPill status={dep.Status} />
+                    <Badge variant="secondary" className="gap-1 text-[11px] capitalize">
+                      {dep.Trigger === "auto" ? <Zap className="size-3" aria-hidden /> : dep.Trigger === "rollback" ? <RotateCcw className="size-3" aria-hidden /> : null}
+                      {dep.Trigger}
+                    </Badge>
+                    {dep.CommitSHA && (
+                      <span className="font-mono text-xs text-muted-foreground">{dep.CommitSHA.slice(0, 7)}</span>
                     )}
-                    <span className="text-xs whitespace-nowrap" style={{ color: "var(--fg-4)" }}>
-                      <Clock size={10} className="inline mr-1" />
+                    <span className="ml-auto flex items-center gap-1 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+                      <Clock className="size-3" aria-hidden />
                       {age(dep.CreatedAt)}
                     </span>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <span
-                    className="text-[10px] px-1.5 py-0.5 rounded font-medium capitalize"
-                    style={{ background: "var(--bg-3)", color: dep.Trigger === "auto" ? "var(--acc)" : "var(--fg-3)" }}
-                  >
-                    {dep.Trigger === "auto" ? "⚡ auto" : dep.Trigger === "rollback" ? "⟲ rollback" : dep.Trigger}
-                  </span>
-                  {dep.CommitSHA && (
-                    <span className="text-xs font-mono" style={{ color: "var(--fg-3)" }}>
-                      {dep.CommitSHA.slice(0, 7)}
-                    </span>
-                  )}
-                </div>
-                {dep.CommitMsg && (
-                  <p className="text-xs mt-1 truncate" style={{ color: "var(--fg)" }}>{dep.CommitMsg}</p>
-                )}
-              </div>
+                  {dep.CommitMsg && <p className="truncate text-sm">{dep.CommitMsg}</p>}
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={e => { e.stopPropagation(); setActiveDep(dep.ID); setTab("logs") }}
+                    >
+                      <ScrollText className="size-3.5" />
+                      View logs
+                    </Button>
+                    {dep.Status === "success" && dep.ImageTag && (
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        disabled={rolling !== null}
+                        title="Redeploy this build's image (zero-downtime)"
+                        onClick={e => { e.stopPropagation(); setRollbackTarget(dep) }}
+                      >
+                        <RotateCcw className={cn("size-3.5", rolling === dep.ID && "animate-spin")} />
+                        {rolling === dep.ID ? "Rolling…" : "Rollback"}
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             ))}
-          </div>
-        )}
+          </PageBody>
+        </TabsContent>
 
         {/* Settings tab */}
-        {tab === "settings" && (
-          <div className="h-full overflow-y-auto p-6">
-            <div className="max-w-lg space-y-4">
-              {/* Read-only identity */}
-              <div className="rounded-xl p-5 space-y-3" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-                {[
-                  { label: "Project ID", value: project.ID },
-                  { label: "Repository", value: project.RepoURL },
-                  ...(project.BaseDir ? [{ label: "Deploys from", value: `${project.BaseDir}/ (separate from this repo's other component)` }] : []),
-                  { label: "Last deployed commit", value: project.LastCommitSHA ? project.LastCommitSHA.slice(0, 7) : "—" },
-                ].map(row => (
-                  <div key={row.label} className="flex items-center justify-between text-sm gap-3">
-                    <span style={{ color: "var(--fg-3)" }}>{row.label}</span>
-                    <span className="font-mono text-xs truncate" style={{ color: "var(--fg)" }}>{row.value}</span>
-                  </div>
-                ))}
-              </div>
+        <TabsContent value="settings" className="min-h-0 flex-1 overflow-auto">
+          <PageBody className="max-w-3xl space-y-4">
+            {/* Read-only identity */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Project</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="divide-y">
+                  {[
+                    { label: "Project ID", value: project.ID },
+                    { label: "Repository", value: project.RepoURL },
+                    ...(project.BaseDir ? [{ label: "Deploys from", value: `${project.BaseDir}/ (separate from this repo's other component)` }] : []),
+                    { label: "Last deployed commit", value: project.LastCommitSHA ? project.LastCommitSHA.slice(0, 7) : "—" },
+                  ].map(row => (
+                    <div key={row.label} className="flex items-center justify-between gap-4 py-2 text-sm">
+                      <dt className="shrink-0 text-muted-foreground">{row.label}</dt>
+                      <dd className="min-w-0 truncate font-mono text-xs" title={row.value}>{row.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </CardContent>
+            </Card>
 
-              {/* Auto-deploy webhook */}
-              <div className="rounded-xl p-5 space-y-3" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <Webhook size={15} style={{ color: "var(--acc)" }} />
-                    <p className="text-sm font-medium" style={{ color: "var(--fg)" }}>Auto-deploy webhook</p>
-                  </div>
-                  {webhook?.supported && (
-                    <span className="flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full"
-                      style={{
-                        background: (webhook.installed ? "var(--ok)" : "var(--warn)") + "20",
-                        color: webhook.installed ? "var(--ok)" : "var(--warn)",
-                      }}>
-                      <Circle size={6} fill="currentColor" />
-                      {webhook.installed ? "Installed" : "Not installed"}
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px]" style={{ color: "var(--fg-4)" }}>
+            {/* Auto-deploy webhook */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Webhook className="size-4 text-[var(--hue)]" aria-hidden />Auto-deploy webhook</CardTitle>
+                <CardDescription>
                   {webhook?.supported
                     ? "Installed automatically on your repo so pushes deploy instantly. The branch poller stays on as a fallback."
                     : "Connect GitHub (and set NEXT_PUBLIC_ORIGIN) to auto-install a push webhook for instant deploys."}
-                </p>
-                {webhook?.error && <p className="text-[11px]" style={{ color: "var(--err)" }}>{webhook.error}</p>}
-                {webhook?.supported && (
-                  <button
-                    onClick={installHook}
-                    disabled={installingHook}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
-                    style={webhook.installed
-                      ? { background: "var(--bg-3)", color: "var(--fg-3)", border: "1px solid var(--border)" }
-                      : { background: "var(--acc)", color: "#fff" }}
-                  >
-                    {installingHook
-                      ? <RefreshCw size={13} className="animate-spin" />
-                      : <Webhook size={13} />}
-                    {installingHook ? "Working…" : webhook.installed ? "Re-check / repair" : "Install webhook"}
-                  </button>
-                )}
-              </div>
+                </CardDescription>
+              </CardHeader>
+              {(webhook?.supported || webhook?.error) && (
+                <CardContent className="space-y-3">
+                  {webhook?.error && (
+                    <Alert variant="destructive">
+                      <AlertCircle />
+                      <AlertDescription>{webhook.error}</AlertDescription>
+                    </Alert>
+                  )}
+                  {webhook?.supported && (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Pill tone={webhook.installed ? "ok" : "warn"} dot>
+                        {webhook.installed ? "Installed" : "Not installed"}
+                      </Pill>
+                      <Button
+                        variant={webhook.installed ? "outline" : "default"}
+                        size="sm"
+                        onClick={installHook}
+                        disabled={installingHook}
+                      >
+                        {installingHook ? <Loader2 className="size-4 animate-spin" /> : <Webhook className="size-4" />}
+                        {installingHook ? "Working…" : webhook.installed ? "Re-check / repair" : "Install webhook"}
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              )}
+            </Card>
 
-              {/* Editable config */}
-              <div className="rounded-xl p-5 space-y-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-                {/* Auto-deploy toggle */}
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium flex items-center gap-1.5" style={{ color: "var(--fg)" }}>
-                      <Zap size={13} style={{ color: "var(--acc)" }} /> Auto-deploy
-                    </p>
-                    <p className="text-[11px] mt-0.5" style={{ color: "var(--fg-4)" }}>
+            {/* Editable config */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuration</CardTitle>
+                <CardDescription>Changes apply on the next deploy.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="flex items-start justify-between gap-4 rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="auto-deploy" className="flex items-center gap-1.5">
+                      <Zap className="size-3.5 text-[var(--hue)]" aria-hidden /> Auto-deploy
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
                       Rebuild &amp; redeploy automatically when <span className="font-mono">{form.branch || "the branch"}</span> gets new commits.
                     </p>
                   </div>
-                  <button
-                    role="switch"
-                    aria-checked={form.autoDeploy}
-                    onClick={() => setForm(f => ({ ...f, autoDeploy: !f.autoDeploy }))}
-                    className="relative w-10 h-6 rounded-full shrink-0 transition-colors"
-                    style={{ background: form.autoDeploy ? "var(--acc)" : "var(--bg-3)", border: "1px solid var(--border)" }}
-                  >
-                    <span
-                      className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
-                      style={{ left: form.autoDeploy ? "1.25rem" : "0.15rem", background: "#fff" }}
-                    />
-                  </button>
+                  <Switch id="auto-deploy" checked={form.autoDeploy} onCheckedChange={v => setF("autoDeploy", v)} />
                 </div>
 
-                {/* Name */}
-                <Field label="Project Name">
-                  <input
-                    value={form.name}
-                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
-                    style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
-                  />
-                </Field>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField label="Project name" htmlFor="ps-name">
+                    <Input id="ps-name" value={form.name} onChange={e => setF("name", e.target.value)} />
+                  </FormField>
+                  <FormField label="Branch" htmlFor="ps-branch">
+                    <Input id="ps-branch" value={form.branch} onChange={e => setF("branch", e.target.value)} className="font-mono" />
+                  </FormField>
+                  <FormField label="Domain" htmlFor="ps-domain">
+                    <Input id="ps-domain" value={form.domain} onChange={e => setF("domain", e.target.value)} placeholder="app.yourdomain.com" className="font-mono" />
+                  </FormField>
+                  <FormField label="Container port" htmlFor="ps-port">
+                    <Input id="ps-port" type="number" inputMode="numeric" value={form.port} onChange={e => setF("port", e.target.value)} className="tabular-nums" />
+                  </FormField>
+                </div>
 
-                {/* Branch */}
-                <Field label="Branch">
-                  <input
-                    value={form.branch}
-                    onChange={e => setForm(f => ({ ...f, branch: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-lg text-sm outline-hidden font-mono"
-                    style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
-                  />
-                </Field>
+                <div className="space-y-1.5">
+                  <p className="text-sm leading-none font-medium">Build method</p>
+                  <ChoiceGroup label="Build method" value={form.buildMethod} onChange={v => setF("buildMethod", v)} options={[...BUILD_METHODS]} />
+                </div>
 
-                {/* Domain */}
-                <Field label="Domain">
-                  <input
-                    value={form.domain}
-                    onChange={e => setForm(f => ({ ...f, domain: e.target.value }))}
-                    placeholder="app.yourdomain.com"
-                    className="w-full px-3 py-2 rounded-lg text-sm outline-hidden font-mono"
-                    style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
-                  />
-                </Field>
-
-                {/* Port */}
-                <Field label="Container Port">
-                  <input
-                    type="number"
-                    value={form.port}
-                    onChange={e => setForm(f => ({ ...f, port: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-lg text-sm outline-hidden"
-                    style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
-                  />
-                </Field>
-
-                {/* Build method */}
-                <Field label="Build Method">
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { value: "auto",       label: "Auto-detect" },
-                      { value: "compose",    label: "Docker Compose" },
-                      { value: "dockerfile", label: "Dockerfile" },
-                      { value: "nixpacks",   label: "Nixpacks" },
-                    ].map(opt => (
-                      <button
-                        key={opt.value}
-                        onClick={() => setForm(f => ({ ...f, buildMethod: opt.value }))}
-                        className="p-2.5 rounded-lg text-left transition-colors text-xs font-medium"
-                        style={{
-                          background: form.buildMethod === opt.value ? "var(--acc)/10" : "var(--bg-3)",
-                          border: `1px solid ${form.buildMethod === opt.value ? "var(--acc)" : "var(--border)"}`,
-                          color: form.buildMethod === opt.value ? "var(--acc)" : "var(--fg)",
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </Field>
-
-                {/* Env vars */}
-                <Field
-                  label={monorepo ? "Frontend Environment Variables" : "Environment Variables"}
+                <FormField
+                  label={monorepo ? "Frontend environment variables" : "Environment variables"}
+                  htmlFor="ps-env"
                   hint={monorepo ? "Frontend container only · one KEY=VALUE per line" : "One KEY=VALUE per line"}
                 >
-                  <textarea
+                  <Textarea
+                    id="ps-env"
                     value={form.envText}
-                    onChange={e => setForm(f => ({ ...f, envText: e.target.value }))}
+                    onChange={e => setF("envText", e.target.value)}
                     placeholder={"NODE_ENV=production\nPORT=3000"}
                     rows={4}
-                    className="w-full px-3 py-2 rounded-lg text-sm outline-hidden font-mono resize-y"
-                    style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
+                    spellCheck={false}
+                    className="resize-y font-mono"
                   />
-                </Field>
+                </FormField>
 
-                {/* Backend env vars (monorepo) */}
                 {monorepo && (
-                  <Field label="Backend Environment Variables" hint="Backend container only — set BACKEND_PORT here for the /api service">
-                    <textarea
+                  <FormField label="Backend environment variables" htmlFor="ps-benv" hint="Backend container only — set BACKEND_PORT here for the /api service">
+                    <Textarea
+                      id="ps-benv"
                       value={form.backendEnvText}
-                      onChange={e => setForm(f => ({ ...f, backendEnvText: e.target.value }))}
+                      onChange={e => setF("backendEnvText", e.target.value)}
                       placeholder={"NODE_ENV=production\nDATABASE_URL=postgres://…\nBACKEND_PORT=3001"}
                       rows={4}
-                      className="w-full px-3 py-2 rounded-lg text-sm outline-hidden font-mono resize-y"
-                      style={{ background: "var(--bg-3)", color: "var(--fg)", border: "1px solid var(--border)" }}
+                      spellCheck={false}
+                      className="resize-y font-mono"
                     />
-                  </Field>
+                  </FormField>
                 )}
-              </div>
 
-              {settingsErr && (
-                <p className="text-sm px-3 py-2 rounded-lg" style={{ background: "var(--err)/10", color: "var(--err)" }}>
-                  {settingsErr}
-                </p>
-              )}
+                {settingsErr && (
+                  <Alert variant="destructive">
+                    <AlertCircle />
+                    <AlertDescription>{settingsErr}</AlertDescription>
+                  </Alert>
+                )}
 
-              {/* Save actions */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => saveSettings(false)}
-                  disabled={saving || deploying}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium disabled:opacity-60"
-                  style={{ background: "var(--bg-2)", color: "var(--fg)", border: "1px solid var(--border)" }}
-                >
-                  {savedAt && !saving ? <Check size={14} style={{ color: "var(--ok)" }} /> : <Save size={14} />}
-                  {saving ? "Saving…" : "Save"}
-                </button>
-                <button
-                  onClick={() => saveSettings(true)}
-                  disabled={saving || deploying}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium disabled:opacity-60"
-                  style={{ background: "var(--acc)", color: "#fff" }}
-                >
-                  {saving || deploying
-                    ? <><RefreshCw size={14} className="animate-spin" /> Working…</>
-                    : <><Play size={14} /> Save &amp; Redeploy</>}
-                </button>
-              </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={() => saveSettings(false)} disabled={busy}>
+                    {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                    {saving ? "Saving…" : "Save"}
+                  </Button>
+                  <Button onClick={() => saveSettings(true)} disabled={busy}>
+                    {busy ? <><Loader2 className="size-4 animate-spin" /> Working…</> : <><Play className="size-4" /> Save &amp; redeploy</>}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
-              <button
-                onClick={deleteProject}
-                disabled={deleting}
-                className="w-full py-2.5 rounded-lg text-sm font-medium disabled:opacity-60 flex items-center justify-center gap-2"
-                style={{ border: "1px solid var(--err)", color: "var(--err)" }}
-              >
-                <Trash2 size={13} />
-                Delete Project
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+            {/* Danger zone */}
+            <Card className="border-danger/40">
+              <CardHeader>
+                <CardTitle className="text-danger">Danger zone</CardTitle>
+                <CardDescription>Deleting a project removes it and its deployments. This cannot be undone.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button variant="destructive" onClick={() => setConfirmDelete(true)} disabled={deleting}>
+                  <Trash2 className="size-4" />
+                  Delete project
+                </Button>
+              </CardContent>
+            </Card>
+          </PageBody>
+        </TabsContent>
+      </Tabs>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        icon={Trash2}
+        title="Delete project?"
+        description="This cannot be undone."
+        target={project.Name}
+        confirmLabel="Delete project"
+        loading={deleting}
+        onConfirm={deleteProject}
+      />
+      <ConfirmDialog
+        open={rollbackTarget !== null}
+        onOpenChange={o => { if (!o) setRollbackTarget(null) }}
+        icon={RotateCcw}
+        tone="warning"
+        title="Roll back to this build?"
+        description="This redeploys that build's image with zero downtime."
+        target={rollbackTarget ? (rollbackTarget.CommitSHA ? rollbackTarget.CommitSHA.slice(0, 7) : rollbackTarget.ID.slice(0, 10)) : undefined}
+        confirmLabel="Roll back"
+        loading={rolling !== null}
+        onConfirm={() => rollbackTarget ? rollback(rollbackTarget) : undefined}
+      />
     </div>
   )
 }

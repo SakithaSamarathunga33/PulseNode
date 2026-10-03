@@ -1,20 +1,23 @@
 "use client"
 
-import { useRef, useState, useEffect } from "react"
-import { useGSAP } from "@gsap/react"
-import gsap from "gsap"
+import { useState, useEffect } from "react"
+import { AlertTriangle, Box, Boxes, Database, Rocket, Server } from "lucide-react"
 import { COOLIFY_PROJECTS as MOCK_PROJECTS, COOLIFY_DEPLOYMENTS as MOCK_DEPLOYMENTS } from "@/lib/mock-data"
 import { nodeApi } from "@/lib/api"
 import type { CoolifyProject, CoolifyDeployment } from "@/lib/types"
+import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { StatCard } from "@/components/dashboard/StatCard"
 import { Pill } from "@/components/dashboard/Pill"
-import BlurFade from "@/components/magicui/blur-fade"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion"
-import { cn } from "@/lib/utils"
 
-/* ── Engine colour for Coolify databases ────────────────────────────── */
+/* Engine colour for Coolify databases (brand vars) */
 const ENGINE_TONE: Record<string, string> = {
   postgres: "var(--db-postgres)",
   redis:    "var(--db-redis)",
@@ -25,67 +28,57 @@ function EnginePill({ engine }: { engine: string }) {
   const color = ENGINE_TONE[engine] ?? "var(--db-other)"
   return (
     <span
-      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
-      style={{ background: `color-mix(in srgb, ${color} 14%, transparent)`, color }}
+      className="inline-flex h-5 items-center rounded-full px-2 text-[11px] font-semibold"
+      style={{ background: `color-mix(in srgb, ${color} 14%, transparent)`, color: `color-mix(in srgb, ${color} 70%, var(--foreground))` }}
     >
       {engine}
     </span>
   )
 }
 
-/* ── Status pill helper ─────────────────────────────────────────────── */
 function statusTone(s: string): "ok" | "bad" | "warn" {
   if (s === "running")  return "ok"
   if (s === "stopped")  return "bad"
   return "warn"
 }
 
-/* ── Deployment status cell ─────────────────────────────────────────── */
 function DeployStatus({ status }: { status: string }) {
   if (status === "success") return <Pill tone="ok" dot>success</Pill>
   if (status === "failed")  return <Pill tone="bad" dot>failed</Pill>
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-400">
-      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 status-live" />
-      running
-    </span>
-  )
+  return <Pill tone="warn" dot>running</Pill>
 }
 
-/* ── Sub-section header ─────────────────────────────────────────────── */
 function SubHeader({ title, count }: { title: string; count: number }) {
   return (
-    <div className="flex items-center gap-2 mb-3">
-      <span className="text-xs font-semibold text-helm-fg">{title}</span>
-      <span className="px-1.5 py-0.5 rounded-full bg-pulseNode-navy text-[10px] text-helm-fg3 font-mono">
-        {count}
-      </span>
+    <div className="mb-2 flex items-center gap-2">
+      <h2 className="text-sm font-semibold">{title}</h2>
+      <Badge variant="secondary" className="font-mono tabular-nums">{count}</Badge>
     </div>
   )
 }
 
-/* ── Page ────────────────────────────────────────────────────────────── */
+const Code = ({ children }: { children: React.ReactNode }) => (
+  <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{children}</code>
+)
+
 export default function CoolifyPage() {
-  const container  = useRef<HTMLDivElement>(null)
   const [projects,     setProjects]     = useState<CoolifyProject[]>(MOCK_PROJECTS)
   const [deployments,  setDeployments]  = useState<CoolifyDeployment[]>(MOCK_DEPLOYMENTS)
+  const [live, setLive] = useState({ projects: false, deployments: false })
+  const [settled, setSettled] = useState(false)
 
   useEffect(() => {
-    nodeApi.get<CoolifyProject[]>("/api/coolify/projects")
-      .then(({ data }) => setProjects(data))
+    const p = nodeApi.get<CoolifyProject[]>("/api/coolify/projects")
+      .then(({ data }) => { setProjects(data); setLive(l => ({ ...l, projects: true })) })
       .catch(() => {})
-    nodeApi.get<CoolifyDeployment[]>("/api/coolify/deployments")
-      .then(({ data }) => setDeployments(data))
+    const d = nodeApi.get<CoolifyDeployment[]>("/api/coolify/deployments")
+      .then(({ data }) => { setDeployments(data); setLive(l => ({ ...l, deployments: true })) })
       .catch(() => {})
+    Promise.all([p, d]).finally(() => setSettled(true))
   }, [])
 
-  useGSAP(() => {
-    gsap.from(".gsap-enter", {
-      y: 20, opacity: 0, duration: 0.5, stagger: 0.08, ease: "power2.out",
-    })
-  }, { scope: container })
+  const isSample = settled && !(live.projects && live.deployments)
 
-  /* Aggregate stats */
   const totalApps = projects.reduce((s, p) => s + p.apps.length, 0)
   const totalDbs  = projects.reduce((s, p) => s + p.databases.length, 0)
   const runningServices = projects.reduce(
@@ -93,263 +86,177 @@ export default function CoolifyPage() {
   )
 
   return (
-    <div ref={container} className="p-6 space-y-6">
-      {/* Page header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-helm-fg">Coolify</h1>
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-pn-blue/15 text-pn-blue uppercase tracking-wider">
-              Labels
-            </span>
+    <>
+      <PageHeader
+        icon={Boxes}
+        title={<span className="flex items-center gap-2">Coolify <Badge variant="secondary" className="uppercase tracking-wider">Labels</Badge></span>}
+        description="Self-hosted deployment platform, detected from Docker labels."
+      />
+      <PageBody>
+        {isSample && (
+          <Alert>
+            <AlertTriangle />
+            <AlertTitle>Showing sample data</AlertTitle>
+            <AlertDescription>
+              The Coolify API did not respond, so the figures and tables below are placeholder examples, not your server.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!settled ? (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
+            </div>
+            <Skeleton className="h-40 rounded-xl" />
           </div>
-          <p className="text-sm text-helm-fg3 mt-0.5">
-            Self-hosted deployment platform · Docker label detection
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button className="border border-pulseNode-border/20 text-helm-fg3 hover:text-helm-fg px-3 py-1.5 rounded-lg text-sm transition-colors">
-            Refresh
-          </button>
-          <button className="bg-pn-electric text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-pn-electric/90 transition-colors">
-            Open Dashboard
-          </button>
-        </div>
-      </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatCard label="Total Apps"        value={totalApps}          tone="acc"  icon={Box} />
+              <StatCard label="Running Services"  value={runningServices}    tone="ok"   icon={Server} />
+              <StatCard label="Managed Databases" value={totalDbs}           tone="info" icon={Database} />
+              <StatCard label="Deployments"       value={deployments.length} tone="acc"  icon={Rocket} />
+            </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="gsap-enter">
-          <StatCard label="Total Apps"         value={totalApps}       tone="acc" />
-        </div>
-        <div className="gsap-enter">
-          <StatCard label="Running Services"   value={runningServices} tone="ok"  />
-        </div>
-        <div className="gsap-enter">
-          <StatCard label="Managed Databases"  value={totalDbs}        tone="info" />
-        </div>
-        <div className="gsap-enter">
-          <StatCard label="Deployments"        value={deployments.length} tone="acc" />
-        </div>
-      </div>
+            <Accordion multiple defaultValue={projects.map(p => p.id)} className="space-y-3">
+              {projects.map(project => (
+                <Card key={project.id} className="gap-0 overflow-hidden py-0">
+                  <AccordionItem value={project.id} className="border-0">
+                    <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="text-sm font-semibold">{project.name}</span>
+                        <span className="flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
+                          <Badge variant="secondary">{project.apps.length} apps</Badge>
+                          <Badge variant="secondary">{project.databases.length} dbs</Badge>
+                          <Badge variant="secondary">{project.services.length} services</Badge>
+                        </span>
+                      </div>
+                    </AccordionTrigger>
 
-      {/* Projects accordion */}
-      <div className="space-y-3">
-        {projects.map(project => (
-          <div key={project.id} className="gsap-enter rounded-xl border border-pulseNode-border/10 overflow-hidden bg-pulseNode-navyLight shadow-card">
-            <Accordion multiple={false} defaultValue={[project.id]}>
-              <AccordionItem value={project.id} className="border-0">
-                <AccordionTrigger
-                  className={cn(
-                    "px-4 py-3 hover:no-underline",
-                    "bg-pulseNode-navyLight hover:bg-pulseNode-navy/50 transition-colors",
-                    "[&>svg]:text-helm-fg3",
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold text-sm text-helm-fg">{project.name}</span>
-                    <span className="inline-flex items-center gap-1 text-[10px] text-helm-fg3">
-                      <span className="bg-pn-cyan/10 text-pn-cyan px-1.5 py-0.5 rounded font-mono">
-                        {project.apps.length} apps
-                      </span>
-                      <span className="bg-[#336791]/15 text-[#336791] px-1.5 py-0.5 rounded font-mono">
-                        {project.databases.length} dbs
-                      </span>
-                      <span className="bg-pulseNode-navy/60 text-helm-fg3 px-1.5 py-0.5 rounded font-mono">
-                        {project.services.length} services
-                      </span>
-                    </span>
-                  </div>
-                </AccordionTrigger>
-
-                <AccordionContent className="bg-pulseNode-navy/30 px-4 pb-4 pt-2 border-t border-pulseNode-border/10">
-                  <BlurFade delay={0.05}>
-                    <div className="space-y-6">
-
-                      {/* Applications */}
+                    <AccordionContent className="space-y-6 border-t px-4 pt-4 pb-4">
                       {project.apps.length > 0 && (
                         <div>
                           <SubHeader title="Applications" count={project.apps.length} />
-                          <div className="rounded-lg overflow-hidden border border-pulseNode-border/10">
-                            <table className="pn-table w-full">
-                              <thead>
-                                <tr>
-                                  <th>Name</th>
-                                  <th>Domains</th>
-                                  <th>Status</th>
-                                  <th>Last Deployed</th>
-                                  <th>Branch</th>
-                                  <th>Container</th>
-                                </tr>
-                              </thead>
-                              <tbody>
+                          <div className="overflow-x-auto rounded-lg border">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Name</TableHead><TableHead>Domains</TableHead><TableHead>Status</TableHead>
+                                  <TableHead>Last Deployed</TableHead><TableHead>Branch</TableHead><TableHead>Container</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
                                 {project.apps.map(app => (
-                                  <tr key={app.id}>
-                                    <td className="font-medium text-helm-fg">{app.name}</td>
-                                    <td>
-                                      <div className="flex flex-wrap gap-1">
-                                        {app.domains.map(d => (
-                                          <code key={d} className="text-[11px] bg-pulseNode-navy/60 px-1.5 py-0.5 rounded text-pn-cyan">
-                                            {d}
-                                          </code>
-                                        ))}
-                                      </div>
-                                    </td>
-                                    <td>
-                                      <Pill tone={statusTone(app.status)} dot>{app.status}</Pill>
-                                    </td>
-                                    <td className="dim">{app.lastDeployed}</td>
-                                    <td>
-                                      <code className="text-[11px] bg-pulseNode-navy/60 px-1.5 py-0.5 rounded text-helm-fg3">
-                                        {app.branch}
-                                      </code>
-                                    </td>
-                                    <td className="mono-cell dim text-[11px]">{app.containerName}</td>
-                                  </tr>
+                                  <TableRow key={app.id}>
+                                    <TableCell className="font-medium">{app.name}</TableCell>
+                                    <TableCell>
+                                      <div className="flex flex-wrap gap-1">{app.domains.map(d => <Code key={d}>{d}</Code>)}</div>
+                                    </TableCell>
+                                    <TableCell><Pill tone={statusTone(app.status)} dot>{app.status}</Pill></TableCell>
+                                    <TableCell className="text-muted-foreground">{app.lastDeployed}</TableCell>
+                                    <TableCell><Code>{app.branch}</Code></TableCell>
+                                    <TableCell className="font-mono text-xs text-muted-foreground">{app.containerName}</TableCell>
+                                  </TableRow>
                                 ))}
-                              </tbody>
-                            </table>
+                              </TableBody>
+                            </Table>
                           </div>
                         </div>
                       )}
 
-                      {/* Databases */}
                       {project.databases.length > 0 && (
                         <div>
                           <SubHeader title="Databases" count={project.databases.length} />
-                          <div className="rounded-lg overflow-hidden border border-pulseNode-border/10">
-                            <table className="pn-table w-full">
-                              <thead>
-                                <tr>
-                                  <th>Name</th>
-                                  <th>Engine</th>
-                                  <th>Status</th>
-                                  <th className="right">Size</th>
-                                  <th className="right">Connections</th>
-                                </tr>
-                              </thead>
-                              <tbody>
+                          <div className="overflow-x-auto rounded-lg border">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Name</TableHead><TableHead>Engine</TableHead><TableHead>Status</TableHead>
+                                  <TableHead className="text-right">Size</TableHead><TableHead className="text-right">Connections</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
                                 {project.databases.map(db => (
-                                  <tr key={db.id}>
-                                    <td className="font-medium text-helm-fg">{db.name}</td>
-                                    <td><EnginePill engine={db.engine} /></td>
-                                    <td>
-                                      <Pill tone={statusTone(db.status)} dot>{db.status}</Pill>
-                                    </td>
-                                    <td className="right dim">{db.size}</td>
-                                    <td className="right dim">{db.conns}</td>
-                                  </tr>
+                                  <TableRow key={db.id}>
+                                    <TableCell className="font-medium">{db.name}</TableCell>
+                                    <TableCell><EnginePill engine={db.engine} /></TableCell>
+                                    <TableCell><Pill tone={statusTone(db.status)} dot>{db.status}</Pill></TableCell>
+                                    <TableCell className="text-right font-mono tabular-nums text-muted-foreground">{db.size}</TableCell>
+                                    <TableCell className="text-right font-mono tabular-nums text-muted-foreground">{db.conns}</TableCell>
+                                  </TableRow>
                                 ))}
-                              </tbody>
-                            </table>
+                              </TableBody>
+                            </Table>
                           </div>
                         </div>
                       )}
 
-                      {/* Services */}
                       {project.services.length > 0 && (
                         <div>
                           <SubHeader title="Services" count={project.services.length} />
-                          <div className="rounded-lg overflow-hidden border border-pulseNode-border/10">
-                            <table className="pn-table w-full">
-                              <thead>
-                                <tr>
-                                  <th>Name</th>
-                                  <th>Type</th>
-                                  <th>Status</th>
-                                  <th>Ports</th>
-                                </tr>
-                              </thead>
-                              <tbody>
+                          <div className="overflow-x-auto rounded-lg border">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Name</TableHead><TableHead>Type</TableHead><TableHead>Status</TableHead><TableHead>Ports</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
                                 {project.services.map(svc => (
-                                  <tr key={svc.id}>
-                                    <td className="font-medium text-helm-fg">{svc.name}</td>
-                                    <td className="dim">{svc.type}</td>
-                                    <td>
-                                      <Pill tone={statusTone(svc.status)} dot>{svc.status}</Pill>
-                                    </td>
-                                    <td>
+                                  <TableRow key={svc.id}>
+                                    <TableCell className="font-medium">{svc.name}</TableCell>
+                                    <TableCell className="text-muted-foreground">{svc.type}</TableCell>
+                                    <TableCell><Pill tone={statusTone(svc.status)} dot>{svc.status}</Pill></TableCell>
+                                    <TableCell>
                                       {svc.ports.length > 0
-                                        ? (
-                                          <div className="flex flex-wrap gap-1">
-                                            {svc.ports.map(p => (
-                                              <code key={p} className="text-[11px] bg-pulseNode-navy/60 px-1.5 py-0.5 rounded text-helm-fg3">
-                                                {p}
-                                              </code>
-                                            ))}
-                                          </div>
-                                        )
-                                        : <span className="text-helm-fg3 text-xs">—</span>
-                                      }
-                                    </td>
-                                  </tr>
+                                        ? <div className="flex flex-wrap gap-1">{svc.ports.map(p => <Code key={p}>{p}</Code>)}</div>
+                                        : <span className="text-muted-foreground">—</span>}
+                                    </TableCell>
+                                  </TableRow>
                                 ))}
-                              </tbody>
-                            </table>
+                              </TableBody>
+                            </Table>
                           </div>
                         </div>
                       )}
-
-                    </div>
-                  </BlurFade>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          </div>
-        ))}
-      </div>
-
-      {/* Recent Deployments */}
-      <div className="gsap-enter bg-pulseNode-navyLight rounded-xl border border-pulseNode-border/10 shadow-card overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-pulseNode-border/10">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-sm text-helm-fg">Recent Deployments</span>
-            <span className="px-1.5 py-0.5 rounded-full bg-pulseNode-navy text-[10px] text-helm-fg3 font-mono">
-              {deployments.length}
-            </span>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="pn-table w-full">
-            <thead>
-              <tr>
-                <th>App Name</th>
-                <th>Branch</th>
-                <th>Status</th>
-                <th className="right">Duration</th>
-                <th>Triggered By</th>
-                <th>Timestamp</th>
-              </tr>
-            </thead>
-            <tbody>
-              {deployments.map(dep => (
-                <tr key={dep.id}>
-                  <td className="font-medium text-helm-fg">{dep.appName}</td>
-                  <td>
-                    <code className="text-[11px] bg-pulseNode-navy/60 px-1.5 py-0.5 rounded text-helm-fg3">
-                      {dep.branch}
-                    </code>
-                  </td>
-                  <td><DeployStatus status={dep.status} /></td>
-                  <td className="right dim">{dep.duration}</td>
-                  <td className="dim">{dep.triggeredBy}</td>
-                  <td className="dim">{dep.timestamp}</td>
-                </tr>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Card>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </Accordion>
 
-      {/* Data source badge */}
-      <div className="flex justify-center pb-2">
-        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium bg-pn-blue/10 text-pn-blue border border-pn-blue/20">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          Data source: Docker Labels
-        </span>
-      </div>
-    </div>
+            <Card className="gap-0 overflow-hidden py-0">
+              <CardHeader className="flex-row items-center gap-2 border-b py-4">
+                <CardTitle>Recent Deployments</CardTitle>
+                <Badge variant="secondary" className="font-mono tabular-nums">{deployments.length}</Badge>
+              </CardHeader>
+              <CardContent className="overflow-x-auto p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>App Name</TableHead><TableHead>Branch</TableHead><TableHead>Status</TableHead>
+                      <TableHead className="text-right">Duration</TableHead><TableHead>Triggered By</TableHead><TableHead>Timestamp</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {deployments.map(dep => (
+                      <TableRow key={dep.id}>
+                        <TableCell className="font-medium">{dep.appName}</TableCell>
+                        <TableCell><Code>{dep.branch}</Code></TableCell>
+                        <TableCell><DeployStatus status={dep.status} /></TableCell>
+                        <TableCell className="text-right font-mono tabular-nums text-muted-foreground">{dep.duration}</TableCell>
+                        <TableCell className="text-muted-foreground">{dep.triggeredBy}</TableCell>
+                        <TableCell className="text-muted-foreground tabular-nums">{dep.timestamp}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </PageBody>
+    </>
   )
 }

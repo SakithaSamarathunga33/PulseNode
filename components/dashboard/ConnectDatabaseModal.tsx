@@ -1,7 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { createPortal } from "react-dom"
+import { useState } from "react"
+import { CheckCircle2, Loader2, XCircle } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import type { CustomConnection } from "@/lib/types"
 
 type Phase = "input" | "testing" | "tested" | "saving" | "saved" | "error"
@@ -13,14 +19,11 @@ export function ConnectDatabaseModal({
   onClose: () => void
   onSaved: (conn: CustomConnection) => void
 }) {
-  const [mounted,    setMounted]    = useState(false)
   const [phase,      setPhase]      = useState<Phase>("input")
   const [connStr,    setConnStr]    = useState("")
   const [alias,      setAlias]      = useState("")
   const [testResult, setTestResult] = useState<{ engine: string; host: string; port: number; version?: string } | null>(null)
   const [errMsg,     setErrMsg]     = useState("")
-
-  useEffect(() => setMounted(true), [])
 
   async function testConnection() {
     if (!connStr.trim()) return
@@ -75,112 +78,92 @@ export function ConnectDatabaseModal({
     mongodb:  "mongodb://user:pass@host:27017/db",
   }
 
-  if (!mounted) return null
+  const busy = phase === "testing" || phase === "saving"
 
-  return createPortal(
-    <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-      <div className="bg-pulseNode-navyLight rounded-2xl border border-pulseNode-border/20 shadow-2xl w-full max-w-lg">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-pulseNode-border/10">
-          <div>
-            <h2 className="text-base font-bold text-helm-fg">Add External Database</h2>
-            <p className="text-xs text-helm-fg3 mt-0.5">Monitor any database by connection string</p>
+  return (
+    <Dialog open disablePointerDismissal onOpenChange={open => { if (!open) onClose() }}>
+      <DialogContent className="max-h-[90vh] gap-4 overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Connect database</DialogTitle>
+          <DialogDescription>Monitor any external database by connection string</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="connect-db-string">Connection string</Label>
+          <Textarea
+            id="connect-db-string"
+            value={connStr}
+            onChange={e => { setConnStr(e.target.value); setPhase("input"); setTestResult(null) }}
+            placeholder={ENGINE_EXAMPLES.postgres}
+            rows={3}
+            spellCheck={false}
+            className="resize-none font-mono text-xs"
+          />
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Examples:</span>
+            {Object.entries(ENGINE_EXAMPLES).map(([eng, ex]) => (
+              <Button key={eng} type="button" variant="outline" size="xs" onClick={() => setConnStr(ex)}>
+                {eng}
+              </Button>
+            ))}
           </div>
-          <button onClick={onClose} className="text-helm-fg3 hover:text-helm-fg transition-colors text-lg">✕</button>
         </div>
 
-        <div className="p-5 space-y-4">
-          {/* Connection string input */}
-          <div className="space-y-1.5">
-            <label className="text-[10px] uppercase tracking-wider text-helm-fg3 font-semibold">Connection String</label>
-            <textarea
-              value={connStr}
-              onChange={e => { setConnStr(e.target.value); setPhase("input"); setTestResult(null) }}
-              placeholder={ENGINE_EXAMPLES.postgres}
-              rows={3}
-              className="w-full bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg font-mono text-xs rounded-lg px-3 py-2.5 outline-hidden focus:border-pn-electric/50 resize-none placeholder:text-helm-fg3/40"
-            />
-            <div className="flex gap-2 flex-wrap">
-              {Object.entries(ENGINE_EXAMPLES).map(([eng, ex]) => (
-                <button
-                  key={eng}
-                  onClick={() => setConnStr(ex)}
-                  className="text-[9px] text-helm-fg3 hover:text-helm-fg bg-pulseNode-navy/60 px-2 py-0.5 rounded transition-colors"
-                >
-                  {eng}
-                </button>
-              ))}
-            </div>
-          </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="connect-db-alias">
+            Display name <span className="font-normal text-muted-foreground">(optional)</span>
+          </Label>
+          <Input
+            id="connect-db-alias"
+            value={alias}
+            onChange={e => setAlias(e.target.value)}
+            placeholder="My Production DB"
+          />
+        </div>
 
-          {/* Optional alias */}
-          <div className="space-y-1.5">
-            <label className="text-[10px] uppercase tracking-wider text-helm-fg3 font-semibold">
-              Display Name <span className="normal-case opacity-60">(optional)</span>
-            </label>
-            <input
-              value={alias}
-              onChange={e => setAlias(e.target.value)}
-              placeholder="My Production DB"
-              className="w-full bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg text-xs rounded-lg px-3 py-2 outline-hidden focus:border-pn-electric/50 placeholder:text-helm-fg3/40"
-            />
-          </div>
+        {phase === "tested" && testResult && (
+          <Alert className="border-success/40 bg-success/10 text-success">
+            <CheckCircle2 />
+            <AlertDescription className="text-success">
+              Connected · <span className="font-mono">{testResult.engine} {testResult.version && `v${testResult.version}`}</span> · <span className="font-mono">{testResult.host}:{testResult.port}</span>
+            </AlertDescription>
+          </Alert>
+        )}
 
-          {/* Test result */}
-          {phase === "tested" && testResult && (
-            <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
-              <span className="text-emerald-400">✓</span>
-              <span className="text-xs text-emerald-400">
-                Connected · {testResult.engine} {testResult.version && `v${testResult.version}`} · {testResult.host}:{testResult.port}
-              </span>
-            </div>
-          )}
+        {phase === "error" && (
+          <Alert variant="destructive">
+            <XCircle />
+            <AlertDescription className="break-all font-mono text-xs">{errMsg}</AlertDescription>
+          </Alert>
+        )}
 
-          {/* Error */}
-          {phase === "error" && (
-            <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              <span className="text-red-400 shrink-0">✕</span>
-              <p className="text-xs text-red-400 font-mono break-all">{errMsg}</p>
-            </div>
-          )}
+        {phase === "saved" && (
+          <Alert className="border-success/40 bg-success/10 text-success">
+            <CheckCircle2 />
+            <AlertDescription className="text-success">
+              Added to monitoring. The database will appear in the list on next refresh.
+            </AlertDescription>
+          </Alert>
+        )}
 
-          {/* Actions */}
-          <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              className="flex-1 border border-pulseNode-border/20 text-helm-fg3 hover:text-helm-fg rounded-xl py-2 text-sm transition-colors"
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          {(phase === "input" || phase === "error" || phase === "tested") && (
+            <Button
+              onClick={phase === "tested" ? saveConnection : testConnection}
+              disabled={phase !== "tested" && !connStr.trim()}
             >
-              Cancel
-            </button>
-
-            {(phase === "input" || phase === "error" || phase === "tested") && (
-              <button
-                onClick={phase === "tested" ? saveConnection : testConnection}
-                className={`flex-1 rounded-xl py-2 text-sm font-semibold transition-colors ${
-                  phase === "tested"
-                    ? "bg-emerald-600 hover:bg-emerald-500 text-white"
-                    : "bg-(--acc) hover:bg-(--acc-2) text-white shadow-xs shadow-(--acc-soft)"
-                }`}
-              >
-                {phase === "tested" ? "Save to monitoring" : "Test Connection"}
-              </button>
-            )}
-
-            {(phase === "testing" || phase === "saving") && (
-              <button disabled className="flex-1 bg-pulseNode-border/20 text-helm-fg3 rounded-xl py-2 text-sm">
-                {phase === "testing" ? "Testing…" : "Saving…"}
-              </button>
-            )}
-          </div>
-
-          {phase === "saved" && (
-            <div className="text-center text-xs text-emerald-400">
-              ✓ Added to monitoring. The database will appear in the list on next refresh.
-            </div>
+              {phase === "tested" ? "Save to monitoring" : "Test connection"}
+            </Button>
           )}
-        </div>
-      </div>
-    </div>,
-    document.body,
+          {busy && (
+            <Button disabled>
+              <Loader2 className="animate-spin" />
+              {phase === "testing" ? "Testing…" : "Saving…"}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

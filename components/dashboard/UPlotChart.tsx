@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import uPlot from "uplot"
 import "uplot/dist/uPlot.min.css"
 
@@ -33,6 +33,14 @@ function resolveCssColor(value: string | undefined): string | undefined {
 export function UPlotChart({ series, height = 200, mode = "line", max }: UPlotChartProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<uPlot | null>(null)
+  // Bumped whenever <html data-theme> changes so the canvas is rebuilt with fresh token colours
+  const [themeTick, setThemeTick] = useState(0)
+
+  useEffect(() => {
+    const obs = new MutationObserver(() => setThemeTick(t => t + 1))
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class"] })
+    return () => obs.disconnect()
+  }, [])
 
   const data = useMemo(() => {
     const len = Math.max(2, ...series.map(s => s.values.length))
@@ -44,7 +52,10 @@ export function UPlotChart({ series, height = 200, mode = "line", max }: UPlotCh
     const root = rootRef.current
     if (!root) return
 
-    const mutedColor = resolveCssColor("var(--pn-muted)") ?? "#8a8a96"
+    const mutedColor = resolveCssColor("var(--muted-foreground)")
+    const gridColor = resolveCssColor("color-mix(in srgb, var(--border) 70%, transparent)")
+    const fontFamily = getComputedStyle(root).fontFamily || "sans-serif"
+    const font = `11px ${fontFamily}`
 
     const buildOptions = (): uPlot.Options => ({
       width: root.clientWidth || 400,
@@ -58,13 +69,13 @@ export function UPlotChart({ series, height = 200, mode = "line", max }: UPlotCh
           grid: { show: false },
           ticks: { show: false },
           values: (_, vals) => vals.map(v => String(v)),
-          font: "10px sans-serif",
+          font,
         },
         {
           stroke: mutedColor,
-          grid: { stroke: "rgba(220,232,245,0.06)", width: 1 },
+          grid: { stroke: gridColor, width: 1 },
           ticks: { show: false },
-          font: "10px sans-serif",
+          font,
         },
       ],
       series: [
@@ -72,7 +83,9 @@ export function UPlotChart({ series, height = 200, mode = "line", max }: UPlotCh
         ...series.map(s => ({
           label: s.label,
           stroke: resolveCssColor(s.color),
-          fill: mode === "line" ? resolveCssColor(s.fill) : undefined,
+          fill: mode === "line"
+            ? resolveCssColor(s.fill)
+            : resolveCssColor(`color-mix(in srgb, ${s.color} 60%, transparent)`),
           width: s.width ?? 1.5,
           points: { show: false },
           paths: mode === "bar" ? uPlot.paths.bars!({ size: [0.65, 60] }) : undefined,
@@ -92,7 +105,7 @@ export function UPlotChart({ series, height = 200, mode = "line", max }: UPlotCh
       chart.destroy()
       chartRef.current = null
     }
-  }, [height, max, mode]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [height, max, mode, themeTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     chartRef.current?.setData(data)

@@ -1,36 +1,33 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Maximize2, Play, X } from "lucide-react"
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, Loader2, Maximize2, Play, X, XCircle } from "lucide-react"
 import { nodeApi } from "@/lib/api"
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
+import { Pill } from "@/components/dashboard/Pill"
+import { cn } from "@/lib/utils"
 import type { ApiError } from "@/lib/api"
 import type { Database, DbSchemaResult, DbQueryResult } from "@/lib/types"
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog"
 
 // ── ResultTable ───────────────────────────────────────────────────────────────
 
 export function ResultTable({ result, fullscreen = false, scrollClassName }: { result: DbQueryResult; fullscreen?: boolean; scrollClassName?: string }) {
-  const scroll = scrollClassName ?? (fullscreen ? "max-h-[calc(100vh-120px)]" : "max-h-64")
+  const scroll = scrollClassName ?? (fullscreen ? "max-h-[calc(92vh-9rem)]" : "max-h-64")
   return (
-    <div className={`overflow-auto ${scroll}`}>
-      <table className="text-[11px] border-collapse" style={{ tableLayout: "auto", whiteSpace: "nowrap" }}>
+    <div className={cn("overflow-auto", scroll)}>
+      <table className="border-collapse text-xs" style={{ tableLayout: "auto", whiteSpace: "nowrap" }}>
         <thead>
-          <tr className="bg-pulseNode-navyLight sticky top-0 z-10">
+          <tr className="sticky top-0 z-10">
             {result.columns.map(c => (
               <th
                 key={c}
-                className="px-3 py-1.5 text-left text-helm-fg3 font-semibold border-b border-r border-pulseNode-border/10 last:border-r-0 bg-pulseNode-navyLight"
+                className="border-b border-r bg-muted px-3 py-1.5 text-left font-mono font-semibold text-muted-foreground last:border-r-0"
               >
                 {c}
               </th>
@@ -39,15 +36,15 @@ export function ResultTable({ result, fullscreen = false, scrollClassName }: { r
         </thead>
         <tbody>
           {result.rows.map((row, i) => (
-            <tr key={i} className={`border-b border-pulseNode-border/5 ${i % 2 === 0 ? "" : "bg-pulseNode-border/[0.03]"} hover:bg-pn-electric/5`}>
+            <tr key={i} className={cn("border-b last:border-b-0 hover:bg-muted/60", i % 2 === 1 && "bg-muted/30")}>
               {row.map((cell, j) => (
                 <td
                   key={j}
-                  className={`px-3 py-1.5 font-mono text-helm-fg border-r border-pulseNode-border/5 last:border-r-0 ${fullscreen ? "max-w-[480px]" : "max-w-[200px]"}`}
+                  className={cn("border-r px-3 py-1.5 font-mono last:border-r-0", fullscreen ? "max-w-[480px]" : "max-w-[200px]")}
                   title={cell == null ? "null" : String(cell)}
                 >
                   {cell == null
-                    ? <span className="text-helm-fg3/50 italic text-[10px]">null</span>
+                    ? <span className="text-xs italic text-muted-foreground">null</span>
                     : <span className="block truncate">{String(cell)}</span>
                   }
                 </td>
@@ -78,96 +75,64 @@ function QueryResult({ result }: { result: DbQueryResult }) {
     URL.revokeObjectURL(url)
   }
 
-  // DDL / non-returning statement
-  if (isDdl) return (
-    <div className="border-t border-pulseNode-border/10 px-4 py-3 flex items-center gap-2 bg-emerald-500/5">
-      <span className="text-emerald-400 text-base">✓</span>
-      <span className="text-xs text-emerald-400 font-medium">Query executed successfully</span>
-      <span className="text-[10px] text-helm-fg3 ml-auto">{result.durationMs}ms</span>
-    </div>
-  )
-
-  // INSERT / UPDATE / DELETE with affected rows
-  if (isDml) return (
-    <div className="border-t border-pulseNode-border/10 px-4 py-3 flex items-center gap-2 bg-emerald-500/5">
-      <span className="text-emerald-400 text-base">✓</span>
-      <span className="text-xs text-emerald-400 font-medium">
-        {result.rowCount} row{result.rowCount !== 1 ? "s" : ""} affected
+  // DDL / non-returning statement, or INSERT / UPDATE / DELETE with affected rows
+  if (isDdl || isDml) return (
+    <div className="flex items-center gap-2 border-t bg-success/10 px-4 py-3">
+      <CheckCircle2 className="size-4 text-success" />
+      <span className="text-sm font-medium text-success">
+        {isDdl ? "Query executed successfully" : `${result.rowCount} row${result.rowCount !== 1 ? "s" : ""} affected`}
       </span>
-      <span className="text-[10px] text-helm-fg3 ml-auto">{result.durationMs}ms</span>
+      <span className="ml-auto font-mono text-xs tabular-nums text-muted-foreground">{result.durationMs}ms</span>
     </div>
   )
 
-  const toolbar = (fullscreen: boolean) => (
-    <div className={`flex items-center gap-2 px-3 py-1.5 border-b border-pulseNode-border/10 ${fullscreen ? "bg-pulseNode-navy" : "bg-pulseNode-navy/50"}`}>
-      <span className="text-[10px] text-green-400">
+  const summary = (
+    <>
+      <span className="font-medium tabular-nums text-foreground">
         {result.rowCount} row{result.rowCount !== 1 ? "s" : ""}
       </span>
-      <span className="text-pulseNode-border/30">·</span>
-      <span className="text-[10px] text-helm-fg3">{result.durationMs}ms</span>
-      <span className="text-pulseNode-border/30">·</span>
-      <span className="text-[10px] text-helm-fg3">{result.columns.length} col{result.columns.length !== 1 ? "s" : ""}</span>
-      <div className="ml-auto flex items-center gap-2">
-        <button onClick={exportCsv} className="text-[10px] text-helm-fg3 hover:text-helm-fg transition-colors">
-          Export CSV
-        </button>
-        {!fullscreen && (
-          <button
-            onClick={() => setExpanded(true)}
-            title="Expand to full screen"
-            className="flex items-center gap-1 text-[10px] text-helm-fg3 hover:text-pn-electric transition-colors"
-          >
-            <Maximize2 size={11} />
-            <span>Expand</span>
-          </button>
-        )}
-      </div>
-    </div>
+      <span aria-hidden>·</span>
+      <span className="tabular-nums">{result.durationMs}ms</span>
+      <span aria-hidden>·</span>
+      <span className="tabular-nums">{result.columns.length} col{result.columns.length !== 1 ? "s" : ""}</span>
+    </>
   )
 
   return (
     <>
       {/* Inline result (compact) */}
-      <div className="border-t border-pulseNode-border/10">
-        {toolbar(false)}
+      <div className="border-t">
+        <div className="flex flex-wrap items-center gap-2 border-b bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">
+          {summary}
+          <div className="ml-auto flex items-center gap-1">
+            <Button size="xs" variant="ghost" onClick={exportCsv}>
+              <Download /> Export CSV
+            </Button>
+            <Button size="xs" variant="ghost" onClick={() => setExpanded(true)} aria-label="Expand results to full screen">
+              <Maximize2 /> Expand
+            </Button>
+          </div>
+        </div>
         <ResultTable result={result} />
       </div>
 
-      {/* Fullscreen modal */}
-      {expanded && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col bg-pulseNode-navy/95 backdrop-blur-xs"
-          onKeyDown={e => e.key === "Escape" && setExpanded(false)}
-          tabIndex={-1}
-        >
-          {/* Modal header */}
-          <div className="flex items-center gap-3 px-5 py-3 border-b border-pulseNode-border/20 bg-pulseNode-navyLight shrink-0">
-            <span className="text-sm font-semibold text-helm-fg">Query Results</span>
-            <span className="text-[10px] text-helm-fg3 bg-pulseNode-border/20 rounded px-1.5 py-0.5">
-              {result.rowCount} rows · {result.columns.length} columns · {result.durationMs}ms
-            </span>
-            <div className="ml-auto flex items-center gap-3">
-              <button onClick={exportCsv} className="text-xs text-helm-fg3 hover:text-helm-fg transition-colors">
-                Export CSV
-              </button>
-              <button
-                onClick={() => setExpanded(false)}
-                className="flex items-center gap-1.5 text-xs text-helm-fg3 hover:text-helm-fg transition-colors"
-              >
-                <X size={14} />
-                Close
-              </button>
-            </div>
+      {/* Fullscreen results */}
+      <Dialog open={expanded} onOpenChange={setExpanded}>
+        <DialogContent className="flex max-h-[92vh] flex-col sm:max-w-[96vw]">
+          <DialogHeader className="pr-10">
+            <DialogTitle>Query results</DialogTitle>
+            <DialogDescription className="flex flex-wrap items-center gap-2 text-xs">
+              {summary}
+              <Button size="xs" variant="outline" onClick={exportCsv} className="ml-auto">
+                <Download /> Export CSV
+              </Button>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 overflow-hidden rounded-lg border">
+            <ResultTable result={result} fullscreen />
           </div>
-
-          {/* Full table */}
-          <div className="flex-1 overflow-auto p-4">
-            <div className="rounded-lg border border-pulseNode-border/20 overflow-hidden">
-              <ResultTable result={result} fullscreen />
-            </div>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
@@ -296,18 +261,20 @@ export function DatabaseQueryEditor({
     ? "users {\"active\": true}\ncollectionName {}"
     : "SELECT * FROM users LIMIT 100;"
 
+  const isWarn = error ? /already exists|duplicate/i.test(error) : false
+
   return (
     <>
-      <div className="bg-pulseNode-navyLight rounded-lg border border-pulseNode-border/10 overflow-hidden">
+      <div className="overflow-hidden rounded-lg border bg-card">
         {/* Header / control bar — database + table pickers */}
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-pulseNode-border/10">
-          <span className="font-semibold text-sm text-helm-fg">{db.name}</span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2.5">
+          <span className="text-sm font-semibold">{db.name}</span>
 
           {!isRedis && !isMongo && schema.databases.length > 0 && (
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-helm-fg3">DB</span>
+              <Label className="text-xs text-muted-foreground">Database</Label>
               <Select value={selectedDatabase} onValueChange={v => setSelectedDatabase((v as string) ?? "")}>
-                <SelectTrigger className="min-w-[120px]">
+                <SelectTrigger className="min-w-[120px]" aria-label="Database">
                   <SelectValue placeholder="Select…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -321,15 +288,13 @@ export function DatabaseQueryEditor({
 
           {!isRedis && (
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-helm-fg3">
-                {isMongo ? "Collection" : "Table"}
-              </span>
+              <Label className="text-xs text-muted-foreground">{isMongo ? "Collection" : "Table"}</Label>
               <Select
                 value=""
                 disabled={schema.tables.length === 0}
                 onValueChange={v => { if (v) handleTableClick(v as string) }}
               >
-                <SelectTrigger className="min-w-[150px]">
+                <SelectTrigger className="min-w-[150px]" aria-label={isMongo ? "Collection" : "Table"}>
                   <SelectValue placeholder={schema.tables.length === 0 ? "No tables" : `Select… (${schema.tables.length})`} />
                 </SelectTrigger>
                 <SelectContent>
@@ -343,33 +308,34 @@ export function DatabaseQueryEditor({
             </div>
           )}
 
-          <span className={`text-[10px] ${error && !result ? "text-red-400" : "text-green-400"}`}>
-            {error && !result ? "● error" : "● connected"}
-          </span>
-          <button
+          <Pill tone={error && !result ? "bad" : "ok"} dot>{error && !result ? "Error" : "Connected"}</Pill>
+          <Button
+            variant="ghost"
+            size="icon-sm"
             onClick={onClose}
             aria-label="Close query editor"
-            className="ml-auto text-helm-fg3 hover:text-helm-fg text-sm transition-colors"
+            className="ml-auto"
           >
-            ✕
-          </button>
+            <X />
+          </Button>
         </div>
 
         {/* Body: full-width editor */}
-        <div className="flex flex-col h-72">
-          <textarea
+        <div className="space-y-2 p-3">
+          <Label htmlFor={`query-${db.name}`} className="sr-only">Query</Label>
+          <Textarea
+            id={`query-${db.name}`}
             ref={textareaRef}
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="flex-1 bg-pulseNode-navy font-mono text-xs text-helm-fg p-3 resize-none outline-hidden placeholder:text-helm-fg3/40 min-h-0"
+            className="h-48 resize-y bg-background font-mono text-xs"
             spellCheck={false}
           />
-          {/* Toolbar */}
-          <div className="flex items-center gap-2 px-3 py-2 border-t border-pulseNode-border/10 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" onClick={() => runQuery()} disabled={loading || !hasQuery}>
-              <Play size={13} />
+              {loading ? <Loader2 className="animate-spin" /> : <Play />}
               {loading ? "Running…" : "Run"}
             </Button>
             <Button
@@ -379,7 +345,7 @@ export function DatabaseQueryEditor({
             >
               Clear
             </Button>
-            <span className="ml-auto text-[10px] text-helm-fg3">
+            <span className="ml-auto font-mono text-xs text-muted-foreground">
               {isRedis
                 ? "Redis command"
                 : isMongo
@@ -390,24 +356,17 @@ export function DatabaseQueryEditor({
         </div>
 
         {/* Error / warning banner */}
-        {error && (() => {
-          const isWarn = /already exists|duplicate/i.test(error)
-          return (
-            <div className={`px-4 py-2.5 border-t flex items-start gap-2 ${
-              isWarn
-                ? "bg-amber-500/10 border-amber-500/20"
-                : "bg-red-500/10 border-red-500/20"
-            }`}>
-              <span className={`shrink-0 mt-0.5 ${isWarn ? "text-amber-400" : "text-red-400"}`}>
-                {isWarn ? "⚠" : "✕"}
-              </span>
-              <p className={`text-xs font-mono break-all ${isWarn ? "text-amber-400" : "text-red-400"}`}>
+        {error && (
+          <div className="border-t p-3">
+            <Alert variant={isWarn ? "default" : "destructive"} className={cn(isWarn && "border-warning/40 bg-warning/10 text-warning")}>
+              {isWarn ? <AlertTriangle /> : <XCircle />}
+              <AlertDescription className={cn("break-all font-mono text-xs", isWarn && "text-warning")}>
                 {error}
-                {isWarn && <span className="ml-2 not-italic opacity-70">(other statements in the batch may have succeeded)</span>}
-              </p>
-            </div>
-          )
-        })()}
+                {isWarn && <span className="ml-2 opacity-80">(other statements in the batch may have succeeded)</span>}
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
 
         {/* Results */}
         {result && <QueryResult result={result} />}
@@ -418,8 +377,8 @@ export function DatabaseQueryEditor({
           const from = tableView.page * PAGE_SIZE + (result.rowCount > 0 ? 1 : 0)
           const to = tableView.page * PAGE_SIZE + result.rowCount
           return (
-            <div className="flex items-center gap-2 px-3 py-1.5 border-t border-pulseNode-border/10 bg-pulseNode-navy/50">
-              <span className="text-[10px] text-helm-fg3">
+            <div className="flex flex-wrap items-center gap-2 border-t bg-muted/40 px-3 py-1.5">
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">
                 {tableView.table} · rows {from}–{to}{total ? ` of ~${total.toLocaleString()}` : ""}
               </span>
               <div className="ml-auto flex items-center gap-2">
@@ -429,16 +388,16 @@ export function DatabaseQueryEditor({
                   disabled={loading || tableView.page === 0}
                   onClick={() => loadTablePage(tableView.table, tableView.page - 1)}
                 >
-                  ← Prev
+                  <ChevronLeft /> Prev
                 </Button>
-                <span className="text-[10px] text-helm-fg3">Page {tableView.page + 1}</span>
+                <span className="text-xs tabular-nums text-muted-foreground">Page {tableView.page + 1}</span>
                 <Button
                   size="sm"
                   variant="outline"
                   disabled={loading || result.rowCount < PAGE_SIZE}
                   onClick={() => loadTablePage(tableView.table, tableView.page + 1)}
                 >
-                  Next →
+                  Next <ChevronRight />
                 </Button>
               </div>
             </div>
@@ -447,25 +406,16 @@ export function DatabaseQueryEditor({
       </div>
 
       {/* Destructive query confirmation dialog */}
-      <AlertDialog open={showWarning} onOpenChange={setShowWarning}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Destructive query detected</AlertDialogTitle>
-            <AlertDialogDescription>
-              This query may permanently delete or modify data (DROP, TRUNCATE, or DELETE/UPDATE without WHERE). Are you sure you want to run it?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => { setShowWarning(false); runQuery(true) }}
-              className="bg-red-500 hover:bg-red-600 text-white"
-            >
-              Run anyway
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={showWarning}
+        onOpenChange={setShowWarning}
+        icon={AlertTriangle}
+        title="Destructive query detected"
+        description="This query may permanently delete or modify data (DROP, TRUNCATE, or DELETE/UPDATE without WHERE). Are you sure you want to run it?"
+        target={<span className="line-clamp-6 whitespace-pre-wrap">{query}</span>}
+        confirmLabel="Run anyway"
+        onConfirm={() => { setShowWarning(false); runQuery(true) }}
+      />
     </>
   )
 }

@@ -1,24 +1,34 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { useGSAP } from "@gsap/react"
-import gsap from "gsap"
 import {
-  RefreshCw, Square, RotateCcw,
-  FileText, Terminal, BarChart2, Trash2,
-  X, Send, Loader2, Play, AlertTriangle,
+  RefreshCw, Square, RotateCcw, FileText, Terminal, Trash2, Loader2, Play,
+  LayoutDashboard, Server, Boxes, Cpu, MemoryStick, ArrowDown, ArrowUp, AlertCircle, HardDrive, Container as ContainerIcon,
 } from "lucide-react"
-import {
-  AlertDialog, AlertDialogContent, AlertDialogHeader,
-  AlertDialogTitle, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogCancel,
-} from "@/components/ui/alert-dialog"
-import { Terminal as CacheTerminal, AnimatedSpan } from "@/components/magicui/terminal"
+import { AnimatedSpan, TerminalWindow } from "@/components/magicui/terminal"
 import { CONTAINERS as MOCK_CONTAINERS, HOST as MOCK_HOST } from "@/lib/mock-data"
 import { nodeApi, API_BASE } from "@/lib/api"
 import { getSocket } from "@/lib/socket"
 import type { Container, ContainerStats, HostInfo, SystemMetrics } from "@/lib/types"
+import { PageHeader, PageBody } from "@/components/pn/PageHeader"
+import { LiveBadge } from "@/components/pn/LiveBadge"
+import { EmptyState } from "@/components/pn/EmptyState"
+import { Segmented } from "@/components/pn/Segmented"
+import { SearchInput } from "@/components/pn/SearchInput"
+import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
+import { StatCard } from "@/components/dashboard/StatCard"
 import { Pill } from "@/components/dashboard/Pill"
+import { ProgressBar } from "@/components/dashboard/ProgressBar"
+import { LogsPanel, TerminalPanel } from "@/components/containers/ContainerPanels"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import {
   Docker, PostgreSQL, MySQL, MariaDB, Redis, MongoDB,
   ClickHouse, Elastic, NodeJs, Python,
@@ -57,10 +67,9 @@ function pushCapped<T>(arr: T[], val: T, max = 20): T[] {
 
 // ── Mini sparkline ─────────────────────────────────────────────────────────────
 
-function MiniSpark({
-  data, color = "var(--acc)", width = 64, height = 24,
-}: { data: number[]; color?: string; width?: number; height?: number }) {
-  const slice = data.slice(-20)
+function MiniSpark({ data, className, width = 96, height = 28 }: { data: number[]; className?: string; width?: number; height?: number }) {
+  const slice = data.slice(-60)
+  if (slice.length < 2) return null
   const max = Math.max(...slice)
   const min = Math.min(...slice)
   const range = max - min || 1
@@ -70,328 +79,38 @@ function MiniSpark({
   )
   const d = `M ${pts.join(" L ")}`
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="block shrink-0">
-      <path d={`${d} L ${width},${height} L 0,${height} Z`} fill={color} fillOpacity={0.14} />
-      <path d={d} fill="none" stroke={color} strokeWidth={1.3} strokeLinejoin="round" strokeLinecap="round" />
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className={cn("block shrink-0", className)} aria-hidden>
+      <path d={`${d} L ${width},${height} L 0,${height} Z`} fill="currentColor" fillOpacity={0.14} />
+      <path d={d} fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   )
 }
 
-// ── Stat card ──────────────────────────────────────────────────────────────────
-
-function StatCard({
-  label, value, unit, sub, spark, delta, deltaTone = "flat", sparkColor = "var(--acc)",
-}: {
-  label: string; value: React.ReactNode; unit?: string; sub?: React.ReactNode;
-  spark?: number[]; delta?: string; deltaTone?: "up" | "down" | "flat"; sparkColor?: string;
-}) {
-  const deltaStyle =
-    deltaTone === "up"   ? { color: "var(--ok)",  background: "var(--ok-soft)" } :
-    deltaTone === "down" ? { color: "var(--bad)", background: "var(--bad-soft)" } :
-                           { color: "var(--fg-3)", background: "var(--bg-3)" }
-
-  return (
-    <div className="relative rounded-xl p-4 overflow-hidden"
-      style={{ background: "var(--card)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card)" }}>
-      <div className="flex items-start justify-between mb-3">
-        <span className="text-[10px] font-semibold uppercase tracking-widest"
-          style={{ color: "var(--fg-3)" }}>{label}</span>
-        {delta && (
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={deltaStyle}>
-            {delta}
-          </span>
-        )}
-      </div>
-      <div className="flex items-end justify-between gap-2">
-        <div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-bold" style={{ color: sparkColor }}>{value}</span>
-            {unit && <span className="text-sm" style={{ color: "var(--fg-3)" }}>{unit}</span>}
-          </div>
-          {sub && <div className="text-[11px] mt-1" style={{ color: "var(--fg-3)" }}>{sub}</div>}
-        </div>
-        {spark && <MiniSpark data={spark} color={sparkColor} />}
-      </div>
-    </div>
-  )
-}
-
-// ── Logs panel ─────────────────────────────────────────────────────────────────
-
-function LogsPanel({ container, onClose }: { container: Container; onClose: () => void }) {
-  const [logs, setLogs]       = useState("Loading…")
-  const [loading, setLoading] = useState(true)
-  const [tail, setTail]       = useState(200)
-  const scrollRef             = useRef<HTMLDivElement>(null)
-
-  const fetchLogs = useCallback(async () => {
-    try {
-      const { data } = await nodeApi.get<{ logs: string }>(`/api/docker/logs/${container.id}?tail=${tail}`)
-      setLogs(data.logs || "(no output)")
-    } catch {
-      setLogs("[error fetching logs]")
-    } finally {
-      setLoading(false)
-    }
-  }, [container.id, tail])
-
-  useEffect(() => {
-    setLoading(true)
-    fetchLogs()
-    const t = setInterval(() => { if (!document.hidden) fetchLogs() }, 5000)
-    return () => clearInterval(t)
-  }, [fetchLogs])
-
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [logs])
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 shrink-0"
-        style={{ borderBottom: "1px solid var(--border)" }}>
-        <div className="flex items-center gap-2">
-          <FileText size={14} style={{ color: "var(--acc)" }} />
-          <span className="font-semibold text-sm" style={{ color: "var(--fg)" }}>Logs</span>
-          <span className="text-xs font-mono px-2 py-0.5 rounded"
-            style={{ background: "var(--bg-3)", color: "var(--fg-3)" }}>{container.name}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={tail}
-            onChange={e => setTail(Number(e.target.value))}
-            className="text-xs px-2 py-1 rounded focus:outline-hidden"
-            style={{ background: "var(--bg-3)", border: "1px solid var(--border)", color: "var(--fg-2)" }}
-          >
-            {[50, 100, 200, 500, 1000].map(n => (
-              <option key={n} value={n}>{n} lines</option>
-            ))}
-          </select>
-          <button onClick={fetchLogs} title="Refresh"
-            className="p-1.5 rounded transition-colors"
-            style={{ color: "var(--fg-3)" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--fg)" }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--fg-3)" }}>
-            <RefreshCw size={13} />
-          </button>
-          <button onClick={onClose} title="Close"
-            className="p-1.5 rounded transition-colors"
-            style={{ color: "var(--fg-3)" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--fg)" }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--fg-3)" }}>
-            <X size={14} />
-          </button>
-        </div>
-      </div>
-
-      {/* Live badge */}
-      <div className="flex items-center gap-1.5 px-4 py-1.5 shrink-0"
-        style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-2)" }}>
-        <span className="w-1.5 h-1.5 rounded-full status-live" style={{ background: "var(--ok)" }} />
-        <span className="text-[10px]" style={{ color: "var(--fg-3)" }}>Live · refreshes every 3s</span>
-        {loading && <Loader2 size={10} className="animate-spin ml-auto" style={{ color: "var(--fg-3)" }} />}
-      </div>
-
-      {/* Log output */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4"
-        style={{ background: "var(--bg)" }}>
-        <pre className="text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-all"
-          style={{ color: "var(--fg-2)" }}>{logs}</pre>
-      </div>
-    </div>
-  )
-}
-
-// ── Terminal panel ──────────────────────────────────────────────────────────────
-
-type TermLine = { type: "cmd" | "out" | "err"; text: string }
-
-function TerminalPanel({ container, onClose }: { container: Container; onClose: () => void }) {
-  const [lines, setLines]   = useState<TermLine[]>([
-    { type: "out", text: `Connected to ${container.name}. Type a command below.` },
-  ])
-  const [cmd, setCmd]       = useState("")
-  const [running, setRunning] = useState(false)
-  const scrollRef           = useRef<HTMLDivElement>(null)
-  const inputRef            = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [lines])
-
-  const run = async () => {
-    const trimmed = cmd.trim()
-    if (!trimmed || running) return
-    setCmd("")
-    setLines(prev => [...prev, { type: "cmd", text: `$ ${trimmed}` }])
-    setRunning(true)
-    try {
-      const result = await nodeApi.post<{ output: string }>(`/api/docker/exec/${container.id}`, { cmd: trimmed })
-      const out = (result.output || "").trimEnd()
-      setLines(prev => [...prev, { type: "out", text: out || "(no output)" }])
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "exec failed"
-      setLines(prev => [...prev, { type: "err", text: `[error] ${msg}` }])
-    } finally {
-      setRunning(false)
-      setTimeout(() => inputRef.current?.focus(), 50)
-    }
-  }
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 shrink-0"
-        style={{ borderBottom: "1px solid var(--border)" }}>
-        <div className="flex items-center gap-2">
-          <Terminal size={14} style={{ color: "var(--ok)" }} />
-          <span className="font-semibold text-sm" style={{ color: "var(--fg)" }}>Terminal</span>
-          <span className="text-xs font-mono px-2 py-0.5 rounded"
-            style={{ background: "var(--bg-3)", color: "var(--fg-3)" }}>{container.name}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setLines([{ type: "out", text: "Session cleared." }])} title="Clear"
-            className="text-[10px] px-2 py-1 rounded transition-colors"
-            style={{ background: "var(--bg-3)", color: "var(--fg-3)", border: "1px solid var(--border)" }}>
-            Clear
-          </button>
-          <button onClick={onClose} title="Close"
-            className="p-1.5 rounded transition-colors"
-            style={{ color: "var(--fg-3)" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--fg)" }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--fg-3)" }}>
-            <X size={14} />
-          </button>
-        </div>
-      </div>
-
-      {/* Output */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 font-mono text-[11px]"
-        style={{ background: "var(--bg)" }}
-        onClick={() => inputRef.current?.focus()}>
-        {lines.map((l, i) => (
-          <div key={i} className="leading-relaxed whitespace-pre-wrap break-all"
-            style={{
-              color: l.type === "cmd" ? "var(--acc)" : l.type === "err" ? "var(--bad)" : "var(--fg-2)",
-              marginBottom: l.type === "cmd" ? "2px" : "8px",
-            }}>
-            {l.text}
-          </div>
-        ))}
-        {running && (
-          <div className="flex items-center gap-1.5" style={{ color: "var(--fg-3)" }}>
-            <Loader2 size={10} className="animate-spin" /> running…
-          </div>
-        )}
-      </div>
-
-      {/* Input */}
-      <div className="flex items-center gap-2 px-3 py-2.5 shrink-0"
-        style={{ borderTop: "1px solid var(--border)", background: "var(--bg-2)" }}>
-        <span className="font-mono text-[11px]" style={{ color: "var(--acc)" }}>$</span>
-        <input
-          ref={inputRef}
-          type="text"
-          value={cmd}
-          onChange={e => setCmd(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") run() }}
-          placeholder={running ? "running…" : "type a command…"}
-          disabled={running}
-          className="flex-1 bg-transparent font-mono text-[11px] focus:outline-hidden"
-          style={{ color: "var(--fg)", caretColor: "var(--acc)" }}
-          autoFocus
-        />
-        <button onClick={run} disabled={running || !cmd.trim()}
-          className="p-1.5 rounded transition-colors"
-          style={{ color: cmd.trim() && !running ? "var(--acc)" : "var(--fg-3)" }}>
-          <Send size={12} />
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ── Remove confirmation dialog ─────────────────────────────────────────────────
-
-function RemoveDialog({ container, onConfirm, onClose }: {
-  container: Container; onConfirm: () => void; onClose: () => void
-}) {
-  return (
-    <AlertDialog open onOpenChange={open => { if (!open) onClose() }}>
-      <AlertDialogContent className="max-w-sm p-0 overflow-hidden gap-0"
-        style={{ background: "var(--card-elev)", border: "1px solid var(--border-2)", color: "var(--fg)" }}>
-        <div className="flex flex-col items-center justify-center gap-3 px-6 py-7"
-          style={{ background: "var(--bad-soft)" }}>
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
-            style={{ background: "var(--bad-soft)", border: "2px solid var(--bad)" }}>
-            <AlertTriangle size={28} style={{ color: "var(--bad)" }} />
-          </div>
-          <AlertDialogHeader className="text-center gap-1">
-            <AlertDialogTitle className="text-base font-bold" style={{ color: "var(--bad)" }}>
-              Remove container?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-[12px]" style={{ color: "var(--fg-3)" }}>
-              This will permanently remove the container. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-        </div>
-        <div className="flex items-center gap-3 px-5 py-3"
-          style={{ borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", background: "var(--bg-2)" }}>
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: "var(--bad-soft)", border: "1px solid var(--bad)" }}>
-            <Trash2 size={13} style={{ color: "var(--bad)" }} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[12px] font-semibold truncate" style={{ color: "var(--fg)" }}>{container.name}</p>
-            <p className="text-[10px] font-mono truncate" style={{ color: "var(--fg-3)" }}>{container.image}</p>
-          </div>
-        </div>
-        <AlertDialogFooter className="flex-row gap-3 px-5 py-4 border-0 bg-transparent rounded-none"
-          style={{ background: "var(--card-elev)" }}>
-          <AlertDialogCancel className="flex-1 py-2 rounded-xl text-sm font-medium transition-colors"
-            style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", color: "var(--fg-2)" }}>
-            Cancel
-          </AlertDialogCancel>
-          <button onClick={() => { onConfirm(); onClose() }}
-            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90"
-            style={{ background: "var(--bad)" }}>
-            <Trash2 size={15} /> Remove
-          </button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  )
-}
-
-// ── Action button ──────────────────────────────────────────────────────────────
+// ── Row action button ──────────────────────────────────────────────────────────
 
 function ActionBtn({
-  icon, title, danger, onClick, disabled,
+  icon, label, danger, onClick, disabled,
 }: {
-  icon: React.ReactNode; title: string; danger?: boolean; onClick?: () => void; disabled?: boolean
+  icon: React.ReactNode; label: string; danger?: boolean; onClick?: () => void; disabled?: boolean
 }) {
   return (
-    <button
-      title={title}
-      onClick={onClick}
-      disabled={disabled}
-      className="p-1.5 rounded-md text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-      style={{ color: danger ? "var(--bad)" : "var(--fg-3)" }}
-      onMouseEnter={e => {
-        if (disabled) return
-        const el = e.currentTarget as HTMLButtonElement
-        el.style.background = danger ? "var(--bad-soft)" : "var(--bg-hover)"
-        el.style.color = danger ? "var(--bad)" : "var(--fg)"
-      }}
-      onMouseLeave={e => {
-        const el = e.currentTarget as HTMLButtonElement
-        el.style.background = "transparent"
-        el.style.color = danger ? "var(--bad)" : "var(--fg-3)"
-      }}
-    >
-      {icon}
-    </button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={label}
+            disabled={disabled}
+            onClick={onClick}
+            className={cn(danger && "text-danger hover:bg-danger/12 hover:text-danger")}
+          />
+        }
+      >
+        {icon}
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -412,9 +131,10 @@ function StateBadge({ state }: { state: string }) {
 export default function ContainersPage() {
   const [tab, setTab]             = useState("running")
   const [search, setSearch]       = useState("")
-  const [selected, setSelected]   = useState<Set<string>>(new Set())
   const [containers, setContainers] = useState<Container[]>(MOCK_CONTAINERS)
   const [host, setHost]             = useState<HostInfo>(MOCK_HOST)
+  const [loaded, setLoaded]         = useState(false)
+  const [loadError, setLoadError]   = useState(false)
   const [, setContainerHist] = useState<ContainerHistory>({})
   const [netHist, setNetHist]       = useState<number[]>([0, 0])
   const [cpuHist, setCpuHist]       = useState<number[]>([0, 0])
@@ -428,12 +148,12 @@ export default function ContainersPage() {
   const [cacheLines, setCacheLines] = useState<string[]>([])
   const [cacheState, setCacheState] = useState<"idle" | "running" | "done" | "error">("idle")
   const cacheReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     nodeApi.get<Container[]>("/api/docker/containers")
-      .then(({ data }) => setContainers(data))
-      .catch(() => {})
+      .then(({ data }) => { setContainers(data); setLoadError(false) })
+      .catch(() => setLoadError(true))
+      .finally(() => setLoaded(true))
     nodeApi.get<HostInfo>("/api/host")
       .then(({ data }) => {
         setHost(data)
@@ -444,7 +164,7 @@ export default function ContainersPage() {
 
     const socket = getSocket()
 
-    // Live per-container CPU + RAM every 3s
+    // Live per-container CPU + RAM (backend broadcasts every 5s)
     const onContainerStats = (stats: ContainerStats[]) => {
       setContainers(prev => prev.map(c => {
         const s = stats.find(s => s.containerId === c.id)
@@ -592,24 +312,9 @@ export default function ContainersPage() {
     setCacheLines([])
   }
 
-  useGSAP(() => {
-    gsap.fromTo(
-      ".gsap-enter",
-      { opacity: 0, y: 16 },
-      { opacity: 1, y: 0, duration: 0.4, stagger: 0.07, ease: "power2.out" }
-    )
-  }, { scope: containerRef })
-
   const running = containers.filter(c => c.state === "running").length
   const stopped = containers.filter(c => c.state === "stopped").length
   const exited  = containers.filter(c => c.state === "exited").length
-
-  const TABS = [
-    { key: "all",     label: "All",     count: containers.length },
-    { key: "running", label: "Running", count: running },
-    { key: "stopped", label: "Stopped", count: stopped },
-    { key: "exited",  label: "Exited",  count: exited },
-  ]
 
   const filtered = containers.filter(c => {
     const matchTab    = tab === "all" || c.state === tab
@@ -618,445 +323,301 @@ export default function ContainersPage() {
     return matchTab && matchSearch
   })
 
-  const toggleSelect = (id: string) =>
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-
-  const allChecked = filtered.length > 0 && filtered.every(c => selected.has(c.id))
-
+  const spin = (key: string, icon: React.ReactNode) =>
+    actionBusy[key] ? <Loader2 className="size-4 animate-spin" /> : icon
 
   return (
-    <div ref={containerRef} className="p-5 space-y-4">
+    <>
+      <PageHeader
+        icon={LayoutDashboard}
+        title="Dashboard"
+        description={`${containers.length} containers · ${running} running · ${stopped + exited} stopped`}
+        actions={
+          <Button variant="outline" size="sm" onClick={refreshContainers}>
+            <RefreshCw className="size-3.5" /> Refresh
+          </Button>
+        }
+      />
 
-      {/* ── Header ── */}
-      <div className="gsap-enter flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-bold" style={{ color: "var(--fg)" }}>Dashboard</h1>
-          <p className="text-[12px] mt-0.5" style={{ color: "var(--fg-3)" }}>
-            {containers.length} containers · {running} running · {stopped + exited} stopped
-          </p>
-        </div>
-        <button
-          onClick={refreshContainers}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
-          style={{ background: "var(--bg-2)", border: "1px solid var(--border)", color: "var(--fg-2)" }}
-          onMouseEnter={e => {
-            const el = e.currentTarget as HTMLButtonElement
-            el.style.background = "var(--bg-3)"; el.style.color = "var(--fg)"
-            el.style.borderColor = "var(--border-2)"
-          }}
-          onMouseLeave={e => {
-            const el = e.currentTarget as HTMLButtonElement
-            el.style.background = "var(--bg-2)"; el.style.color = "var(--fg-2)"
-            el.style.borderColor = "var(--border)"
-          }}
-        >
-          <RefreshCw size={12} /> Refresh
-        </button>
-      </div>
+      <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
+        {loadError && (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertTitle>Could not load containers</AlertTitle>
+            <AlertDescription>The Docker API did not respond, so the list below may be placeholder data.</AlertDescription>
+          </Alert>
+        )}
 
-      {/* ── Stat cards — 4 across ── */}
-      <div className="gsap-enter grid grid-cols-4 gap-3">
-        {/* Host */}
-        <div className="relative rounded-xl p-4 overflow-hidden"
-          style={{ background: "var(--card)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card)" }}>
-          <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--fg-3)" }}>Host</p>
-          <p className="text-sm font-bold" style={{ color: "var(--fg)" }}>{host.name}</p>
-          <p className="text-[11px] mt-0.5" style={{ color: "var(--fg-3)" }}>{host.distro} · {host.kernel}</p>
-        </div>
-
-        {/* Apps */}
-        <StatCard
-          label="Apps"
-          value={<span>{containers.length}<span className="text-sm font-normal ml-1" style={{ color: "var(--fg-3)" }}>containers</span></span>}
-          sub={
-            <span className="flex items-center gap-2">
-              <Pill tone="ok" dot>{running} running</Pill>
-              <Pill tone="bad" dot>{stopped + exited} stopped</Pill>
-            </span>
-          }
-          sparkColor="var(--acc)"
-        />
-
-        {/* CPU */}
-        <StatCard
-          label="CPU"
-          value={host.cpu.usage}
-          unit="%"
-          spark={cpuHist}
-          sparkColor="var(--acc)"
-          sub={<span>{host.cpu.cores} cores · {host.cpu.model.split("@")[0].trim()}</span>}
-        />
-
-        {/* Memory */}
-        <StatCard
-          label="Memory"
-          value={host.memory.pct}
-          unit="%"
-          spark={ramHist}
-          sparkColor="var(--warn)"
-          sub={<span>{host.memory.used}/{host.memory.total} {host.memory.unit}</span>}
-        />
-      </div>
-
-      {/* ── Disk / Network / Load strip ── */}
-      <div className="gsap-enter grid grid-cols-3 gap-0 rounded-xl overflow-hidden"
-        style={{ background: "var(--card)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card)" }}>
-        {/* Disk */}
-        <div className="px-5 py-4" style={{ borderRight: "1px solid var(--border)" }}>
-          <div className="flex items-center gap-1.5 mb-2">
-            <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--fg-3)" }}>
-              Disk Usage
-            </span>
-          </div>
-          <div className="flex items-baseline gap-1.5 flex-wrap">
-            <span className="text-xl font-bold" style={{ color: "var(--fg)" }}>{host.disk.pct}%</span>
-            <span className="text-xs" style={{ color: "var(--fg-3)" }}>
-              {host.disk.used} / {host.disk.total} {host.disk.unit} · {host.disk.free} {host.disk.unit} free
-            </span>
-          </div>
-          <div className="mt-2 h-[3px] rounded-full overflow-hidden" style={{ background: "var(--bg-3)" }}>
-            <div className="h-full rounded-full" style={{ width: `${host.disk.pct}%`, background: "var(--acc-2)" }} />
-          </div>
-          <button
-            onClick={handleClearCache}
-            disabled={cacheState === "running"}
-            className="mt-3 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors disabled:opacity-50"
-            style={{ background: "var(--bad-soft)", border: "1px solid var(--bad)", color: "var(--bad)" }}
-          >
-            <Trash2 size={12} />
-            Clear Build Cache
-          </button>
-        </div>
-
-        {/* Network */}
-        <div className="px-5 py-4" style={{ borderRight: "1px solid var(--border)" }}>
-          <div className="flex items-center gap-1.5 mb-2">
-            <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--fg-3)" }}>
-              Network · last 60s
-            </span>
-          </div>
-          <div className="flex items-end gap-4">
-            <div>
-              <p className="text-[10px]" style={{ color: "var(--fg-3)" }}>↓ RX</p>
-              <p className="text-sm font-bold" style={{ color: "var(--ok)" }}>{netRx} KB/s</p>
-            </div>
-            <div>
-              <p className="text-[10px]" style={{ color: "var(--fg-3)" }}>↑ TX</p>
-              <p className="text-sm font-bold" style={{ color: "var(--ok)" }}>{netTx} KB/s</p>
-            </div>
-            <MiniSpark data={netHist} color="var(--ok)" width={80} height={28} />
-          </div>
-        </div>
-
-        {/* Load Avg */}
-        <div className="px-5 py-4">
-          <div className="flex items-center gap-1.5 mb-2">
-            <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--fg-3)" }}>
-              Load Avg · 1m 5m 15m
-            </span>
-          </div>
-          <div className="flex items-end gap-4">
-            <div className="flex items-baseline gap-3">
-              {host.load.map((l, i) => (
-                <span key={i} className="text-xl font-bold" style={{ color: "var(--fg)" }}>
-                  {l.toFixed(2)}
-                </span>
-              ))}
-            </div>
-            <MiniSpark data={netHist} color="var(--acc)" width={80} height={28} />
-          </div>
-        </div>
-      </div>
-
-      {/* ── Tab bar ── */}
-      <div className="gsap-enter flex items-center gap-0" style={{ borderBottom: "1px solid var(--border)" }}>
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className="px-4 py-2 text-xs font-medium transition-colors flex items-center gap-1.5"
-            style={{
-              color: tab === t.key ? "var(--fg)" : "var(--fg-3)",
-              borderBottom: tab === t.key ? "2px solid var(--acc)" : "2px solid transparent",
-              marginBottom: "-1px",
-            }}
-          >
-            {t.label}
-            <span
-              className="px-1.5 py-0.5 rounded text-[10px] font-mono"
-              style={{
-                background: tab === t.key ? "var(--acc-soft)" : "var(--bg-3)",
-                color: tab === t.key ? "var(--acc)" : "var(--fg-3)",
-              }}
-            >
-              {t.count}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* ── Filter row ── */}
-      <div className="gsap-enter flex items-center gap-2 flex-wrap">
-        <input
-          type="text"
-          placeholder="Filter…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="flex-1 min-w-[160px] max-w-[240px] px-3 py-1.5 rounded-lg text-xs focus:outline-hidden"
-          style={{
-            background: "var(--bg-2)",
-            border: "1px solid var(--border)",
-            color: "var(--fg)",
-          }}
-          onFocus={e => { (e.target as HTMLInputElement).style.borderColor = "var(--acc-border)" }}
-          onBlur={e =>  { (e.target as HTMLInputElement).style.borderColor = "var(--border)" }}
-        />
-      </div>
-
-      {/* ── Container table ── */}
-      <div className="gsap-enter rounded-xl overflow-hidden"
-        style={{ background: "var(--card)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card)" }}>
-        <div className="overflow-x-auto">
-          <table className="pn-table w-full">
-            <thead>
-              <tr>
-                <th className="w-10">
-                  <input
-                    type="checkbox"
-                    checked={allChecked}
-                    onChange={() => {
-                      if (allChecked) setSelected(new Set())
-                      else setSelected(new Set(filtered.map(c => c.id)))
-                    }}
-                    className="w-3.5 h-3.5"
-                  />
-                </th>
-                <th>Name</th>
-                <th>Image</th>
-                <th>State</th>
-                <th>Uptime</th>
-                <th>Ports</th>
-                <th>CPU</th>
-                <th>RAM</th>
-                <th>Created</th>
-                <th className="right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(c => (
-                <tr key={c.id} className="relative">
-                  <td className="w-10">
-                    <div className="flex items-center justify-center">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(c.id)}
-                        onChange={() => toggleSelect(c.id)}
-                        className="w-3.5 h-3.5"
-                      />
-                    </div>
-                  </td>
-
-                  {/* Name */}
-                  <td>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-medium truncate max-w-[160px]" style={{ color: "var(--fg)" }}>{c.name}</span>
-                      <span
-                        className="px-1.5 py-0.5 rounded text-[9px] font-bold"
-                        style={{ background: "var(--acc-soft-2)", color: "var(--acc)" }}
-                      >
-                        DOCKER
-                      </span>
-                      {c.ports && c.ports !== "—" && (
-                        <span
-                          className="px-1.5 py-0.5 rounded text-[9px] font-mono"
-                          style={{ background: "var(--bg-3)", color: "var(--fg-3)" }}
-                        >
-                          {c.ports}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-
-                  <td className="mono-cell dim max-w-[200px]">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <ImageIcon image={c.image} />
-                      <span className="truncate">{c.image}</span>
-                    </div>
-                  </td>
-                  <td><StateBadge state={c.state} /></td>
-                  <td className="dim">{c.uptime}</td>
-                  <td className="mono-cell dim">{c.ports}</td>
-
-                  {/* CPU live */}
-                  <td>
-                    <span className="text-[11px] font-mono" style={{ color: "var(--fg)" }}>{c.cpu.toFixed(1)}%</span>
-                  </td>
-
-                  {/* RAM live */}
-                  <td>
-                    <span className="text-[11px] font-mono" style={{ color: "var(--fg)" }}>{c.ram.toFixed(1)}%</span>
-                  </td>
-
-                  <td className="dim">{c.created}</td>
-
-                  {/* Actions */}
-                  <td className="right">
-                    <div className="flex items-center justify-end gap-0.5">
-                      {c.state !== "running" ? (
-                        <ActionBtn
-                          icon={actionBusy[`start-${c.id}`] ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-                          title="Start"
-                          disabled={actionBusy[`start-${c.id}`]}
-                          onClick={() => handleStart(c)}
-                        />
-                      ) : (
-                        <ActionBtn
-                          icon={actionBusy[`stop-${c.id}`] ? <Loader2 size={13} className="animate-spin" /> : <Square size={13} />}
-                          title="Stop" danger
-                          disabled={actionBusy[`stop-${c.id}`]}
-                          onClick={() => handleStop(c)}
-                        />
-                      )}
-                      <ActionBtn
-                        icon={actionBusy[`restart-${c.id}`] ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
-                        title="Restart"
-                        disabled={actionBusy[`restart-${c.id}`]}
-                        onClick={() => handleRestart(c)}
-                      />
-                      <ActionBtn
-                        icon={<FileText size={13} />}
-                        title="Logs"
-                        onClick={() => setPanel({ type: "logs", container: c })}
-                      />
-                      <ActionBtn
-                        icon={<Terminal size={13} />}
-                        title="Shell"
-                        disabled={c.state !== "running"}
-                        onClick={() => setPanel({ type: "terminal", container: c })}
-                      />
-                      <ActionBtn icon={<BarChart2 size={13} />} title="Stats" disabled />
-                      <ActionBtn
-                        icon={actionBusy[`remove-${c.id}`] ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                        title="Remove" danger
-                        disabled={actionBusy[`remove-${c.id}`]}
-                        onClick={() => handleRemove(c)}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer */}
-        <div
-          className="flex items-center justify-between px-4 py-2.5"
-          style={{ borderTop: "1px solid var(--border)" }}
-        >
-          <span className="text-[11px]" style={{ color: "var(--fg-3)" }}>
-            Showing {filtered.length} of {containers.length} containers
-          </span>
-          <div className="flex items-center gap-1.5 text-[11px]" style={{ color: "var(--ok)" }}>
-            <span className="w-1.5 h-1.5 rounded-full status-live" style={{ background: "var(--ok)" }} />
-            Live · 3s
-          </div>
-        </div>
-      </div>
-
-      {/* ── Remove confirmation dialog ── */}
-      {removeTarget && (
-        <RemoveDialog
-          container={removeTarget}
-          onConfirm={() => confirmRemove(removeTarget)}
-          onClose={() => setRemoveTarget(null)}
-        />
-      )}
-
-      {/* ── Clear build cache dialog ── */}
-      <AlertDialog open={cacheOpen} onOpenChange={open => { if (!open) handleCacheDialogClose() }}>
-        <AlertDialogContent className="max-w-2xl p-0 overflow-hidden gap-0"
-          style={{ background: "var(--card-elev)", border: "1px solid var(--border-2)" }}>
-          <AlertDialogHeader className="px-5 pt-5 pb-0">
-            <AlertDialogTitle className="text-sm font-semibold flex items-center gap-2" style={{ color: "var(--fg)" }}>
-              <Trash2 size={14} style={{ color: "var(--bad)" }} />
-              Clear Docker Build Cache
-            </AlertDialogTitle>
-          </AlertDialogHeader>
-
-          <div className="p-5">
-            <CacheTerminal
-              sequence={false}
-              startOnView={false}
-              className="max-w-full border-(--border-2) bg-(--bg-2)"
-            >
-              {cacheLines.map((line, i) => (
-                <AnimatedSpan
-                  key={i}
-                  className={
-                    line.startsWith("✔")
-                      ? "text-green-400 font-mono text-xs"
-                      : line.startsWith("✗")
-                      ? "text-red-400 font-mono text-xs"
-                      : "font-mono text-xs text-(--fg-3)"
-                  }
-                >
-                  {line}
-                </AnimatedSpan>
-              ))}
-              {cacheState === "running" && (
-                <AnimatedSpan className="font-mono text-xs text-(--fg-3)">
-                  <span className="animate-pulse">▋</span>
-                </AnimatedSpan>
-              )}
-            </CacheTerminal>
-          </div>
-
-          <AlertDialogFooter className="px-5 py-4 border-t bg-transparent rounded-none" style={{ borderColor: "var(--border)" }}>
-            <AlertDialogCancel
-              onClick={handleCacheDialogClose}
-              variant="outline"
-              className="text-xs"
-            >
-              {cacheState === "running" ? "Cancel" : "Close"}
-            </AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* ── Side panel overlay ── */}
-      {panel && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-40"
-            style={{ background: "rgba(0,0,0,0.35)" }}
-            onClick={() => setPanel(null)}
+        {/* Summary */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Host" icon={Server} value={host.name} animate={false}
+            sub={<span className="truncate">{host.distro} · {host.kernel}</span>}
           />
-          {/* Drawer */}
-          <div
-            className="fixed top-0 right-0 bottom-0 z-50 flex flex-col"
-            style={{
-              width: "clamp(340px, 38vw, 560px)",
-              background: "var(--card)",
-              borderLeft: "1px solid var(--border)",
-              boxShadow: "-8px 0 32px rgba(0,0,0,0.25)",
-            }}
-          >
-            {panel.type === "logs" && (
-              <LogsPanel container={panel.container} onClose={() => setPanel(null)} />
-            )}
-            {panel.type === "terminal" && (
-              <TerminalPanel container={panel.container} onClose={() => setPanel(null)} />
-            )}
+          <StatCard
+            label="Apps" icon={Boxes} value={containers.length} unit="containers"
+            sub={
+              <>
+                <Pill tone="ok" dot>{running} running</Pill>
+                <Pill tone="bad" dot>{stopped + exited} stopped</Pill>
+              </>
+            }
+          />
+          <StatCard
+            label="CPU" icon={Cpu} value={host.cpu.usage} unit="%" spark={cpuHist} animate={false}
+            sub={<span className="truncate">{host.cpu.cores} cores · {host.cpu.model.split("@")[0].trim()}</span>}
+          />
+          <StatCard
+            label="Memory" icon={MemoryStick} value={host.memory.pct} unit="%" spark={ramHist} animate={false} tone="info"
+            sub={<span>{host.memory.used}/{host.memory.total} {host.memory.unit}</span>}
+          />
+        </div>
+
+        {/* Disk / network / load */}
+        <Card className="py-0">
+          <CardContent className="grid divide-y p-0 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            <section className="space-y-2 p-4" aria-label="Disk usage">
+              <h2 className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <HardDrive className="size-3.5" /> Disk usage
+              </h2>
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <span className="text-xl font-semibold tabular-nums">{host.disk.pct}%</span>
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {host.disk.used} / {host.disk.total} {host.disk.unit} · {host.disk.free} {host.disk.unit} free
+                </span>
+              </div>
+              <ProgressBar value={host.disk.pct} />
+              <Button
+                variant="outline" size="sm" className="mt-1 text-danger hover:text-danger"
+                onClick={handleClearCache} disabled={cacheState === "running"}
+              >
+                <Trash2 className="size-3.5" /> Clear build cache
+              </Button>
+            </section>
+
+            <section className="space-y-2 p-4" aria-label="Network">
+              <h2 className="text-xs font-medium text-muted-foreground">Network · last 3 min</h2>
+              <div className="flex items-end justify-between gap-4">
+                <div className="flex gap-5">
+                  <div>
+                    <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <ArrowDown className="size-3 text-[var(--chart-1)]" /> RX
+                    </p>
+                    <p className="text-sm font-semibold tabular-nums">{netRx} KB/s</p>
+                  </div>
+                  <div>
+                    <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <ArrowUp className="size-3 text-[var(--chart-2)]" /> TX
+                    </p>
+                    <p className="text-sm font-semibold tabular-nums">{netTx} KB/s</p>
+                  </div>
+                </div>
+                <MiniSpark data={netHist} className="text-[var(--chart-1)]" />
+              </div>
+            </section>
+
+            <section className="space-y-2 p-4" aria-label="Load average">
+              <h2 className="text-xs font-medium text-muted-foreground">Load average</h2>
+              <div className="flex gap-5">
+                {["1m", "5m", "15m"].map((label, i) => (
+                  <div key={label}>
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                    <p className="text-xl font-semibold tabular-nums">{(host.load[i] ?? 0).toFixed(2)}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </CardContent>
+        </Card>
+
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="max-w-full overflow-x-auto">
+            <Segmented
+              aria-label="Filter by state"
+              value={tab}
+              onChange={setTab}
+              options={[
+                { value: "all",     label: "All",     count: containers.length },
+                { value: "running", label: "Running", count: running },
+                { value: "stopped", label: "Stopped", count: stopped },
+                { value: "exited",  label: "Exited",  count: exited },
+              ]}
+            />
           </div>
-        </>
-      )}
-    </div>
+          <SearchInput
+            aria-label="Filter containers by name or image"
+            placeholder="Filter by name or image…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="sm:ml-auto"
+          />
+        </div>
+
+        {/* Container table */}
+        {!loaded ? (
+          <Card className="py-0">
+            <div className="space-y-3 p-4">
+              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
+            </div>
+          </Card>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={ContainerIcon}
+            title={containers.length === 0 ? "No containers" : "No matching containers"}
+            description={containers.length === 0
+              ? "Containers on this host will appear here."
+              : "Try a different state filter or search term."}
+          />
+        ) : (
+          <Card className="gap-0 py-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Image</TableHead>
+                    <TableHead>State</TableHead>
+                    <TableHead>Uptime</TableHead>
+                    <TableHead>Ports</TableHead>
+                    <TableHead className="text-right">CPU</TableHead>
+                    <TableHead className="text-right">RAM</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map(c => (
+                    <TableRow key={c.id}>
+                      <TableCell className="max-w-[200px] truncate font-medium" title={c.name}>{c.name}</TableCell>
+                      <TableCell className="max-w-[220px]">
+                        <div className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground">
+                          <ImageIcon image={c.image} />
+                          <span className="truncate" title={c.image}>{c.image}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell><StateBadge state={c.state} /></TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">{c.uptime}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{c.ports}</TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums">{c.cpu.toFixed(1)}%</TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums">{c.ram.toFixed(1)}%</TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">{c.created}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-0.5">
+                          {c.state !== "running" ? (
+                            <ActionBtn
+                              icon={spin(`start-${c.id}`, <Play className="size-4" />)}
+                              label="Start"
+                              disabled={actionBusy[`start-${c.id}`]}
+                              onClick={() => handleStart(c)}
+                            />
+                          ) : (
+                            <ActionBtn
+                              icon={spin(`stop-${c.id}`, <Square className="size-4" />)}
+                              label="Stop" danger
+                              disabled={actionBusy[`stop-${c.id}`]}
+                              onClick={() => handleStop(c)}
+                            />
+                          )}
+                          <ActionBtn
+                            icon={spin(`restart-${c.id}`, <RotateCcw className="size-4" />)}
+                            label="Restart"
+                            disabled={actionBusy[`restart-${c.id}`]}
+                            onClick={() => handleRestart(c)}
+                          />
+                          <ActionBtn
+                            icon={<FileText className="size-4" />}
+                            label="Logs"
+                            onClick={() => setPanel({ type: "logs", container: c })}
+                          />
+                          <ActionBtn
+                            icon={<Terminal className="size-4" />}
+                            label="Shell"
+                            disabled={c.state !== "running"}
+                            onClick={() => setPanel({ type: "terminal", container: c })}
+                          />
+                          <ActionBtn
+                            icon={spin(`remove-${c.id}`, <Trash2 className="size-4" />)}
+                            label="Remove" danger
+                            disabled={actionBusy[`remove-${c.id}`]}
+                            onClick={() => handleRemove(c)}
+                          />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <CardFooter className="justify-between border-t py-2.5">
+              <span className="text-xs text-muted-foreground tabular-nums">
+                Showing {filtered.length} of {containers.length} containers
+              </span>
+              <LiveBadge>Live · CPU/RAM every 5s</LiveBadge>
+            </CardFooter>
+          </Card>
+        )}
+      </PageBody>
+
+      {/* Remove confirmation */}
+      <ConfirmDialog
+        open={!!removeTarget}
+        onOpenChange={open => { if (!open) setRemoveTarget(null) }}
+        title="Remove container?"
+        description="This will permanently remove the container. This action cannot be undone."
+        target={removeTarget && <>{removeTarget.name}<br /><span className="text-muted-foreground">{removeTarget.image}</span></>}
+        confirmLabel="Remove"
+        icon={Trash2}
+        onConfirm={() => { if (removeTarget) confirmRemove(removeTarget); setRemoveTarget(null) }}
+      />
+
+      {/* Clear build cache (streamed output) */}
+      <Dialog open={cacheOpen} onOpenChange={open => { if (!open) handleCacheDialogClose() }}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="size-4 text-danger" /> Clear Docker build cache
+            </DialogTitle>
+            <DialogDescription>
+              {cacheState === "running" ? "Running docker builder prune…" : cacheState === "error" ? "The command reported an error." : "Finished."}
+            </DialogDescription>
+          </DialogHeader>
+          <TerminalWindow title="docker builder prune -f" bodyClassName="h-64">
+            {cacheLines.map((line, i) => (
+              <AnimatedSpan
+                key={i}
+                className={cn(
+                  "font-mono text-xs",
+                  line.startsWith("✔") ? "text-[var(--t-ok)]" : line.startsWith("✗") ? "text-[var(--t-err)]" : "text-[var(--t-muted)]",
+                )}
+              >
+                {line}
+              </AnimatedSpan>
+            ))}
+            {cacheState === "running" && (
+              <AnimatedSpan className="font-mono text-xs text-[var(--t-muted)]">
+                <span className="motion-safe:animate-pulse">▋</span>
+              </AnimatedSpan>
+            )}
+          </TerminalWindow>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCacheDialogClose}>
+              {cacheState === "running" ? "Cancel" : "Close"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Logs / terminal drawer */}
+      <Sheet open={!!panel} onOpenChange={open => { if (!open) setPanel(null) }}>
+        <SheetContent
+          side="right"
+          className="data-[side=right]:w-full data-[side=right]:sm:max-w-xl gap-0"
+        >
+          {panel?.type === "logs" && <LogsPanel container={panel.container} />}
+          {panel?.type === "terminal" && <TerminalPanel container={panel.container} />}
+        </SheetContent>
+      </Sheet>
+    </>
   )
 }

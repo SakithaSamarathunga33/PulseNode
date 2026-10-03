@@ -11,7 +11,7 @@ import {
   Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ThemeSwitcher } from "@/components/ThemeSwitcher"
@@ -74,7 +74,7 @@ export function Topbar() {
         <Button variant="ghost" size="icon" aria-label="Refresh page" title="Refresh" onClick={() => window.location.reload()}>
           <RefreshCw className="size-4" />
         </Button>
-        <Button variant="ghost" size="icon" aria-label="Alerts" title="Alerts" render={<Link href="/alerts" />}>
+        <Button variant="ghost" size="icon" aria-label="Alerts" title="Alerts" nativeButton={false} render={<Link href="/alerts" />}>
           <Bell className="size-4" />
         </Button>
         <DropdownMenu>
@@ -86,7 +86,11 @@ export function Topbar() {
             </span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            {username && <DropdownMenuLabel className="truncate">{username}</DropdownMenuLabel>}
+            {username && (
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="truncate">{username}</DropdownMenuLabel>
+              </DropdownMenuGroup>
+            )}
             {username && <DropdownMenuSeparator />}
             <DropdownMenuItem render={<Link href="/settings" />}>
               <Settings className="size-4" /> Settings

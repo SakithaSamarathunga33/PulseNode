@@ -31,7 +31,7 @@ export function PageHeader({
           </span>
         )}
         <div className="min-w-0 flex-1 basis-56">
-          <h1 className="truncate text-xl font-semibold tracking-tight">{title}</h1>
+          <h1 className="text-xl font-semibold tracking-tight break-words">{title}</h1>
           {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

@@ -2,7 +2,17 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Plus, RefreshCw, FolderGit2, GitBranch, Globe, Circle, PlayCircle, ChevronDown, ChevronRight, Boxes, Server } from "lucide-react"
+import {
+  Plus, FolderGit2, GitBranch, Globe, Hammer, ChevronDown, Boxes, Server,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Badge } from "@/components/ui/badge"
+import { PageHeader, PageBody } from "@/components/pn/PageHeader"
+import { EmptyState } from "@/components/pn/EmptyState"
+import { Pill } from "@/components/dashboard/Pill"
+import { cn } from "@/lib/utils"
 
 const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
 
@@ -23,11 +33,11 @@ type Project = {
   Image?: string
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  running:  "var(--ok)",
-  building: "var(--acc)",
-  failed:   "var(--err)",
-  idle:     "var(--fg-4)",
+const STATUS_TONE: Record<string, "ok" | "warn" | "bad" | "info" | "outline"> = {
+  running: "ok",
+  building: "info",
+  failed: "bad",
+  idle: "outline",
 }
 
 // Normalizes a repo URL to owner/repo so projects deployed separately from the
@@ -36,17 +46,19 @@ function repoSlug(url: string): string {
   return url.replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "").toLowerCase()
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusPill({ status }: { status: string }) {
   return (
-    <span
-      className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-full capitalize"
-      style={{
-        background: (STATUS_COLORS[status] ?? "var(--fg-4)") + "20",
-        color: STATUS_COLORS[status] ?? "var(--fg-4)",
-      }}
-    >
-      <Circle size={6} fill="currentColor" />
-      {status}
+    <Pill tone={STATUS_TONE[status] ?? "outline"} dot className="capitalize">
+      {status || "unknown"}
+    </Pill>
+  )
+}
+
+function Chip({ icon: Icon, children, className }: { icon: typeof Globe; children: React.ReactNode; className?: string }) {
+  return (
+    <span className={cn("inline-flex min-w-0 items-center gap-1 text-xs text-muted-foreground", className)}>
+      <Icon className="size-3.5 shrink-0" />
+      <span className="truncate font-mono">{children}</span>
     </span>
   )
 }
@@ -55,63 +67,33 @@ function ProjectCard({ proj, compact }: { proj: Project; compact?: boolean }) {
   return (
     <Link
       href={`/projects/${proj.ID}`}
-      className="block rounded-xl p-4 transition-colors hover:opacity-90"
-      style={{ background: compact ? "var(--bg-1)" : "var(--bg-2)", border: "1px solid var(--border)" }}
+      className={cn(
+        "group block rounded-xl border p-4 outline-none transition-colors hover:border-[color-mix(in_srgb,var(--hue)_45%,var(--border))] focus-visible:ring-3 focus-visible:ring-ring/50",
+        compact ? "bg-background" : "bg-card shadow-card",
+      )}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: "var(--bg-3)" }}>
-            {proj.External
-              ? <Server size={16} style={{ color: "var(--acc)" }} />
-              : <FolderGit2 size={16} style={{ color: "var(--acc)" }} />}
-          </div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[color-mix(in_srgb,var(--hue)_14%,transparent)] text-[var(--hue)]">
+            {proj.External ? <Server className="size-4" /> : <FolderGit2 className="size-4" />}
+          </span>
           <div className="min-w-0">
-            <p className="font-medium text-sm flex items-center gap-1.5" style={{ color: "var(--fg)" }}>
-              {proj.Name}
-              {proj.External && (
-                <span
-                  className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                  style={{ background: "var(--bg-3)", color: "var(--fg-3)" }}
-                >
-                  Hosted on VPS
-                </span>
-              )}
-              {proj.BaseDir && (
-                <span
-                  className="text-[10px] px-1.5 py-0.5 rounded font-medium capitalize"
-                  style={{ background: "var(--bg-3)", color: "var(--fg-3)" }}
-                >
-                  {proj.BaseDir}
-                </span>
-              )}
+            <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
+              <span className="truncate">{proj.Name}</span>
+              {proj.External && <Badge variant="secondary" className="text-[11px]">Hosted on VPS</Badge>}
+              {proj.BaseDir && <Badge variant="secondary" className="text-[11px] capitalize">{proj.BaseDir}</Badge>}
             </p>
-            <p className="text-xs truncate mt-0.5" style={{ color: "var(--fg-3)" }}>
+            <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
               {proj.External ? proj.Image : proj.RepoURL.replace("https://github.com/", "")}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <StatusBadge status={proj.Status} />
-        </div>
+        <StatusPill status={proj.Status} />
       </div>
-      <div className="flex items-center gap-4 mt-3 text-xs" style={{ color: "var(--fg-3)" }}>
-        {!proj.External && (
-          <span className="flex items-center gap-1">
-            <GitBranch size={11} />
-            {proj.Branch}
-          </span>
-        )}
-        <span className="flex items-center gap-1">
-          <Globe size={11} />
-          {proj.Domain}
-        </span>
-        {!proj.External && (
-          <span className="flex items-center gap-1 ml-auto">
-            <PlayCircle size={11} />
-            {proj.BuildMethod}
-          </span>
-        )}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+        {!proj.External && <Chip icon={GitBranch}>{proj.Branch}</Chip>}
+        <Chip icon={Globe}>{proj.Domain}</Chip>
+        {!proj.External && <Chip icon={Hammer} className="sm:ml-auto">{proj.BuildMethod}</Chip>}
       </div>
     </Link>
   )
@@ -130,45 +112,45 @@ function RepoGroup({ repoUrl, members }: { repoUrl: string; members: Project[] }
   const repoName = repoUrl.replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "")
 
   return (
-    <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+    <Card className="gap-0 overflow-hidden p-0">
       <button
+        type="button"
+        aria-expanded={expanded}
         onClick={() => setExpanded(e => !e)}
-        className="w-full flex items-center justify-between gap-4 p-4 text-left transition-colors hover:opacity-90"
+        className="flex w-full items-center justify-between gap-3 p-4 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-3 focus-visible:ring-ring/50"
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: "var(--bg-3)" }}>
-            <Boxes size={16} style={{ color: "var(--acc)" }} />
-          </div>
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[color-mix(in_srgb,var(--hue)_14%,transparent)] text-[var(--hue)]">
+            <Boxes className="size-4" />
+          </span>
           <div className="min-w-0">
-            <p className="font-medium text-sm" style={{ color: "var(--fg)" }}>{repoName}</p>
-            <p className="text-xs mt-0.5" style={{ color: "var(--fg-3)" }}>
-              Deployed separately · {members.length} of 2 services
+            <p className="truncate font-mono text-sm font-medium">{repoName}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Deployed separately · <span className="tabular-nums">{members.length}</span> of 2 services
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {members.map(m => <StatusBadge key={m.ID} status={m.Status} />)}
-          {expanded ? <ChevronDown size={16} style={{ color: "var(--fg-3)" }} /> : <ChevronRight size={16} style={{ color: "var(--fg-3)" }} />}
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+          {members.map(m => <StatusPill key={m.ID} status={m.Status} />)}
+          <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", !expanded && "-rotate-90")} />
         </div>
       </button>
 
       {expanded && (
-        <div className="p-3 pt-0 space-y-2">
+        <div className="space-y-2 border-t bg-muted/30 p-3">
           {members.map(m => <ProjectCard key={m.ID} proj={m} compact />)}
           {missing && (
             <Link
               href={`/projects/new?repo=${encodeURIComponent(repoName)}&branch=${encodeURIComponent(branch)}&component=${missing}`}
-              className="flex items-center justify-center gap-2 rounded-xl p-3 text-sm font-medium capitalize transition-colors hover:opacity-90"
-              style={{ background: "var(--bg-1)", border: "1px dashed var(--border)", color: "var(--acc)" }}
+              className="flex items-center justify-center gap-2 rounded-xl border border-dashed p-3 text-sm font-medium capitalize text-[var(--hue-fg)] outline-none transition-colors hover:bg-[color-mix(in_srgb,var(--hue)_8%,transparent)] focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              <Plus size={14} />
+              <Plus className="size-4" />
               Add {missing}
             </Link>
           )}
         </div>
       )}
-    </div>
+    </Card>
   )
 }
 
@@ -186,74 +168,61 @@ export default function ProjectsPage() {
 
   useEffect(() => { fetchProjects() }, [])
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw size={20} className="animate-spin" style={{ color: "var(--fg-3)" }} />
-      </div>
-    )
-  }
-
   // Group projects that were deployed as separate frontend/backend components
   // of the same repo (BaseDir set) under one expandable card; everything else
   // renders as a plain card, unchanged from before.
   const renderedGroups = new Set<string>()
-  const items: { key: string; node: React.ReactNode }[] = []
+  const items: { key: string; group: boolean; node: React.ReactNode }[] = []
   for (const proj of projects) {
     if (proj.BaseDir) {
       const key = repoSlug(proj.RepoURL)
       if (renderedGroups.has(key)) continue
       renderedGroups.add(key)
       const members = projects.filter(p => p.BaseDir && repoSlug(p.RepoURL) === key)
-      items.push({ key, node: <RepoGroup repoUrl={proj.RepoURL} members={members} /> })
+      items.push({ key, group: true, node: <RepoGroup repoUrl={proj.RepoURL} members={members} /> })
     } else {
-      items.push({ key: proj.ID, node: <ProjectCard proj={proj} /> })
+      items.push({ key: proj.ID, group: false, node: <ProjectCard proj={proj} /> })
     }
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold" style={{ color: "var(--fg)" }}>Projects</h1>
-          <p className="text-sm mt-0.5" style={{ color: "var(--fg-3)" }}>
-            {projects.length} project{projects.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <Link
-          href="/projects/new"
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          style={{ background: "var(--acc)", color: "#fff" }}
-        >
-          <Plus size={14} />
-          New Project
-        </Link>
-      </div>
-
-      {projects.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-4 rounded-xl"
-          style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          <FolderGit2 size={40} style={{ color: "var(--fg-4)" }} />
-          <div className="text-center">
-            <p className="font-medium text-sm" style={{ color: "var(--fg)" }}>No projects yet</p>
-            <p className="text-sm mt-1" style={{ color: "var(--fg-3)" }}>
-              Deploy your first project from a GitHub repository.
-            </p>
+    <>
+      <PageHeader
+        icon={FolderGit2}
+        title="Projects"
+        description={loading ? "Loading projects…" : <><span className="tabular-nums">{projects.length}</span> project{projects.length !== 1 ? "s" : ""}</>}
+        actions={
+          <Button nativeButton={false} render={<Link href="/projects/new" />}>
+            <Plus className="size-4" />
+            New project
+          </Button>
+        }
+      />
+      <PageBody>
+        {loading ? (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" aria-busy="true">
+            {[0, 1, 2].map(i => <Skeleton key={i} className="h-28 rounded-xl" />)}
           </div>
-          <Link
-            href="/projects/new"
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium"
-            style={{ background: "var(--acc)", color: "#fff" }}
-          >
-            <Plus size={14} />
-            Deploy a project
-          </Link>
-        </div>
-      ) : (
-        <div className="grid gap-3">
-          {items.map(item => <div key={item.key}>{item.node}</div>)}
-        </div>
-      )}
-    </div>
+        ) : projects.length === 0 ? (
+          <EmptyState
+            icon={FolderGit2}
+            title="No projects yet"
+            description="Deploy your first project from a GitHub repository."
+            action={
+              <Button nativeButton={false} render={<Link href="/projects/new" />}>
+                <Plus className="size-4" />
+                Deploy a project
+              </Button>
+            }
+          />
+        ) : (
+          <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {items.map(item => (
+              <div key={item.key} className={cn(item.group && "md:col-span-2 xl:col-span-2")}>{item.node}</div>
+            ))}
+          </div>
+        )}
+      </PageBody>
+    </>
   )
 }

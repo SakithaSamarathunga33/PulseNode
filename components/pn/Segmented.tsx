@@ -30,7 +30,7 @@ export function Segmented<T extends string>({
         <ToggleGroupItem
           key={o.value}
           value={o.value}
-          className="data-[pressed]:bg-[color-mix(in_srgb,var(--hue,var(--primary))_14%,transparent)] data-[pressed]:text-foreground"
+          className="data-[pressed]:bg-[color-mix(in_srgb,var(--hue,var(--primary))_16%,transparent)] data-[pressed]:font-semibold data-[pressed]:text-foreground data-[pressed]:shadow-[inset_0_-2px_0_var(--hue,var(--primary))]"
         >
           {o.label}
           {o.count !== undefined && (

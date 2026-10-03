@@ -3,6 +3,7 @@
 import {
   Children,
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -10,6 +11,9 @@ import {
   useState,
 } from "react"
 
+import { ArrowDownToLine, Check, Copy, SquareTerminal, WrapText } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 interface SequenceContextValue {
@@ -170,10 +174,14 @@ export const TypingAnimation = ({
   )
 }
 
-// TerminalWindow renders just the macOS terminal chrome (window frame +
-// traffic-light dots + optional title) around a scrollable body. Unlike
-// `Terminal`, it does no sequencing/typing — use it to wrap live, streaming
-// content (e.g. real-time build logs) while keeping the terminal look.
+// TerminalWindow renders just the terminal chrome (window frame + optional
+// title + toolbar) around a scrollable body. Unlike `Terminal`, it does no
+// sequencing/typing — use it to wrap live, streaming content (e.g. real-time
+// build logs). It owns auto-scroll: it follows new output until the user
+// scrolls up, then shows a "Latest" button to resume.
+//
+// The surface is dark in BOTH themes, using local terminal tokens (--t-*) that
+// children can use too, e.g. `text-[var(--t-err)]`.
 interface TerminalWindowProps {
   children: React.ReactNode
   title?: React.ReactNode
@@ -188,40 +196,125 @@ export const TerminalWindow = ({
   className,
   bodyClassName,
   bodyRef,
-}: TerminalWindowProps) => (
-  <div
-    className={cn("flex flex-col overflow-hidden rounded-xl border", className)}
-    style={{ borderColor: "var(--border)", background: "#0d1117" }}
-  >
+}: TerminalWindowProps) => {
+  const innerRef = useRef<HTMLDivElement | null>(null)
+  const stick = useRef(true)
+  const [following, setFollowing] = useState(true)
+  const [wrap, setWrap] = useState(true)
+  const [copied, setCopied] = useState(false)
+
+  const setRefs = useCallback((el: HTMLDivElement | null) => {
+    innerRef.current = el
+    if (typeof bodyRef === "function") bodyRef(el)
+    else if (bodyRef) (bodyRef as React.MutableRefObject<HTMLDivElement | null>).current = el
+  }, [bodyRef])
+
+  const scrollToEnd = () => {
+    const el = innerRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }
+
+  // Follow new output while locked to the bottom.
+  useEffect(() => {
+    if (stick.current) scrollToEnd()
+  })
+
+  const onScroll = () => {
+    const el = innerRef.current
+    if (!el) return
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24
+    stick.current = atBottom
+    setFollowing(prev => (prev === atBottom ? prev : atBottom))
+  }
+
+  const resume = () => {
+    stick.current = true
+    setFollowing(true)
+    scrollToEnd()
+  }
+
+  const copy = async () => {
+    const text = innerRef.current?.innerText ?? ""
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch { /* clipboard unavailable */ }
+  }
+
+  const toolBtn =
+    "h-7 gap-1 px-2 text-xs text-[var(--t-muted)] hover:bg-[var(--t-hover)] hover:text-[var(--t-fg)] aria-pressed:bg-[var(--t-hover)] aria-pressed:text-[var(--t-fg)]"
+
+  return (
     <div
-      className="flex shrink-0 items-center gap-2 px-4 py-3"
-      style={{ borderBottom: "1px solid var(--border)" }}
-    >
-      <div className="flex flex-row gap-x-2">
-        <div className="h-3 w-3 rounded-full bg-red-500" />
-        <div className="h-3 w-3 rounded-full bg-yellow-500" />
-        <div className="h-3 w-3 rounded-full bg-green-500" />
-      </div>
-      {title && (
-        <div
-          className="ml-2 truncate font-mono text-xs"
-          style={{ color: "var(--fg-4)" }}
-        >
-          {title}
-        </div>
-      )}
-    </div>
-    <div
-      ref={bodyRef}
       className={cn(
-        "flex-1 overflow-y-auto p-4 font-mono text-xs leading-5",
-        bodyClassName
+        "relative flex flex-col overflow-hidden rounded-xl border border-[var(--t-border)] bg-[var(--t-bg)] text-[var(--t-fg)]",
+        "[--t-bg:#0d1117] [--t-bar:#161b22] [--t-border:#30363d] [--t-hover:#21262d]",
+        "[--t-fg:#e6edf3] [--t-muted:#8b949e] [--t-dim:#7d8590] [--t-err:#ff7b72] [--t-sys:#d2a8ff] [--t-ok:#7ee787]",
+        className
       )}
     >
-      {children}
+      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--t-border)] bg-[var(--t-bar)] px-3 py-1.5">
+        <SquareTerminal className="size-4 shrink-0 text-[var(--t-muted)]" aria-hidden />
+        {title && (
+          <div className="min-w-0 flex-1 truncate font-mono text-xs text-[var(--t-muted)]">{title}</div>
+        )}
+        {!title && <div className="flex-1" />}
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          aria-pressed={wrap}
+          aria-label="Wrap long lines"
+          title="Wrap long lines"
+          className={toolBtn}
+          onClick={() => setWrap(w => !w)}
+        >
+          <WrapText className="size-3.5" />
+          <span className="hidden sm:inline">Wrap</span>
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          aria-label="Copy log"
+          title="Copy log"
+          className={toolBtn}
+          onClick={copy}
+        >
+          {copied ? <Check className="size-3.5 text-[var(--t-ok)]" /> : <Copy className="size-3.5" />}
+          <span className="hidden sm:inline">{copied ? "Copied" : "Copy"}</span>
+        </Button>
+      </div>
+      <div
+        ref={setRefs}
+        onScroll={onScroll}
+        role="log"
+        aria-live="off"
+        tabIndex={0}
+        aria-label={typeof title === "string" ? title : "Log output"}
+        className={cn(
+          "min-h-0 flex-1 overflow-auto p-4 font-mono text-xs leading-5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--t-muted)]",
+          wrap ? "whitespace-pre-wrap break-all" : "whitespace-pre",
+          bodyClassName
+        )}
+      >
+        {children}
+      </div>
+      {!following && (
+        <Button
+          type="button"
+          size="xs"
+          onClick={resume}
+          className="absolute right-4 bottom-4 gap-1 bg-[var(--t-fg)] text-[var(--t-bg)] shadow-pop hover:bg-[var(--t-fg)]/90"
+        >
+          <ArrowDownToLine className="size-3.5" />
+          Latest
+        </Button>
+      )}
     </div>
-  </div>
-)
+  )
+}
 
 interface TerminalProps {
   children: React.ReactNode

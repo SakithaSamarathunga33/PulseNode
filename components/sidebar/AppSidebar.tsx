@@ -88,7 +88,7 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent role="navigation" aria-label="Primary">
         {NAV_GROUPS.map(group => {
           const items = group.items.filter(i => !i.optional || (i.optional === "coolify" && coolifyEnabled))
           return (
@@ -106,6 +106,7 @@ export function AppSidebar() {
                         <SidebarMenuButton
                           render={<Link href={item.href} />}
                           isActive={active}
+                          aria-current={active ? "page" : undefined}
                           tooltip={item.label}
                           className="data-active:bg-[color-mix(in_srgb,var(--hue)_14%,transparent)] data-active:text-sidebar-foreground data-active:shadow-[inset_2px_0_0_var(--hue)]"
                         >
@@ -139,7 +140,7 @@ export function AppSidebar() {
               <NumberTicker value={cpu} decimals={1} />%
             </span>
           </div>
-          <Progress value={cpu} className="h-1" />
+          <Progress value={cpu} aria-label="CPU usage" className="h-1" />
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="size-1.5 shrink-0 rounded-full bg-success status-live" />
             <span className="truncate">{HOST.name}</span>
@@ -151,6 +152,7 @@ export function AppSidebar() {
             <SidebarMenuButton
               render={<Link href={SETTINGS_ITEM.href} />}
               isActive={isActive(SETTINGS_ITEM.href)}
+              aria-current={isActive(SETTINGS_ITEM.href) ? "page" : undefined}
               tooltip={hasUpdate ? "Settings — update available" : "Settings"}
             >
               <SETTINGS_ITEM.icon />

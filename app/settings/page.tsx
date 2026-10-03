@@ -2,9 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
-  AlertTriangle, CheckCircle2, Download, LogOut,
+  AlertTriangle, CheckCircle2, Download, ExternalLink, Loader2, LogOut,
   RefreshCw, Settings, Shield, Zap,
 } from "lucide-react"
+import { PageHeader, PageBody } from "@/components/pn/PageHeader"
+import { Pill } from "@/components/dashboard/Pill"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Separator } from "@/components/ui/separator"
 
 const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
 
@@ -28,15 +36,24 @@ interface AuthStatus { enabled: boolean; loggedIn: boolean; username?: string }
 function LogLine({ line }: { line: string }) {
   if (line.startsWith("::")) {
     const msg = line.replace(/^::[^:]+:: /, "")
-    return <p className="text-xs text-pn-electric font-semibold pt-1">{msg}</p>
+    return <p className="pt-1 text-xs font-semibold text-primary">{msg}</p>
   }
-  if (line.startsWith("✓"))  return <p className="text-xs text-emerald-400 font-mono">{line}</p>
-  if (line.startsWith("⚠"))  return <p className="text-xs text-amber-400 font-mono">{line}</p>
-  if (line.startsWith("✕"))  return <p className="text-xs text-red-400 font-mono">{line}</p>
-  if (/^\[.*\]/.test(line))  return <p className="text-[10px] text-helm-fg3/70 font-mono leading-tight">{line}</p>
+  if (line.startsWith("✓"))  return <p className="font-mono text-xs text-success">{line}</p>
+  if (line.startsWith("⚠"))  return <p className="font-mono text-xs text-warning">{line}</p>
+  if (line.startsWith("✕"))  return <p className="font-mono text-xs text-danger">{line}</p>
+  if (/^\[.*\]/.test(line))  return <p className="font-mono text-[11px] leading-tight text-muted-foreground">{line}</p>
   if (/^(web|go-api|caddy)\s+(Pull|Push|Build|Pulling|Pushing|Building)/.test(line))
-    return <p className="text-xs text-indigo-300 font-mono">{line}</p>
-  return <p className="text-xs text-helm-fg3 font-mono">{line}</p>
+    return <p className="font-mono text-xs text-info">{line}</p>
+  return <p className="font-mono text-xs text-muted-foreground">{line}</p>
+}
+
+function Field({ id, label, ...props }: { id: string; label: string } & React.ComponentProps<typeof Input>) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input id={id} {...props} />
+    </div>
+  )
 }
 
 export default function SettingsPage() {
@@ -208,255 +225,193 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Settings size={22} className="text-helm-fg3" />
-        <div>
-          <h1 className="text-xl font-semibold text-helm-fg">Settings</h1>
-          <p className="text-sm text-helm-fg3 mt-0.5">System configuration and updates</p>
-        </div>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[1fr_400px] items-start">
-        {/* ── Left column: Version + Updates ──────────────────────────────── */}
-        <div className="space-y-6">
-          {/* Version card */}
-          <div className="rounded-xl border border-pulseNode-border/20 bg-pulseNode-navyLight overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-pulseNode-border/10 bg-pulseNode-navy">
-              <Zap size={14} className="text-pn-electric" />
-              <span className="text-sm font-semibold text-helm-fg">Version</span>
-            </div>
-
-            <div className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-lg bg-pulseNode-navy p-3">
-                  <div className="text-[10px] uppercase tracking-wider text-helm-fg3 mb-1">Installed</div>
-                  <code className="text-sm font-mono text-helm-fg">
-                    {version ? `v${version.current}` : "—"}
-                  </code>
+    <>
+      <PageHeader icon={Settings} title="Settings" description="System configuration and updates" />
+      <PageBody className="max-w-6xl">
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
+          {/* Left column: Version + Updates */}
+          <div className="space-y-5">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Zap className="size-4 text-[var(--hue)]" /> Version</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border bg-muted/40 p-3">
+                    <div className="mb-1 text-xs text-muted-foreground">Installed</div>
+                    <code className="font-mono text-sm tabular-nums">{version ? `v${version.current}` : "—"}</code>
+                  </div>
+                  <div className="rounded-lg border bg-muted/40 p-3">
+                    <div className="mb-1 text-xs text-muted-foreground">Latest release</div>
+                    <code className="font-mono text-sm tabular-nums">
+                      {version?.latest ? `v${version.latest}` : checking ? "checking…" : "—"}
+                    </code>
+                  </div>
                 </div>
-                <div className="rounded-lg bg-pulseNode-navy p-3">
-                  <div className="text-[10px] uppercase tracking-wider text-helm-fg3 mb-1">Latest release</div>
-                  <code className="text-sm font-mono text-helm-fg">
-                    {version?.latest ? `v${version.latest}` : checking ? "checking…" : "—"}
-                  </code>
-                </div>
-              </div>
 
-              {version && !updating && (
-                <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium ${
-                  version.hasUpdate
-                    ? "bg-amber-500/10 border border-amber-500/20 text-amber-400"
-                    : "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
-                }`}>
-                  {version.hasUpdate
-                    ? <><AlertTriangle size={13} /> Update available — v{version.latest}</>
-                    : <><CheckCircle2 size={13} /> You are on the latest version</>
-                  }
-                </div>
-              )}
-
-              {version?.hasUpdate && version.changelog && (
-                <div className="rounded-lg bg-pulseNode-navy p-3 space-y-1">
-                  <div className="text-[10px] uppercase tracking-wider text-helm-fg3 mb-2">What&apos;s new</div>
-                  <pre className="text-[11px] text-helm-fg3 whitespace-pre-wrap font-sans leading-relaxed max-h-40 overflow-y-auto">
-                    {version.changelog}
-                  </pre>
-                  {version.releaseUrl && (
-                    <a href={version.releaseUrl} target="_blank" rel="noopener noreferrer"
-                      className="text-[11px] text-pn-electric hover:underline">
-                      View full release notes →
-                    </a>
-                  )}
-                </div>
-              )}
-
-              {!updating && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={fetchVersion} disabled={checking}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-pulseNode-border/20 text-helm-fg3 hover:text-helm-fg text-xs transition-colors disabled:opacity-50"
-                  >
-                    <RefreshCw size={12} className={checking ? "animate-spin" : ""} />
-                    {checking ? "Checking…" : "Check for updates"}
-                  </button>
-                  {version?.hasUpdate && (
-                    <button onClick={handleUpdate}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors">
-                      <Download size={12} />
-                      Update to v{version.latest}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Update progress */}
-          {updating && (
-            <div className="rounded-xl border border-pulseNode-border/20 bg-pulseNode-navyLight overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-pulseNode-border/10 bg-pulseNode-navy">
-                <RefreshCw size={14} className="text-pn-electric animate-spin" />
-                <span className="text-sm font-semibold text-helm-fg">
-                  {reconnecting ? "Reconnecting…" : "Updating PulseNode"}
-                </span>
-                {!reconnecting && countdown > 0 && (
-                  <span className="ml-auto text-xs text-helm-fg3">Restart expected in ~{countdown}s</span>
+                {version && !updating && (
+                  version.hasUpdate ? (
+                    <Alert>
+                      <AlertTriangle className="text-warning" />
+                      <AlertDescription className="font-medium text-foreground">Update available: v{version.latest}</AlertDescription>
+                    </Alert>
+                  ) : (
+                    <Alert>
+                      <CheckCircle2 className="text-success" />
+                      <AlertDescription className="font-medium text-foreground">You are on the latest version</AlertDescription>
+                    </Alert>
+                  )
                 )}
-              </div>
-              <div className="p-4 space-y-3">
-                {status && status.log.length > 0 && (
-                  <div className="rounded-lg bg-pulseNode-navy p-3 space-y-0.5 max-h-96 overflow-y-auto">
-                    {status.log.map((l, i) => <LogLine key={i} line={l} />)}
-                    <div ref={logEndRef} />
+
+                {version?.hasUpdate && version.changelog && (
+                  <div className="space-y-2 rounded-lg border bg-muted/40 p-3">
+                    <div className="text-xs font-medium text-muted-foreground">What&apos;s new</div>
+                    <pre className="max-h-40 overflow-y-auto font-sans text-sm leading-relaxed whitespace-pre-wrap">
+                      {version.changelog}
+                    </pre>
+                    {version.releaseUrl && (
+                      <a href={version.releaseUrl} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-primary underline underline-offset-2">
+                        View full release notes <ExternalLink className="size-3" />
+                      </a>
+                    )}
                   </div>
                 )}
-                {status?.error && (
-                  <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400">
-                    {status.error}
+
+                {!updating && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" onClick={fetchVersion} disabled={checking}>
+                      <RefreshCw className={checking ? "animate-spin" : ""} />
+                      {checking ? "Checking…" : "Check for updates"}
+                    </Button>
+                    {version?.hasUpdate && (
+                      <Button onClick={handleUpdate}>
+                        <Download /> Update to v{version.latest}
+                      </Button>
+                    )}
                   </div>
                 )}
-                {reconnecting && (
-                  <p className="text-xs text-helm-fg3">
-                    Waiting for the dashboard to come back online… This may take up to 2 minutes while Docker rebuilds images.
-                  </p>
-                )}
-                {!reconnecting && !status?.error && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-[11px] text-helm-fg3">
-                      <span className={countdown < 60 ? "text-amber-400" : ""}>
+              </CardContent>
+            </Card>
+
+            {updating && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Loader2 className="size-4 animate-spin text-[var(--hue)]" />
+                    {reconnecting ? "Reconnecting…" : "Updating PulseNode"}
+                  </CardTitle>
+                  {!reconnecting && countdown > 0 && (
+                    <CardDescription className="tabular-nums">Restart expected in ~{countdown}s</CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-3" aria-live="polite">
+                  {status && status.log.length > 0 && (
+                    <div className="max-h-96 space-y-0.5 overflow-y-auto rounded-lg border bg-muted/50 p-3" role="log" aria-label="Update log">
+                      {status.log.map((l, i) => <LogLine key={i} line={l} />)}
+                      <div ref={logEndRef} />
+                    </div>
+                  )}
+                  {status?.error && (
+                    <Alert variant="destructive"><AlertTriangle /><AlertDescription>{status.error}</AlertDescription></Alert>
+                  )}
+                  {reconnecting && (
+                    <p className="text-sm text-muted-foreground">
+                      Waiting for the dashboard to come back online… This may take up to 2 minutes while Docker rebuilds images.
+                    </p>
+                  )}
+                  {!reconnecting && !status?.error && (
+                    <div className="space-y-2">
+                      <p className={countdown < 60 ? "text-sm text-warning" : "text-sm text-muted-foreground"}>
                         The dashboard is restarting. Do not close this tab.
-                      </span>
+                      </p>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-primary transition-all duration-1000"
+                          style={{ width: `${Math.max(5, ((90 - countdown) / 90) * 100)}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-1.5 rounded-full bg-pulseNode-border/20 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-indigo-500 transition-all duration-1000"
-                        style={{ width: `${Math.max(5, ((90 - countdown) / 90) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* How update works */}
-          {!updating && (
-            <div className="rounded-xl border border-pulseNode-border/10 bg-pulseNode-navyLight p-4 space-y-2">
-              <div className="text-[10px] uppercase tracking-wider text-helm-fg3 font-semibold">How updates work</div>
-              <ol className="space-y-1 text-xs text-helm-fg3 list-decimal list-inside">
-                <li>Pulls the latest code from GitHub (<code className="font-mono text-helm-fg">git pull</code>)</li>
-                <li>Stops all running containers (<code className="font-mono text-helm-fg">docker compose down</code>)</li>
-                <li>Rebuilds and restarts with the new code (<code className="font-mono text-helm-fg">docker compose up --build -d</code>)</li>
-                <li>The dashboard reconnects automatically when ready</li>
-              </ol>
-              <p className="text-[10px] text-helm-fg3 pt-1">
-                Only available when installed via <code className="font-mono">install.sh</code> (git clone required).
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* ── Right column: Security ───────────────────────────────────────── */}
-        <div className="rounded-xl border border-pulseNode-border/20 bg-pulseNode-navyLight overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-pulseNode-border/10 bg-pulseNode-navy">
-            <Shield size={14} className="text-pn-electric" />
-            <span className="text-sm font-semibold text-helm-fg">Security</span>
-            {authStatus?.enabled && (
-              <span className="ml-auto flex items-center gap-1.5 text-[10px] font-semibold text-emerald-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-                Protected · {authStatus.username}
-              </span>
+                  )}
+                </CardContent>
+              </Card>
             )}
-            {authStatus && !authStatus.enabled && (
-              <span className="ml-auto flex items-center gap-1.5 text-[10px] font-semibold text-helm-fg3">
-                <span className="w-1.5 h-1.5 rounded-full bg-helm-fg3 inline-block" />
-                Off
-              </span>
+
+            {!updating && (
+              <Card>
+                <CardHeader><CardTitle>How updates work</CardTitle></CardHeader>
+                <CardContent className="space-y-2">
+                  <ol className="list-decimal space-y-1.5 pl-5 text-sm text-muted-foreground">
+                    <li>Pulls the latest code from GitHub (<code className="font-mono text-xs text-foreground">git pull</code>)</li>
+                    <li>Stops all running containers (<code className="font-mono text-xs text-foreground">docker compose down</code>)</li>
+                    <li>Rebuilds and restarts with the new code (<code className="font-mono text-xs text-foreground">docker compose up --build -d</code>)</li>
+                    <li>The dashboard reconnects automatically when ready</li>
+                  </ol>
+                  <p className="text-xs text-muted-foreground">
+                    Only available when installed via <code className="font-mono">install.sh</code> (git clone required).
+                  </p>
+                </CardContent>
+              </Card>
             )}
           </div>
 
-          <div className="p-4 space-y-5">
-            {secError && (
-              <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400">{secError}</div>
-            )}
-            {secSuccess && (
-              <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-xs text-emerald-400">{secSuccess}</div>
-            )}
+          {/* Right column: Security */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex flex-wrap items-center gap-2">
+                <Shield className="size-4 text-[var(--hue)]" /> Security
+                {authStatus?.enabled && <Pill tone="ok" dot className="ml-auto">Protected · {authStatus.username}</Pill>}
+                {authStatus && !authStatus.enabled && <Pill tone="outline" dot className="ml-auto">Off</Pill>}
+              </CardTitle>
+            </CardHeader>
 
-            {/* No login configured — enable form */}
-            {authStatus && !authStatus.enabled && (
-              <form onSubmit={handleEnableLogin} className="space-y-3">
-                <p className="text-xs text-helm-fg3">
-                  Login protection is <strong className="text-helm-fg">off</strong>. Anyone who can reach this URL
-                  can access the dashboard. Set a username and password to lock it down.
-                </p>
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase tracking-wider text-helm-fg3 font-semibold">Username</label>
-                    <input value={newUsername} onChange={e => setNewUsername(e.target.value)} required
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-hidden focus:border-pn-cyan/40" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase tracking-wider text-helm-fg3 font-semibold">Password</label>
-                    <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={8}
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-hidden focus:border-pn-cyan/40" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase tracking-wider text-helm-fg3 font-semibold">Confirm password</label>
-                    <input type="password" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} required minLength={8}
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-hidden focus:border-pn-cyan/40" />
-                  </div>
-                </div>
-                <button type="submit" disabled={secLoading || !newUsername || !newPassword || !confirmPwd}
-                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors">
-                  <Shield size={12} />
-                  {secLoading ? "Enabling…" : "Enable login protection"}
-                </button>
-              </form>
-            )}
+            <CardContent className="space-y-5">
+              {secError && (
+                <Alert variant="destructive"><AlertTriangle /><AlertDescription>{secError}</AlertDescription></Alert>
+              )}
+              {secSuccess && (
+                <Alert><CheckCircle2 className="text-success" /><AlertDescription className="text-foreground">{secSuccess}</AlertDescription></Alert>
+              )}
 
-            {/* Login active — change password + disable */}
-            {authStatus?.enabled && (
-              <div className="space-y-5">
-                <form onSubmit={handleChangePassword} className="space-y-3">
-                  <p className="text-[10px] uppercase tracking-wider text-helm-fg3 font-semibold">Change password</p>
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-helm-fg3">Current password</label>
-                    <input type="password" value={curPassword} onChange={e => setCurPassword(e.target.value)} required
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-hidden focus:border-pn-cyan/40" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-helm-fg3">New password</label>
-                    <input type="password" value={chgPassword} onChange={e => setChgPassword(e.target.value)} required minLength={8}
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-hidden focus:border-pn-cyan/40" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-helm-fg3">Confirm new password</label>
-                    <input type="password" value={chgConfirm} onChange={e => setChgConfirm(e.target.value)} required minLength={8}
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg focus:outline-hidden focus:border-pn-cyan/40" />
-                  </div>
-                  <button type="submit" disabled={secLoading || !curPassword || !chgPassword || !chgConfirm}
-                    className="px-4 py-1.5 rounded-lg border border-pulseNode-border/20 text-helm-fg3 hover:text-helm-fg disabled:opacity-50 text-xs transition-colors">
-                    {secLoading ? "Updating…" : "Update password"}
-                  </button>
+              {authStatus && !authStatus.enabled && (
+                <form onSubmit={handleEnableLogin} className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Login protection is <strong className="text-foreground">off</strong>. Anyone who can reach this URL
+                    can access the dashboard. Set a username and password to lock it down.
+                  </p>
+                  <Field id="new-username" label="Username" autoComplete="username" value={newUsername} onChange={e => setNewUsername(e.target.value)} required />
+                  <Field id="new-password" label="Password" type="password" autoComplete="new-password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={8} />
+                  <Field id="confirm-password" label="Confirm password" type="password" autoComplete="new-password" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} required minLength={8} />
+                  <Button type="submit" disabled={secLoading || !newUsername || !newPassword || !confirmPwd}>
+                    {secLoading ? <Loader2 className="animate-spin" /> : <Shield />}
+                    {secLoading ? "Enabling…" : "Enable login protection"}
+                  </Button>
                 </form>
+              )}
 
-                <div className="border-t border-pulseNode-border/10" />
+              {authStatus?.enabled && (
+                <div className="space-y-5">
+                  <form onSubmit={handleChangePassword} className="space-y-4">
+                    <h2 className="text-sm font-semibold">Change password</h2>
+                    <Field id="cur-password" label="Current password" type="password" autoComplete="current-password" value={curPassword} onChange={e => setCurPassword(e.target.value)} required />
+                    <Field id="chg-password" label="New password" type="password" autoComplete="new-password" value={chgPassword} onChange={e => setChgPassword(e.target.value)} required minLength={8} />
+                    <Field id="chg-confirm" label="Confirm new password" type="password" autoComplete="new-password" value={chgConfirm} onChange={e => setChgConfirm(e.target.value)} required minLength={8} />
+                    <Button type="submit" variant="outline" disabled={secLoading || !curPassword || !chgPassword || !chgConfirm}>
+                      {secLoading ? "Updating…" : "Update password"}
+                    </Button>
+                  </form>
 
-                <div className="flex flex-wrap gap-2">
-                  <button onClick={handleLogout}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-pulseNode-border/20 text-helm-fg3 hover:text-helm-fg text-xs transition-colors">
-                    <LogOut size={12} />
-                    Sign out
-                  </button>
+                  <Separator />
+
+                  <Button variant="outline" onClick={handleLogout}>
+                    <LogOut /> Sign out
+                  </Button>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
-      </div>
-    </div>
+      </PageBody>
+    </>
   )
 }

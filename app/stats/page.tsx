@@ -1,61 +1,53 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { useGSAP } from "@gsap/react"
-import gsap from "gsap"
-import { Download, MoreHorizontal, Zap, Trash2 } from "lucide-react"
+import { BarChart3, Cpu, HardDrive, MemoryStick, Network, Trash2 } from "lucide-react"
 import { HOST as MOCK_HOST, SPARKS as MOCK_SPARKS } from "@/lib/mock-data"
 import { nodeApi, pythonApi, API_BASE } from "@/lib/api"
 import { getSocket } from "@/lib/socket"
 import type { HostInfo, SystemMetrics } from "@/lib/types"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { StatCard } from "@/components/dashboard/StatCard"
+import { ProgressBar } from "@/components/dashboard/ProgressBar"
+import { UPlotChart } from "@/components/dashboard/UPlotChart"
+import { PageHeader, PageBody } from "@/components/pn/PageHeader"
+import { LiveBadge } from "@/components/pn/LiveBadge"
+import { ChartCard } from "@/components/stats/ChartCard"
+import { ClearCacheDialog } from "@/components/stats/ClearCacheDialog"
 
 type PyMetrics = {
   cpu: number; ram: number; disk: number
   diskRead: number; diskWrite: number
   netIn: number; netOut: number; ts: number
 }
-import {
-  AlertDialog, AlertDialogContent, AlertDialogHeader,
-  AlertDialogTitle, AlertDialogFooter, AlertDialogCancel,
-} from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
-import { Terminal, AnimatedSpan } from "@/components/magicui/terminal"
-import { StatCard } from "@/components/dashboard/StatCard"
-import { UPlotChart } from "@/components/dashboard/UPlotChart"
-import { cn } from "@/lib/utils"
 
-// ── Chart helpers ─────────────────────────────────────────────────────────────
+const C1 = "var(--chart-1)", C2 = "var(--chart-2)", C3 = "var(--chart-3)"
+const fill = (c: string) => `color-mix(in srgb, ${c} 16%, transparent)`
+const statusTone = (pct: number) => (pct > 85 ? "bad" : pct > 70 ? "warn" : "acc") as "bad" | "warn" | "acc"
 
-function ChartCard({
-  title, value, unit, children, dot = false,
-}: {
-  title: string; value: string; unit?: string; children: React.ReactNode; dot?: boolean
-}) {
+function KV({ k, v }: { k: string; v: React.ReactNode }) {
   return (
-    <div className="gsap-enter rounded-xl bg-pulseNode-navyLight border border-pulseNode-border/10 shadow-card overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-pulseNode-border/10">
-        <div className="flex items-center gap-2">
-          {dot && <span className="w-1.5 h-1.5 rounded-full bg-green-400 status-live" />}
-          <span className="text-xs font-semibold text-helm-fg">{title}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-bold font-mono text-pulseNode-cyan">{value}</span>
-          {unit && <span className="text-xs text-helm-fg3">{unit}</span>}
-          <button className="p-1 rounded text-helm-fg3 hover:text-helm-fg transition-colors">
-            <MoreHorizontal size={14} />
-          </button>
-        </div>
-      </div>
-      <div className="chart-animate px-2 pt-3 pb-2">
-        {children}
-      </div>
+    <div className="flex items-start justify-between gap-3 py-1.5">
+      <dt className="shrink-0 text-xs text-muted-foreground">{k}</dt>
+      <dd className="min-w-0 truncate text-right font-mono text-xs tabular-nums" title={typeof v === "string" ? v : undefined}>{v}</dd>
     </div>
   )
 }
 
-const TIME_OPTIONS = ["5m", "1h", "6h", "24h", "7d"]
-
-// ── Page ───────────────────────────────────────────────────────────────────────
+function LegendRow({ color, label, value, pct }: { color: string; label: string; value: string; pct: number }) {
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="flex items-center gap-2 text-muted-foreground">
+        <span className="size-2 rounded-full" style={{ background: color }} />{label}
+      </span>
+      <span className="flex items-center gap-2">
+        <span className="font-mono tabular-nums">{value}</span>
+        <span className="w-10 text-right font-mono tabular-nums text-muted-foreground">{pct.toFixed(1)}%</span>
+      </span>
+    </div>
+  )
+}
 
 const HISTORY_LEN = 180
 
@@ -65,8 +57,8 @@ function pushHistory(arr: number[], val: number): number[] {
   return next
 }
 
+
 export default function StatsPage() {
-  const [timeRange, setTimeRange]   = useState("6h")
   const [host, setHost]             = useState<HostInfo>(MOCK_HOST)
   const [cpuHist,      setCpuHist]      = useState<number[]>(MOCK_SPARKS.cpuLong)
   const [ramHist,      setRamHist]      = useState<number[]>(MOCK_SPARKS.memLong)
@@ -75,7 +67,6 @@ export default function StatsPage() {
   const [diskWriteHist,setDiskWriteHist]= useState<number[]>([0])
   const [netHist,      setNetHist]      = useState<number[]>(MOCK_SPARKS.net)
   const [netTxHist,    setNetTxHist]    = useState<number[]>(MOCK_SPARKS.netTx)
-  const containerRef = useRef<HTMLDivElement>(null)
   const [cacheOpen,  setCacheOpen]  = useState(false)
   const [cacheLines, setCacheLines] = useState<string[]>([])
   const [cacheState, setCacheState] = useState<"idle" | "running" | "done" | "error">("idle")
@@ -174,334 +165,159 @@ export default function StatsPage() {
     return () => { socket.off("system:metrics", handler) }
   }, [])
 
-  useGSAP(() => {
-    gsap.fromTo(
-      ".gsap-enter",
-      { opacity: 0, y: 20 },
-      { opacity: 1, y: 0, duration: 0.45, stagger: 0.08, ease: "power2.out" }
-    )
-    // uPlot renders to canvas, so per-path SVG stroke animation isn't possible —
-    // reveal each chart left-to-right with a clip instead (mimics a line draw)
-    gsap.fromTo(
-      ".chart-animate",
-      { clipPath: "inset(0 100% 0 0)", opacity: 0 },
-      { clipPath: "inset(0 0% 0 0)", opacity: 1, duration: 1.1, ease: "power2.out", stagger: 0.12, delay: 0.2 }
-    )
-  }, { scope: containerRef })
-
-  // Memory breakdown
-  const memUsed    = host.memory.used
-  const memCached  = 0.6
-  const memBuffers = 0.2
-  const memFree    = Math.max(0, host.memory.total - memUsed - memCached - memBuffers)
-
-  const memTotal   = host.memory.total
-  const usedPct    = memTotal > 0 ? (memUsed    / memTotal) * 100 : 0
-  const cachedPct  = memTotal > 0 ? (memCached  / memTotal) * 100 : 0
-  const bufPct     = memTotal > 0 ? (memBuffers / memTotal) * 100 : 0
-  const freePct    = memTotal > 0 ? (memFree    / memTotal) * 100 : 0
+  // Memory breakdown — real values only (no cached/buffers data is collected)
+  const memUsed  = host.memory.used
+  const memTotal = host.memory.total
+  const memFree  = Math.max(0, memTotal - memUsed)
+  const usedPct  = memTotal > 0 ? (memUsed / memTotal) * 100 : 0
+  const freePct  = memTotal > 0 ? (memFree / memTotal) * 100 : 0
+  const lastRead  = diskReadHist[diskReadHist.length - 1] ?? 0
+  const lastWrite = diskWriteHist[diskWriteHist.length - 1] ?? 0
 
   return (
-    <div ref={containerRef} className="p-6 space-y-5">
-      {/* ── Header ── */}
-      <div className="gsap-enter flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-bold text-helm-fg">System Stats</h1>
-          <p className="text-[12px] text-helm-fg3 mt-0.5">
-            {host.name} · {host.region} · {host.ip}
-          </p>
+    <>
+      <PageHeader
+        icon={BarChart3}
+        title="System Stats"
+        description={`${host.name} · ${host.region} · ${host.ip}`}
+        actions={<LiveBadge>Live</LiveBadge>}
+      />
+      <PageBody className="motion-safe:animate-in motion-safe:fade-in-0 duration-300">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard
+            label="CPU" icon={Cpu} value={host.cpu.usage} unit="%" spark={cpuHist}
+            tone={statusTone(host.cpu.usage)} sub={<span className="truncate">{host.cpu.model}</span>}
+          />
+          <StatCard
+            label="Memory" icon={MemoryStick} value={host.memory.pct} unit="%" spark={ramHist}
+            tone={statusTone(host.memory.pct)} sub={<span>{host.memory.used}/{host.memory.total} {host.memory.unit} used</span>}
+          />
+          <StatCard
+            label="Disk" icon={HardDrive} value={host.disk.pct} unit="%" spark={diskHist}
+            tone={statusTone(host.disk.pct)} sub={<span>{host.disk.free} {host.disk.unit} free</span>}
+          />
+          <StatCard
+            label="Network RX" icon={Network} value={host.network.rx} unit={host.network.unit} spark={netHist}
+            tone="info" sub={<span>TX {host.network.tx} {host.network.unit}</span>}
+          />
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Time range */}
-          <div className="flex items-center rounded-lg border border-pulseNode-border/15 overflow-hidden">
-            {TIME_OPTIONS.map(r => (
-              <button
-                key={r}
-                onClick={() => setTimeRange(r)}
-                className={cn(
-                  "px-2.5 py-1.5 text-xs transition-colors",
-                  timeRange === r
-                    ? "bg-pulseNode-navyLight text-helm-fg"
-                    : "text-helm-fg3 hover:text-helm-fg"
-                )}
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <ChartCard title="CPU usage" value={host.cpu.usage} unit="%" live legend={[{ label: "CPU %", color: C1 }]}>
+            <UPlotChart series={[{ label: "CPU%", values: cpuHist, color: C1, fill: fill(C1) }]} max={100} />
+          </ChartCard>
+
+          <ChartCard title="Memory usage" value={host.memory.pct} unit="%" live legend={[{ label: "Memory %", color: C2 }]}>
+            <UPlotChart series={[{ label: "MEM%", values: ramHist, color: C2, fill: fill(C2) }]} max={100} />
+          </ChartCard>
+
+          <ChartCard
+            title="Disk I/O"
+            value={`R ${lastRead.toFixed(1)} · W ${lastWrite.toFixed(1)}`}
+            unit="MB/s"
+            legend={[{ label: "Read", color: C1 }, { label: "Write", color: C3 }]}
+          >
+            <UPlotChart
+              mode="bar"
+              series={[
+                { label: "Read", values: diskReadHist, color: C1 },
+                { label: "Write", values: diskWriteHist, color: C3 },
+              ]}
+            />
+          </ChartCard>
+
+          <ChartCard
+            title="Network"
+            value={`↓ ${host.network.rx} · ↑ ${host.network.tx}`}
+            unit={host.network.unit}
+            legend={[{ label: "RX (in)", color: C1 }, { label: "TX (out)", color: C3 }]}
+          >
+            <UPlotChart
+              series={[
+                { label: "RX", values: netHist, color: C1 },
+                { label: "TX", values: netTxHist, color: C3 },
+              ]}
+            />
+          </ChartCard>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Card size="sm">
+            <CardHeader><CardTitle className="text-sm">Host info</CardTitle></CardHeader>
+            <CardContent>
+              <dl className="divide-y">
+                <KV k="Hostname" v={host.name} />
+                <KV k="Distro" v={host.distro} />
+                <KV k="Kernel" v={host.kernel} />
+                <KV k="Uptime" v={host.uptime} />
+                <KV k="IP" v={host.ip} />
+                <KV k="Region" v={host.region} />
+                <KV k="CPU model" v={host.cpu.model} />
+                <KV k="Swap" v={`${host.swap.used}/${host.swap.total} GB (${host.swap.pct}%)`} />
+              </dl>
+            </CardContent>
+          </Card>
+
+          <Card size="sm">
+            <CardHeader><CardTitle className="text-sm">Memory breakdown</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-2xl font-bold tabular-nums">
+                {host.memory.used} <span className="text-sm font-normal text-muted-foreground">/ {host.memory.total} {host.memory.unit}</span>
+              </p>
+              <div className="flex h-3 gap-0.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={`Memory ${usedPct.toFixed(0)}% used, ${freePct.toFixed(0)}% free`}>
+                <div className="rounded-l-full" style={{ width: `${usedPct}%`, background: C1 }} />
+              </div>
+              <div className="space-y-2">
+                <LegendRow color={C1} label="Used" value={`${memUsed} ${host.memory.unit}`} pct={usedPct} />
+                <LegendRow color="var(--muted)" label="Free" value={`${memFree.toFixed(1)} ${host.memory.unit}`} pct={freePct} />
+              </div>
+              <div className="border-t pt-4">
+                <p className="mb-2 text-xs font-medium text-muted-foreground">Swap</p>
+                <div className="flex items-center gap-3">
+                  <ProgressBar value={host.swap.pct} className="flex-1" />
+                  <span className="font-mono text-xs tabular-nums">{host.swap.used}/{host.swap.total} GB</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card size="sm">
+            <CardHeader><CardTitle className="text-sm">Disk</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-2xl font-bold tabular-nums">
+                {host.disk.pct}% <span className="text-sm font-normal text-muted-foreground">used</span>
+              </p>
+              <ProgressBar value={host.disk.pct} className="h-3" />
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: "Used", val: host.disk.used },
+                  { label: "Free", val: host.disk.free },
+                  { label: "Total", val: host.disk.total },
+                ].map(item => (
+                  <div key={item.label} className="rounded-lg bg-muted/60 px-3 py-2">
+                    <p className="text-xs text-muted-foreground">{item.label}</p>
+                    <p className="mt-0.5 font-mono text-sm font-semibold tabular-nums">{item.val} <span className="text-xs font-normal text-muted-foreground">{host.disk.unit}</span></p>
+                  </div>
+                ))}
+              </div>
+              <dl className="divide-y border-t pt-2">
+                <KV k="Read rate" v={`${lastRead.toFixed(1)} MB/s`} />
+                <KV k="Write rate" v={`${lastWrite.toFixed(1)} MB/s`} />
+              </dl>
+              <Button
+                variant="destructive" size="sm" className="w-full"
+                onClick={handleClearCache}
+                disabled={cacheState === "running"}
               >
-                {r}
-              </button>
-            ))}
-          </div>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-pulseNode-navyLight border border-pulseNode-border/15 text-xs text-helm-fg3 hover:text-helm-fg transition-colors">
-            <Download size={12} /> Export
-          </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-pulseNode-navyLight border border-pulseNode-border/15 text-xs text-green-400 hover:text-green-300 transition-colors">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 status-live" />
-            Auto · 5s
-          </button>
-        </div>
-      </div>
-
-      {/* ── Stat cards ── */}
-      <div className="gsap-enter grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="CPU"
-          value={host.cpu.usage}
-          unit="%"
-          spark={cpuHist}
-          delta="+1.2%"
-          deltaTone="up"
-          tone="acc"
-          accent
-          sub={<span>{host.cpu.model}</span>}
-        />
-        <StatCard
-          label="Memory"
-          value={host.memory.pct}
-          unit="%"
-          spark={ramHist}
-          delta="-0.5%"
-          deltaTone="down"
-          tone="warn"
-          sub={<span>{host.memory.used}/{host.memory.total} {host.memory.unit} used</span>}
-        />
-        <StatCard
-          label="Disk"
-          value={host.disk.pct}
-          unit="%"
-          spark={diskHist}
-          tone="info"
-          sub={<span>{host.disk.free} {host.disk.unit} free</span>}
-        />
-        <StatCard
-          label="Network RX"
-          value={host.network.rx}
-          unit={host.network.unit}
-          spark={netHist}
-          tone="ok"
-          sub={<span>TX {host.network.tx} {host.network.unit}</span>}
-        />
-      </div>
-
-      {/* ── Charts 2×2 ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* CPU */}
-        <ChartCard title="CPU Usage" value={`${host.cpu.usage}%`} dot>
-          <UPlotChart
-            series={[{ label: "CPU%", values: cpuHist, color: "var(--pn-cyan)", fill: "rgba(47, 211, 242, 0.12)" }]}
-            max={100}
-          />
-        </ChartCard>
-
-        {/* Memory */}
-        <ChartCard title="Memory Usage" value={`${host.memory.pct}%`} dot>
-          <UPlotChart
-            series={[{ label: "MEM%", values: ramHist, color: "var(--color-warning)", fill: "rgba(251, 191, 36, 0.12)" }]}
-            max={100}
-          />
-        </ChartCard>
-
-        {/* Disk I/O */}
-        <ChartCard
-          title="Disk I/O"
-          value={`R:${(diskReadHist[diskReadHist.length - 1] ?? 0).toFixed(1)} W:${(diskWriteHist[diskWriteHist.length - 1] ?? 0).toFixed(1)}`}
-          unit="MB/s"
-        >
-          <UPlotChart
-            mode="bar"
-            series={[
-              { label: "Read", values: diskReadHist, color: "var(--pn-blue)" },
-              { label: "Write", values: diskWriteHist, color: "var(--pn-cyan)" },
-            ]}
-          />
-        </ChartCard>
-
-        {/* Network */}
-        <ChartCard title="Network" value={`↓${host.network.rx} ↑${host.network.tx}`} unit={host.network.unit}>
-          <UPlotChart
-            series={[
-              { label: "RX", values: netHist, color: "var(--pn-cyan)" },
-              { label: "TX", values: netTxHist, color: "var(--pn-blue)" },
-            ]}
-          />
-        </ChartCard>
-      </div>
-
-      {/* ── Detail cards 3-col ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Host Info */}
-        <div className="gsap-enter rounded-xl bg-pulseNode-navyLight border border-pulseNode-border/10 shadow-card p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-helm-fg3 mb-4">Host Info</p>
-          <dl className="space-y-2.5">
-            {[
-              ["Hostname",  host.name],
-              ["Distro",    host.distro],
-              ["Kernel",    host.kernel],
-              ["Uptime",    host.uptime],
-              ["IP",        host.ip],
-              ["Region",    host.region],
-              ["CPU Model", host.cpu.model],
-              ["Swap",      `${host.swap.used}/${host.swap.total} GB (${host.swap.pct}%)`],
-            ].map(([k, v]) => (
-              <div key={k} className="flex items-start justify-between gap-2">
-                <dt className="text-[11px] text-helm-fg3 shrink-0">{k}</dt>
-                <dd className="text-[11px] text-helm-fg font-mono text-right truncate max-w-[180px]">{v}</dd>
-              </div>
-            ))}
-          </dl>
+                <Trash2 className="size-3.5" />
+                Clear build cache
+              </Button>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Memory Breakdown */}
-        <div className="gsap-enter rounded-xl bg-pulseNode-navyLight border border-pulseNode-border/10 shadow-card p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-helm-fg3 mb-4">Memory Breakdown</p>
-          <p className="text-2xl font-bold text-pulseNode-cyan mb-1">
-            {host.memory.used} <span className="text-sm text-helm-fg3 font-normal">/ {host.memory.total} {host.memory.unit}</span>
-          </p>
-
-          {/* Segmented bar */}
-          <div className="flex h-3 rounded-full overflow-hidden gap-0.5 my-4">
-            <div className="bg-pulseNode-cyan rounded-l-full" style={{ width: `${usedPct}%` }} title="Used" />
-            <div className="bg-amber-400" style={{ width: `${cachedPct}%` }} title="Cached" />
-            <div className="bg-pn-blue" style={{ width: `${bufPct}%` }} title="Buffers" />
-            <div className="bg-pulseNode-navy rounded-r-full flex-1" title="Free" />
-          </div>
-
-          <div className="space-y-2">
-            {[
-              { label: "Used",    val: `${memUsed} GB`,    pct: usedPct,   color: "var(--pn-cyan)" },
-              { label: "Cached",  val: `${memCached} GB`,  pct: cachedPct, color: "var(--color-warning)" },
-              { label: "Buffers", val: `${memBuffers} GB`, pct: bufPct,    color: "var(--pn-blue)" },
-              { label: "Free",    val: `${memFree.toFixed(1)} GB`, pct: freePct, color: "var(--pn-muted)" },
-            ].map(row => (
-              <div key={row.label} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: row.color }} />
-                  <span className="text-[11px] text-helm-fg3">{row.label}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-mono text-helm-fg">{row.val}</span>
-                  <span className="text-[10px] text-helm-fg3 w-8 text-right">{row.pct.toFixed(1)}%</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 pt-4 border-t border-pulseNode-border/10">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-helm-fg3 mb-2">Swap</p>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 h-[3px] bg-pulseNode-navy rounded-full overflow-hidden">
-                <div className="h-full rounded-full bg-amber-400" style={{ width: `${host.swap.pct}%` }} />
-              </div>
-              <span className="text-[11px] font-mono text-helm-fg">{host.swap.used}/{host.swap.total} GB</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Disk */}
-        <div className="gsap-enter rounded-xl bg-pulseNode-navyLight border border-pulseNode-border/10 shadow-card p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-helm-fg3 mb-4">Disk</p>
-          <p className="text-2xl font-bold text-pulseNode-blue mb-1">
-            {host.disk.pct}% <span className="text-sm text-helm-fg3 font-normal">used</span>
-          </p>
-
-          <div className="my-4 h-3 rounded-full overflow-hidden bg-pulseNode-navy">
-            <div className="h-full rounded-full bg-pulseNode-blue" style={{ width: `${host.disk.pct}%` }} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            {[
-              { label: "Used",  val: `${host.disk.used} ${host.disk.unit}` },
-              { label: "Free",  val: `${host.disk.free} ${host.disk.unit}` },
-              { label: "Total", val: `${host.disk.total} ${host.disk.unit}` },
-              { label: "Type",  val: "SSD" },
-            ].map(item => (
-              <div key={item.label} className="rounded-lg bg-pulseNode-navy/60 px-3 py-2">
-                <p className="text-[10px] text-helm-fg3">{item.label}</p>
-                <p className="text-sm font-mono font-bold text-helm-fg mt-0.5">{item.val}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 pt-4 border-t border-pulseNode-border/10">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-helm-fg3 mb-2">I/O Rate</p>
-            <div className="flex items-center gap-3">
-              <Zap size={12} className="text-pulseNode-blue" />
-              <span className="text-[11px] text-helm-fg3">Read</span>
-              <span className="text-[11px] font-mono text-helm-fg ml-auto">
-                {(diskReadHist[diskReadHist.length - 1] ?? 0).toFixed(1)} MB/s
-              </span>
-            </div>
-            <div className="flex items-center gap-3 mt-1.5">
-              <Zap size={12} className="text-amber-400" />
-              <span className="text-[11px] text-helm-fg3">Write</span>
-              <span className="text-[11px] font-mono text-helm-fg ml-auto">
-                {(diskWriteHist[diskWriteHist.length - 1] ?? 0).toFixed(1)} MB/s
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-4 pt-4 border-t border-pulseNode-border/10">
-            <Button
-              variant="destructive"
-              size="sm"
-              className="w-full gap-2 text-xs"
-              onClick={handleClearCache}
-              disabled={cacheState === "running"}
-            >
-              <Trash2 size={12} />
-              Clear Build Cache
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <AlertDialog open={cacheOpen} onOpenChange={open => { if (!open) handleCacheDialogClose() }}>
-        <AlertDialogContent className="max-w-2xl p-0 overflow-hidden gap-0 bg-pulseNode-navyLight border-pulseNode-border/20">
-          <AlertDialogHeader className="px-5 pt-5 pb-0">
-            <AlertDialogTitle className="text-sm font-semibold text-helm-fg flex items-center gap-2">
-              <Trash2 size={14} className="text-red-400" />
-              Clear Docker Build Cache
-            </AlertDialogTitle>
-          </AlertDialogHeader>
-
-          <div className="p-5">
-            <Terminal
-              sequence={false}
-              startOnView={false}
-              className="max-w-full border-pulseNode-border/20 bg-pulseNode-navy"
-            >
-              {cacheLines.map((line, i) => (
-                <AnimatedSpan
-                  key={i}
-                  className={
-                    line.startsWith("✔")
-                      ? "text-green-400"
-                      : line.startsWith("✗")
-                      ? "text-red-400"
-                      : line.startsWith("$")
-                      ? "text-pulseNode-blue font-mono"
-                      : "text-helm-fg3 font-mono text-xs"
-                  }
-                >
-                  {line}
-                </AnimatedSpan>
-              ))}
-              {cacheState === "running" && (
-                <AnimatedSpan className="text-helm-fg3 font-mono text-xs">
-                  <span className="animate-pulse">▋</span>
-                </AnimatedSpan>
-              )}
-            </Terminal>
-          </div>
-
-          <AlertDialogFooter className="px-5 py-4 border-t border-pulseNode-border/10 bg-transparent rounded-none">
-            <AlertDialogCancel
-              onClick={handleCacheDialogClose}
-              variant="outline"
-              className="text-xs"
-            >
-              {cacheState === "running" ? "Cancel" : "Close"}
-            </AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+        <ClearCacheDialog open={cacheOpen} lines={cacheLines} state={cacheState} onClose={handleCacheDialogClose} />
+      </PageBody>
+    </>
   )
 }

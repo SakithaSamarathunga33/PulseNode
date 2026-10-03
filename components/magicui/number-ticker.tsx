@@ -17,6 +17,12 @@ export function NumberTicker({ value, decimals = 0, className, duration = 1200 }
   useEffect(() => {
     const start = prevRef.current
     const end = value
+    // Skip the count-up for people who asked for reduced motion.
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      prevRef.current = end
+      setDisplay(end)
+      return
+    }
     const startTime = performance.now()
 
     const tick = (now: number) => {

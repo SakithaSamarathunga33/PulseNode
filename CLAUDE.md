@@ -48,6 +48,11 @@ Rules:
 - Empty/placeholder `JWT_SECRET`/`AES_KEY` are replaced by random keys persisted in the data dir; `db.Encrypt` errors instead of storing plaintext.
 - Builder: commands run with the `passEnv` allow-list only (no panel secrets); the GitHub token goes via `gitAuthEnv` (env `http.extraheader`), never the clone URL; user compose files must pass `composeViolations` (no privileged/host namespaces/cap_add/devices/host binds/traefik labels/out-of-repo files).
 
+### UI / design system (see docs/design-system.md)
+- **Tailwind 4 + shadcn/ui on base-ui** (no `asChild` — use the `render` prop). Tokens live in `app/theme.css` (light on `:root`, dark on `[data-theme="dark"]`, theme via `next-themes`: light/dark/system, key `pn-theme`). `AppShell` tags the content with `data-area` (monitor/resource/deploy/security/neutral → `--hue`), derived from `lib/nav.ts` — the same file drives the sidebar, breadcrumb and Ctrl+K palette, so add new pages there.
+- Page = `PageHeader` + `PageBody` (`components/pn/*`), shadcn `Table`/`Dialog`/`Sheet`/`Tabs`, `ConfirmDialog` instead of `confirm()`, sonner `toast` instead of `alert()`. No hard-coded hex colours; status colours (`success/warning/danger/info`) always come with text or an icon.
+- Add shadcn components with `npx shadcn@latest add <name>`; check the diff afterwards (it can overwrite files).
+
 ### Workflow rule: go live on this VPS first, then commit + push
 Every change to this project is deployed and verified on this VPS **before** it is committed and pushed. Pushing to `main` triggers a release (new GHCR images for every user), so nothing gets pushed that hasn't run live here.
 1. Make the change and run the checks: `cd backend && go test ./...`, `npx tsc --noEmit`, `npm run build` (whichever apply).

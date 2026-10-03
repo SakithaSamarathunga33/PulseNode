@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { RefreshCw, CheckCircle, XCircle } from "lucide-react"
+import { Loader2, CheckCircle2, XCircle } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
 
 const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
 
@@ -81,31 +82,32 @@ function CallbackInner() {
   }, [searchParams, router])
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-1)" }}>
-      <div className="rounded-2xl p-8 text-center space-y-4 max-w-sm w-full"
-        style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-        {status === "loading" && (
-          <>
-            <RefreshCw size={32} className="mx-auto animate-spin" style={{ color: "var(--acc)" }} />
-            <p className="text-sm font-medium" style={{ color: "var(--fg)" }}>Registering installation…</p>
-          </>
-        )}
-        {status === "ok" && (
-          <>
-            <CheckCircle size={32} className="mx-auto" style={{ color: "var(--ok)" }} />
-            <p className="text-sm font-medium" style={{ color: "var(--fg)" }}>{message}</p>
-            <p className="text-xs" style={{ color: "var(--fg-3)" }}>Redirecting…</p>
-          </>
-        )}
-        {status === "error" && (
-          <>
-            <XCircle size={32} className="mx-auto" style={{ color: "var(--err)" }} />
-            <p className="text-sm font-medium" style={{ color: "var(--fg)" }}>Something went wrong</p>
-            <p className="text-xs" style={{ color: "var(--fg-3)" }}>{message}</p>
-            <p className="text-xs" style={{ color: "var(--fg-3)" }}>Redirecting to GitHub settings…</p>
-          </>
-        )}
-      </div>
+    <div className="grid min-h-screen place-items-center bg-background p-4">
+      <Card className="w-full max-w-sm" role="status" aria-live="polite">
+        <CardContent className="flex flex-col items-center gap-3 py-8 text-center motion-safe:animate-in fade-in-0 duration-300">
+          {status === "loading" && (
+            <>
+              <Loader2 className="size-8 animate-spin text-primary" aria-hidden />
+              <p className="text-sm font-medium">Registering installation…</p>
+            </>
+          )}
+          {status === "ok" && (
+            <>
+              <CheckCircle2 className="size-8 text-success" aria-hidden />
+              <p className="text-sm font-medium">{message}</p>
+              <p className="text-xs text-muted-foreground">Redirecting…</p>
+            </>
+          )}
+          {status === "error" && (
+            <>
+              <XCircle className="size-8 text-danger" aria-hidden />
+              <p className="text-sm font-medium">Something went wrong</p>
+              <p className="text-sm text-muted-foreground">{message}</p>
+              <p className="text-xs text-muted-foreground">Redirecting to GitHub settings…</p>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -113,8 +115,8 @@ function CallbackInner() {
 export default function GitHubAppCallbackPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-1)" }}>
-        <RefreshCw size={32} className="animate-spin" style={{ color: "var(--acc)" }} />
+      <div className="grid min-h-screen place-items-center bg-background">
+        <Loader2 className="size-8 animate-spin text-primary" aria-label="Loading" />
       </div>
     }>
       <CallbackInner />
