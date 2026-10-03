@@ -179,6 +179,7 @@ jobs:
   #    must not block releases. Set `exit-code: '1'` to turn this into a hard gate.
   scan:
     name: Trivy report (${{ matrix.name }})
+    continue-on-error: true # report-only: never fail a published release over a scan
     needs: [version, merge]
     runs-on: ubuntu-latest
     permissions:
@@ -195,7 +196,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Trivy image scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.33.1
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.name }}:${{ needs.version.outputs.tag }}
           severity: CRITICAL,HIGH
