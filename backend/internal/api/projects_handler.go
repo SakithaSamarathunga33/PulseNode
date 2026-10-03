@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -49,6 +50,20 @@ func (s *Server) listProjects(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, items)
 }
 
+// validRepoURL accepts http(s) clone URLs only. file://, ssh, local paths and
+// "-"-prefixed values (git option injection) are rejected; embedded credentials
+// would end up in logs, so tokens must come from the connected GitHub account.
+func validRepoURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Host != "" && u.User == nil
+}
+
+// validBranch rejects names git itself would refuse or that look like options.
+func validBranch(b string) bool {
+	return len(b) <= 255 && !strings.HasPrefix(b, "-") && !strings.Contains(b, "..") &&
+		!strings.ContainsAny(b, " ~^:?*[\\\x00\n\r\t")
+}
+
 func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name         string `json:"name"`
@@ -74,6 +89,14 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 	body.Domain = cleanDomain(body.Domain)
 	if !validHostname(body.Domain) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "domain must be a plain hostname like app.example.com"})
+		return
+	}
+	if !validRepoURL(body.RepoURL) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "repoUrl must be an https:// git URL without credentials"})
+		return
+	}
+	if body.Branch != "" && !validBranch(body.Branch) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid branch name"})
 		return
 	}
 	if body.BaseDir != "" && body.BaseDir != "frontend" && body.BaseDir != "backend" {
@@ -168,6 +191,10 @@ func (s *Server) updateProject(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.BackendEnvVars == "" {
 		body.BackendEnvVars = "{}"
+	}
+	if body.Branch != "" && !validBranch(body.Branch) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid branch name"})
+		return
 	}
 	if body.Domain != "" {
 		body.Domain = cleanDomain(body.Domain)

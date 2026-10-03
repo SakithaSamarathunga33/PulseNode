@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -174,5 +175,34 @@ func TestValidSignatureRejectsEmptySecret(t *testing.T) {
 	mac.Write(body)
 	if validSignature("", "sha256="+hex.EncodeToString(mac.Sum(nil)), body) {
 		t.Fatal("a signature made with an empty key must not validate")
+	}
+}
+
+func TestValidRepoURLAndBranch(t *testing.T) {
+	for _, u := range []string{"https://github.com/o/r.git", "http://git.local/o/r"} {
+		if !validRepoURL(u) {
+			t.Errorf("validRepoURL(%q) = false", u)
+		}
+	}
+	for _, u := range []string{"--upload-pack=touch /tmp/x", "file:///workspace", "/workspace", "ssh://git@github.com/o/r", "https://user:tok@github.com/o/r", "ext::sh -c id"} {
+		if validRepoURL(u) {
+			t.Errorf("validRepoURL(%q) = true", u)
+		}
+	}
+	for _, b := range []string{"main", "feature/x-1", "release-2.0"} {
+		if !validBranch(b) {
+			t.Errorf("validBranch(%q) = false", b)
+		}
+	}
+	for _, b := range []string{"-x", "a..b", "a b", "a~1", "a\nb"} {
+		if validBranch(b) {
+			t.Errorf("validBranch(%q) = true", b)
+		}
+	}
+}
+
+func TestProtectedPID(t *testing.T) {
+	if !protectedPID(os.Getpid()) {
+		t.Fatal("PulseNode must not be able to kill or freeze itself")
 	}
 }

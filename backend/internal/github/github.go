@@ -258,19 +258,6 @@ func ParseOwnerRepo(repoURL string) (owner, repo string, ok bool) {
 	return parts[0], parts[1], true
 }
 
-// AuthorisedCloneURL injects the token for private repo access
-func AuthorisedCloneURL(cloneURL, token string) string {
-	if token == "" {
-		return cloneURL
-	}
-	u, err := url.Parse(cloneURL)
-	if err != nil {
-		return cloneURL
-	}
-	u.User = url.UserPassword("x-access-token", token)
-	return u.String()
-}
-
 // ── OAuth ─────────────────────────────────────────────────────────────────────
 
 func AuthURL(callbackURL, state string) string {

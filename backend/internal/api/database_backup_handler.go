@@ -2,11 +2,11 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"time"
 
@@ -75,6 +75,10 @@ func (s *Server) startBackup(w http.ResponseWriter, r *http.Request) {
 		Table    string `json:"table"` // table for pg/mysql, collection for mongo
 	}
 	_ = decodeJSON(r, &body)
+	if (body.Database != "" && !dbIdentRe.MatchString(body.Database)) || (body.Table != "" && !dbIdentRe.MatchString(body.Table)) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid database or table name"})
+		return
+	}
 
 	mdb, err := s.resolveAnyDB(r.Context(), containerName)
 	if err != nil {
@@ -99,7 +103,7 @@ func (s *Server) startBackup(w http.ResponseWriter, r *http.Request) {
 	}
 	filename := label + "_" + ts + "." + ext
 
-	if err := os.MkdirAll(backupsDir(), 0755); err != nil {
+	if err := os.MkdirAll(backupsDir(), 0o700); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -136,7 +140,7 @@ func (s *Server) runBackup(job *backupJob, containerName string, mdb *dbpkg.Mana
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
 	defer cancel()
 
-	f, err := os.Create(job.File)
+	f, err := os.OpenFile(job.File, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600) // plaintext DB dump
 	if err != nil {
 		s.finishBackup(job, err)
 		return
@@ -269,11 +273,14 @@ func (s *Server) restoreDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseMultipartForm(4 << 30); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid form"})
+	// Cap the upload, and keep at most 32 MB in memory (the rest spills to temp
+	// files) — go-api runs with a 128 MB memory limit.
+	r.Body = http.MaxBytesReader(w, r.Body, maxRestoreUpload)
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid form or file larger than 2 GB"})
 		return
 	}
-	file, header, err := r.FormFile("file")
+	file, _, err := r.FormFile("file")
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "file is required"})
 		return
@@ -284,17 +291,22 @@ func (s *Server) restoreDatabase(w http.ResponseWriter, r *http.Request) {
 	if database == "" {
 		database = mdb.DBName
 	}
+	if database != "" && !dbIdentRe.MatchString(database) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid database name"})
+		return
+	}
 	table := r.FormValue("table")
 
 	// Save upload to disk (avoids memory pressure for large files)
-	if err := os.MkdirAll(backupsDir(), 0755); err != nil {
+	if err := os.MkdirAll(backupsDir(), 0o700); err != nil {
 		writeError(w, err)
 		return
 	}
+	// Name files only by a server-generated ID: the uploaded filename is
+	// attacker-chosen and used to end up in a shell command.
 	tmpID := dbpkg.NewID("rst")
-	safeBase := filepath.Base(header.Filename)
-	tmpPath := filepath.Join(backupsDir(), tmpID+"_"+safeBase)
-	tmpFile, err := os.Create(tmpPath)
+	tmpPath := filepath.Join(backupsDir(), tmpID)
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -311,7 +323,7 @@ func (s *Server) restoreDatabase(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
 	defer cancel()
 
-	remoteName := tmpID + "_" + safeBase
+	remoteName := tmpID + ".dump"
 	remotePath := "/tmp/" + remoteName
 
 	// Redis restore requires stop/replace/start — handle separately
@@ -359,8 +371,9 @@ func (s *Server) restoreDatabase(w http.ResponseWriter, r *http.Request) {
 		output, execErr = s.docker.ExecSliceEnv(ctx, containerName, []string{"PGPASSWORD=" + mdb.Password}, cmd)
 
 	case "mysql":
-		shCmd := fmt.Sprintf("mysql -u%s -p%s %s < %s", mdb.Username, mdb.Password, database, remotePath)
-		output, execErr = s.docker.ExecSlice(ctx, containerName, []string{"sh", "-c", shCmd})
+		// No shell: the password goes via MYSQL_PWD and the file via `source`.
+		cmd := []string{"mysql", "-u", mdb.Username, "-D", database, "-e", "source " + remotePath}
+		output, execErr = s.docker.ExecSliceEnv(ctx, containerName, []string{"MYSQL_PWD=" + mdb.Password}, cmd)
 
 	case "mongodb":
 		cmd := []string{"mongorestore", "--archive=" + remotePath, "--db", database}
@@ -379,6 +392,13 @@ func (s *Server) restoreDatabase(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "output": output})
 }
+
+// maxRestoreUpload caps restore uploads.
+const maxRestoreUpload = 2 << 30
+
+// dbIdentRe matches database names safe to pass as a client argument (no
+// leading "-" option, no "key=value" conninfo or URI).
+var dbIdentRe = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.$-]{0,63}$`)
 
 // ── Background cleanup of old backup files ────────────────────────────────────
 

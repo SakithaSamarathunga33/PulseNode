@@ -3,9 +3,11 @@ package builder
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,7 +24,8 @@ type Config struct {
 	DeploymentID string
 	ProjectID    string
 	ProjectName  string
-	RepoURL      string // already authorised for private repos
+	RepoURL      string // plain clone URL — never embed credentials (argv, logs and .git/config leak them)
+	GitToken     string // optional token for private repos, passed to git via env
 	Branch       string
 	Method       Method // auto | compose | dockerfile | nixpacks
 	BuildCommand string // optional override
@@ -66,7 +69,10 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 
 	// 1. Clone
 	cfg.log("system", "→ Cloning repository…")
-	if err := cfg.run(ctx, tmpDir, "git", "clone", "--depth", "1", "--branch", cfg.Branch, cfg.RepoURL, "."); err != nil {
+	// Only http(s) transports, and `--` so a URL can't be parsed as an option.
+	if err := cfg.runEnv(ctx, tmpDir, gitAuthEnv(cfg.RepoURL, cfg.GitToken), "git",
+		"-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c", "protocol.http.allow=always",
+		"clone", "--depth", "1", "--branch", cfg.Branch, "--", cfg.RepoURL, "."); err != nil {
 		return Result{}, fmt.Errorf("clone: %w", err)
 	}
 
@@ -194,6 +200,10 @@ func shortSHA(sha string) string {
 }
 
 func (cfg Config) buildCompose(ctx context.Context, dir, containerName string, envMap map[string]string) (string, error) {
+	cfg.log("system", "→ Checking docker-compose.yml…")
+	if err := cfg.checkComposePolicy(ctx, dir); err != nil {
+		return "", err
+	}
 	// Write overlay with Traefik labels for the first service
 	cfg.log("system", "→ Writing Traefik labels overlay…")
 	traefikNet := cfg.resolveTraefikNetwork(ctx)
@@ -719,9 +729,49 @@ func detectTraefikNetwork(ctx context.Context) string {
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
+// passEnv is the only part of go-api's environment that build commands see.
+// Everything else (JWT_SECRET, AES_KEY, GitHub/Coolify credentials) stays out,
+// since a repo's compose file could interpolate ${VAR} and a build step could
+// read its environment.
+var passEnv = []string{
+	"PATH", "HOME", "USER", "TMPDIR", "LANG", "LC_ALL", "TZ", "SSL_CERT_FILE", "SSL_CERT_DIR",
+	"DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_CERT_PATH", "DOCKER_TLS_VERIFY", "DOCKER_BUILDKIT", "BUILDKIT_PROGRESS",
+	"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
+}
+
+func buildEnv(extra []string) []string {
+	env := []string{"GIT_TERMINAL_PROMPT=0"}
+	for _, k := range passEnv {
+		if v, ok := os.LookupEnv(k); ok {
+			env = append(env, k+"="+v)
+		}
+	}
+	return append(env, extra...)
+}
+
+// gitAuthEnv sends the token as an HTTP header scoped to the repo's host, via
+// git's env-based config, so it never appears in argv or the clone's .git/config.
+func gitAuthEnv(repoURL, token string) []string {
+	u, err := url.Parse(repoURL)
+	if token == "" || err != nil || u.Host == "" {
+		return nil
+	}
+	cred := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + token))
+	return []string{
+		"GIT_CONFIG_COUNT=1",
+		"GIT_CONFIG_KEY_0=http." + u.Scheme + "://" + u.Host + "/.extraheader",
+		"GIT_CONFIG_VALUE_0=Authorization: Basic " + cred,
+	}
+}
+
 func (cfg Config) run(ctx context.Context, dir string, name string, args ...string) error {
+	return cfg.runEnv(ctx, dir, nil, name, args...)
+}
+
+func (cfg Config) runEnv(ctx context.Context, dir string, extraEnv []string, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
+	cmd.Env = buildEnv(extraEnv)
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()
 	if err := cmd.Start(); err != nil {
@@ -741,12 +791,15 @@ func (cfg Config) run(ctx context.Context, dir string, name string, args ...stri
 func runOutput(ctx context.Context, dir string, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
+	cmd.Env = buildEnv(nil)
 	out, err := cmd.Output()
 	return string(out), err
 }
 
 func runSilent(ctx context.Context, name string, args ...string) error {
-	return exec.CommandContext(ctx, name, args...).Run()
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = buildEnv(nil)
+	return cmd.Run()
 }
 
 func (cfg Config) log(stream, line string) {

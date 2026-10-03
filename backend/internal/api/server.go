@@ -433,12 +433,35 @@ func signalHandler(sig os.Signal) http.HandlerFunc {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid pid"})
 			return
 		}
+		// Resuming is always safe; killing or freezing PulseNode itself or the
+		// Docker daemon would take the panel down with no way to undo it from here.
+		if sig != syscall.SIGCONT && protectedPID(pid) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "refusing to signal a process PulseNode depends on"})
+			return
+		}
 		if err := proc.Signal(pid, sig); err != nil {
 			writeError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "pid": pid, "signal": sig.String()})
 	}
+}
+
+// protectedPID reports whether pid is this server, its parent, or the Docker
+// daemon (go-api shares the host PID namespace).
+func protectedPID(pid int) bool {
+	if pid == os.Getpid() || pid == os.Getppid() {
+		return true
+	}
+	comm, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/comm")
+	if err != nil {
+		return false
+	}
+	switch strings.TrimSpace(string(comm)) {
+	case "dockerd", "containerd":
+		return true
+	}
+	return false
 }
 
 func firstNonEmpty(values ...string) string {
