@@ -46,24 +46,29 @@ type Server struct {
 	origins   []string
 	backupMu  sync.Mutex
 	backups   map[string]*backupJob
+
+	insecureNoAuth bool       // PULSENODE_INSECURE_NO_AUTH=true: no admin account → open dashboard
+	setupMu        sync.Mutex // guards setupToken
+	setupToken     string     // one-time token required to create the first admin
+	setupTokenPath string
 }
 
 func NewServer(cfg Config) *Server {
+	dataDir := firstNonEmpty(os.Getenv("PULSENODE_DATA_DIR"), "/var/lib/pulsenode")
 	srv := &Server{
-		docker:    cfg.Docker,
-		collector: cfg.Collector,
-		hub:       cfg.Hub,
-		db:        cfg.DB,
-		queue:     cfg.Queue,
-		security:  security.New(),
-		caddy:     caddy.New(os.Getenv("CADDY_ADMIN_ADDR")),
-		auth: auth.NewMiddleware(auth.Config{
-			Enabled: strings.EqualFold(os.Getenv("GO_API_AUTH"), "true") || strings.EqualFold(os.Getenv("NODE_API_AUTH"), "true"),
-			Secret:  firstNonEmpty(os.Getenv("JWT_SECRET"), os.Getenv("NODE_API_SECRET"), "pulsenode-dev-secret"),
-		}),
-		origins: cfg.Origins,
-		backups: make(map[string]*backupJob),
+		docker:         cfg.Docker,
+		collector:      cfg.Collector,
+		hub:            cfg.Hub,
+		db:             cfg.DB,
+		queue:          cfg.Queue,
+		security:       security.New(),
+		caddy:          caddy.New(os.Getenv("CADDY_ADMIN_ADDR")),
+		auth:           auth.NewMiddleware(auth.Config{Secret: jwtSecret(dataDir)}),
+		origins:        cfg.Origins,
+		backups:        make(map[string]*backupJob),
+		insecureNoAuth: strings.EqualFold(os.Getenv("PULSENODE_INSECURE_NO_AUTH"), "true"),
 	}
+	srv.initSetupToken(dataDir)
 	srv.startBackupCleaner()
 	return srv
 }
@@ -107,7 +112,6 @@ func (s *Server) Routes() http.Handler {
 	r.Post("/api/auth/login", s.authLogin)
 	r.Post("/api/auth/logout", s.authLogout)
 	r.Post("/api/auth/setup", s.authSetup)
-	r.Delete("/api/auth/setup", s.authSetupDelete)
 
 	r.Route("/api", func(r chi.Router) {
 		r.Use(s.requireAuth)

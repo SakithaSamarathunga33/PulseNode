@@ -37,6 +37,12 @@ func main() {
 		log.Warn().Err(err).Msg("docker socket unavailable, container features disabled")
 	}
 
+	if generated, err := db.EnsureEncryptionKey(env("PULSENODE_DATA_DIR", "/var/lib/pulsenode")); err != nil {
+		log.Fatal().Err(err).Msg("no encryption key: set AES_KEY or make PULSENODE_DATA_DIR writable")
+	} else if generated {
+		log.Warn().Msg("AES_KEY not set — using a generated key stored in PULSENODE_DATA_DIR/aes-key")
+	}
+
 	database, err := db.Open(env("DATABASE_PATH", "/data/pulsenode.db"))
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to open database")

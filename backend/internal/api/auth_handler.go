@@ -30,7 +30,13 @@ func (s *Server) authStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if user == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"enabled": false, "loggedIn": false})
+		if s.insecureNoAuth {
+			writeJSON(w, http.StatusOK, map[string]any{"enabled": false, "loggedIn": false})
+			return
+		}
+		// Login is mandatory: send the browser to /login, which shows the
+		// create-admin form when setupRequired is set.
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "loggedIn": false, "setupRequired": true})
 		return
 	}
 	c, err := r.Cookie(sessionCookieName)
@@ -63,8 +69,9 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "login not configured"})
 		return
 	}
-	if user.Username != body.Username ||
-		bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(body.Password)) != nil {
+	// Always run bcrypt so a wrong username takes as long as a wrong password.
+	pwOK := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(body.Password)) == nil
+	if user.Username != body.Username || !pwOK {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
 		return
 	}
@@ -79,12 +86,15 @@ func (s *Server) authLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /api/auth/setup — create or update the admin account.
-// Body: {"username":"...","password":"...","current_password":"..."} (current_password required if account already exists)
+// Body: {"username":"...","password":"...","current_password":"...","setup_token":"..."}
+// current_password is required if the account already exists; setup_token is required
+// to create the first account (see initSetupToken).
 func (s *Server) authSetup(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Username        string `json:"username"`
 		Password        string `json:"password"`
 		CurrentPassword string `json:"current_password"`
+		SetupToken      string `json:"setup_token"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
@@ -108,6 +118,9 @@ func (s *Server) authSetup(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Current password is incorrect"})
 			return
 		}
+	} else if !s.insecureNoAuth && !s.checkSetupToken(body.SetupToken) {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid setup token"})
+		return
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), 12)
 	if err != nil {
@@ -118,36 +131,8 @@ func (s *Server) authSetup(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save user"})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
-}
-
-// DELETE /api/auth/setup — remove the admin account (disables login protection).
-// Body: {"password":"..."} — must confirm current password.
-func (s *Server) authSetupDelete(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Password string `json:"password"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-		return
-	}
-	existing, err := s.db.GetUser()
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "db error"})
-		return
-	}
 	if existing == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no login configured"})
-		return
+		s.clearSetupToken()
 	}
-	if bcrypt.CompareHashAndPassword([]byte(existing.PasswordHash), []byte(body.Password)) != nil {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Incorrect password"})
-		return
-	}
-	if err := s.db.DeleteUser(); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to remove user"})
-		return
-	}
-	setSessionCookie(w, "", -1)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }

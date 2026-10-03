@@ -10,6 +10,14 @@ const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
 interface AuthStatus {
   enabled: boolean
   loggedIn: boolean
+  setupRequired?: boolean
+}
+
+// Only follow same-origin paths after login. A raw `next` would allow
+// `javascript:` URLs (XSS in the panel origin) or `//evil.com` (open redirect).
+function safeNext(next: string | null): string {
+  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return "/"
+  return next
 }
 
 function LoginForm() {
@@ -17,6 +25,9 @@ function LoginForm() {
   const params = useSearchParams()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const [confirm,  setConfirm]  = useState("")
+  const [token,    setToken]    = useState("")
+  const [setup,    setSetup]    = useState(false)
   const [error,    setError]    = useState("")
   const [loading,  setLoading]  = useState(false)
   const [checking, setChecking] = useState(true)
@@ -26,8 +37,9 @@ function LoginForm() {
       .then(r => r.json() as Promise<AuthStatus>)
       .then(d => {
         if (!d.enabled || d.loggedIn) {
-          router.replace(params.get("next") ?? "/")
+          router.replace(safeNext(params.get("next")))
         } else {
+          setSetup(!!d.setupRequired)
           setChecking(false)
         }
       })
@@ -37,8 +49,24 @@ function LoginForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
+    if (setup && password !== confirm) {
+      setError("Passwords do not match")
+      return
+    }
     setLoading(true)
     try {
+      if (setup) {
+        const res = await fetch(`${GO_API}/api/auth/setup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password, setup_token: token.trim() }),
+        })
+        if (!res.ok) {
+          const b = await res.json().catch(() => ({})) as { error?: string }
+          setError(b.error ?? "Could not create the admin account")
+          return
+        }
+      }
       const res = await fetch(`${GO_API}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,7 +80,7 @@ function LoginForm() {
       // Hard navigation so middleware re-runs server-side with the freshly-set
       // session cookie. A client-side router.replace can race the new cookie and
       // bounce straight back to /login.
-      window.location.href = params.get("next") ?? "/"
+      window.location.href = safeNext(params.get("next"))
     } catch {
       setError("Could not reach server")
     } finally {
@@ -87,7 +115,9 @@ function LoginForm() {
             alt="PulseNode"
             className="mx-auto h-20 w-auto"
           />
-          <p className="text-sm text-helm-fg3 mt-3">Sign in to your dashboard</p>
+          <p className="text-sm text-helm-fg3 mt-3">
+            {setup ? "Create your admin account" : "Sign in to your dashboard"}
+          </p>
         </div>
 
         <form
@@ -95,6 +125,24 @@ function LoginForm() {
           className="relative overflow-hidden rounded-xl border border-pulseNode-border/20 bg-pulseNode-navyLight p-6 space-y-4"
         >
           <BorderBeam size={120} duration={8} borderWidth={2} />
+          {setup && (
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-helm-fg3">
+                Setup token
+              </label>
+              <input
+                value={token}
+                onChange={e => setToken(e.target.value)}
+                autoFocus
+                autoComplete="off"
+                required
+                className="w-full px-3 py-2 rounded-lg text-sm font-mono bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg placeholder:text-helm-fg3 focus:outline-none focus:border-pn-cyan/40"
+              />
+              <p className="text-[11px] text-helm-fg3">
+                Find it on the server: <code className="font-mono">docker compose logs go-api | grep setup_token</code>
+              </p>
+            </div>
+          )}
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-helm-fg3">
               Username
@@ -102,7 +150,7 @@ function LoginForm() {
             <input
               value={username}
               onChange={e => setUsername(e.target.value)}
-              autoFocus
+              autoFocus={!setup}
               autoComplete="username"
               required
               className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg placeholder:text-helm-fg3 focus:outline-none focus:border-pn-cyan/40"
@@ -117,11 +165,28 @@ function LoginForm() {
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              autoComplete="current-password"
+              autoComplete={setup ? "new-password" : "current-password"}
+              minLength={setup ? 8 : undefined}
               required
               className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg placeholder:text-helm-fg3 focus:outline-none focus:border-pn-cyan/40"
             />
           </div>
+
+          {setup && (
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-helm-fg3">
+                Confirm password
+              </label>
+              <input
+                type="password"
+                value={confirm}
+                onChange={e => setConfirm(e.target.value)}
+                autoComplete="new-password"
+                required
+                className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-pulseNode-border/20 text-helm-fg placeholder:text-helm-fg3 focus:outline-none focus:border-pn-cyan/40"
+              />
+            </div>
+          )}
 
           {error && (
             <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
@@ -135,7 +200,7 @@ function LoginForm() {
             className="w-full flex items-center justify-center gap-2 bg-[var(--acc)] hover:bg-[var(--acc-2)] disabled:opacity-60 text-white rounded-lg py-2.5 text-sm font-semibold shadow-[0_1px_0_rgba(255,255,255,0.16)_inset,0_10px_24px_-14px_rgba(139,124,255,0.9)] transition-colors"
           >
             {loading && <Loader2 size={14} className="animate-spin" />}
-            Sign in
+            {setup ? "Create account & sign in" : "Sign in"}
           </button>
         </form>
       </div>

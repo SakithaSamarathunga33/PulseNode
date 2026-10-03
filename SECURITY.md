@@ -21,7 +21,7 @@ Include what you found, steps to reproduce, and the impact you believe it has. Y
 
 ## Hardening checklist for your install
 
-- Create the admin login (the installer prompts for it; or dashboard → Settings → Security)
+- Create the admin login — the installer does this; for manual installs, the dashboard stays locked until you create it with the setup token from `docker compose logs go-api | grep setup_token`
 - Serve over HTTPS (`deploy.sh` → answer **y** to HTTPS, or put PulseNode behind your existing proxy)
 - Don't expose port 80/443 more widely than needed — a VPN or IP allowlist is even better
 - Keep PulseNode updated — releases ship continuously

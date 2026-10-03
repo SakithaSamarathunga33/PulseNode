@@ -250,7 +250,9 @@ func aesKey() ([]byte, error) {
 func Encrypt(plaintext string) (string, error) {
 	key, err := aesKey()
 	if err != nil {
-		return plaintext, nil // dev mode: store plain
+		// Never silently store secrets in plaintext. main() calls
+		// EnsureEncryptionKey at startup, so this only fires on misconfiguration.
+		return "", err
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -640,8 +642,11 @@ type ManagedDatabase struct {
 }
 
 func (d *DB) CreateManagedDatabase(m *ManagedDatabase) error {
-	enc, _ := Encrypt(m.Password)
-	_, err := d.Exec(`INSERT INTO managed_databases (id,name,engine,container_id,volume_name,host_port,username,encrypted_password,db_name,status) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+	enc, err := Encrypt(m.Password)
+	if err != nil {
+		return err
+	}
+	_, err = d.Exec(`INSERT INTO managed_databases (id,name,engine,container_id,volume_name,host_port,username,encrypted_password,db_name,status) VALUES (?,?,?,?,?,?,?,?,?,?)`,
 		m.ID, m.Name, m.Engine, m.ContainerID, m.VolumeName, m.HostPort, m.Username, enc, m.DBName, m.Status)
 	return err
 }
@@ -720,8 +725,11 @@ type ConnectedDatabase struct {
 }
 
 func (d *DB) CreateConnectedDatabase(c *ConnectedDatabase) error {
-	enc, _ := Encrypt(c.Password)
-	_, err := d.Exec(`INSERT INTO connected_databases (id,name,engine,host,port,username,encrypted_password,db_name) VALUES (?,?,?,?,?,?,?,?)`,
+	enc, err := Encrypt(c.Password)
+	if err != nil {
+		return err
+	}
+	_, err = d.Exec(`INSERT INTO connected_databases (id,name,engine,host,port,username,encrypted_password,db_name) VALUES (?,?,?,?,?,?,?,?)`,
 		c.ID, c.Name, c.Engine, c.Host, c.Port, c.Username, enc, c.DBName)
 	return err
 }

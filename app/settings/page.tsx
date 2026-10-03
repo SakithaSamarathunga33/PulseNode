@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   AlertTriangle, CheckCircle2, Download, LogOut,
-  RefreshCw, Settings, Shield, ShieldOff, Zap,
+  RefreshCw, Settings, Shield, Zap,
 } from "lucide-react"
 
 const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
@@ -63,8 +63,6 @@ export default function SettingsPage() {
   const [curPassword, setCurPassword] = useState("")
   const [chgPassword, setChgPassword] = useState("")
   const [chgConfirm,  setChgConfirm]  = useState("")
-  const [disablePwd,  setDisablePwd]  = useState("")
-  const [showDisable, setShowDisable] = useState(false)
 
   const fetchVersion = useCallback(async () => {
     setChecking(true)
@@ -201,19 +199,6 @@ export default function SettingsPage() {
       if (!res.ok) { const b = await res.json().catch(() => ({})) as { error?: string }; setSecError(b.error ?? "Failed"); return }
       setSecSuccess("Password updated!")
       setCurPassword(""); setChgPassword(""); setChgConfirm("")
-    } catch { setSecError("Request failed") } finally { setSecLoading(false) }
-  }
-
-  async function handleDisableLogin() {
-    setSecError(""); setSecLoading(true)
-    try {
-      const res = await fetch(`${GO_API}/api/auth/setup`, {
-        method: "DELETE", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: disablePwd }),
-      })
-      if (!res.ok) { const b = await res.json().catch(() => ({})) as { error?: string }; setSecError(b.error ?? "Failed"); setSecLoading(false); return }
-      setDisablePwd(""); setShowDisable(false)
-      await fetchAuthStatus()
     } catch { setSecError("Request failed") } finally { setSecLoading(false) }
   }
 
@@ -466,36 +451,7 @@ export default function SettingsPage() {
                     <LogOut size={12} />
                     Sign out
                   </button>
-                  {!showDisable && (
-                    <button onClick={() => { setShowDisable(true); setSecError(""); setSecSuccess("") }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-500/20 text-red-400/60 hover:text-red-400 text-xs transition-colors">
-                      <ShieldOff size={12} />
-                      Disable login
-                    </button>
-                  )}
                 </div>
-
-                {showDisable && (
-                  <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4 space-y-3">
-                    <p className="text-xs text-red-400">
-                      This will remove login protection. Confirm your password to proceed.
-                    </p>
-                    <input type="password" placeholder="Current password" value={disablePwd}
-                      onChange={e => setDisablePwd(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-pulseNode-navy border border-red-500/20 text-helm-fg focus:outline-none" />
-                    <div className="flex gap-2">
-                      <button onClick={() => { setShowDisable(false); setDisablePwd("") }}
-                        className="px-3 py-1.5 rounded-lg border border-pulseNode-border/20 text-helm-fg3 text-xs transition-colors">
-                        Cancel
-                      </button>
-                      <button onClick={handleDisableLogin} disabled={secLoading || !disablePwd}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/80 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-semibold transition-colors">
-                        <ShieldOff size={12} />
-                        {secLoading ? "Disabling…" : "Confirm disable"}
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </div>

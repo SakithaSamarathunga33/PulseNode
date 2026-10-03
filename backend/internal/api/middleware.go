@@ -54,15 +54,23 @@ func (r *statusRecorder) Flush() {
 // Unwrap lets chi and other middleware reach the underlying writer.
 func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
 
-// requireAuth replaces s.auth.Require. It checks whether a user account exists in the
-// DB (auth enabled) and, if so, validates either the pn_session cookie or a Bearer token.
-// When no user exists, all requests pass through (auth disabled).
+// requireAuth replaces s.auth.Require. It validates either the pn_session cookie or a
+// Bearer token against the admin account. It fails closed: with no admin account yet,
+// every request is rejected until one is created via /api/auth/setup (which needs the
+// setup token), unless the operator explicitly set PULSENODE_INSECURE_NO_AUTH=true.
 func (s *Server) requireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, _ := s.db.GetUser()
+		user, err := s.db.GetUser()
+		if err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "auth unavailable"})
+			return
+		}
 		if user == nil {
-			// No admin account configured — auth is off.
-			next.ServeHTTP(w, r)
+			if s.insecureNoAuth {
+				next.ServeHTTP(w, r)
+				return
+			}
+			writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "Admin account not set up", "setupRequired": true})
 			return
 		}
 		// Cookie path (browser sessions). Slide the session on each authenticated
