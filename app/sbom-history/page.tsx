@@ -1,14 +1,15 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { FileCode2, Package, Layers, ScrollText } from "lucide-react"
-import { SBOMS as MOCK_SBOMS } from "@/lib/mock-data"
-import { pythonApi } from "@/lib/api"
+import { FileCode2, Package, Layers, ScrollText, AlertCircle, CircleSlash } from "lucide-react"
+import { nodeApi } from "@/lib/api"
 import type { SBOM } from "@/lib/types"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { EmptyState } from "@/components/pn/EmptyState"
 import { StatCard } from "@/components/dashboard/StatCard"
 import { Pill } from "@/components/dashboard/Pill"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 
 const ECOSYSTEMS = [
@@ -42,12 +43,16 @@ function EcosystemBar({ eco }: { eco: SBOM["ecosystem"] }) {
 }
 
 export default function SBOMHistoryPage() {
-  const [sboms, setSboms] = useState<SBOM[]>(MOCK_SBOMS)
+  const [list, setList] = useState<SBOM[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [syft, setSyft] = useState<boolean | null>(null)
+  const sboms = list ?? []
 
   useEffect(() => {
-    pythonApi.get<SBOM[]>("/security/sboms")
-      .then(({ data }) => { if (data.length > 0) setSboms(data) })
-      .catch(() => {})
+    nodeApi.get<SBOM[]>("/security/sboms")
+      .then(({ data }) => setList(data))
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Could not load SBOMs"))
+    nodeApi.get<{ syft: boolean }>("/security/status").then(({ data }) => setSyft(data.syft)).catch(() => {})
   }, [])
 
   const totalPackages = sboms.reduce((a, s) => a + s.packages, 0)
@@ -61,6 +66,20 @@ export default function SBOMHistoryPage() {
         description={`Software bills of materials · ${sboms.length} images · ${totalPackages.toLocaleString()} packages tracked`}
       />
       <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertTitle>Could not load SBOMs</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {syft === false && (
+          <Alert>
+            <CircleSlash />
+            <AlertTitle>SBOM generator not installed</AlertTitle>
+            <AlertDescription>This PulseNode image has no Syft, so SBOMs cannot be generated. Update PulseNode to get it. Package counts are never estimated.</AlertDescription>
+          </Alert>
+        )}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard icon={FileCode2} label="SBOMs" value={sboms.length} tone="acc" sub="generated" />
           <StatCard icon={Package} label="Packages total" value={totalPackages} tone="info" sub="across all images" />
@@ -68,7 +87,9 @@ export default function SBOMHistoryPage() {
           <StatCard icon={Layers} label="Largest image" value={sboms.reduce((m, s) => Math.max(m, s.packages), 0)} tone="acc" sub="packages" />
         </div>
 
-        {sboms.length === 0 ? (
+        {list === null && !error ? (
+          <Skeleton className="h-48 rounded-xl" />
+        ) : sboms.length === 0 ? (
           <EmptyState icon={FileCode2} title="No SBOMs yet" description="SBOMs appear here once generated for an image." />
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

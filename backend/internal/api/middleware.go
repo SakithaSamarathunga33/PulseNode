@@ -61,15 +61,24 @@ func (s *Server) trustedOrigin(src, host string) bool {
 	if err != nil || u.Host == "" {
 		return false
 	}
+	configured := func(h string) bool {
+		for _, o := range s.origins {
+			if ou, err := url.Parse(o); err == nil && strings.EqualFold(ou.Host, h) {
+				return true
+			}
+		}
+		return false
+	}
 	if strings.EqualFold(u.Host, host) {
+		// With login off there is no cookie to protect, so the only defence against
+		// DNS rebinding (attacker's name resolving to this server, Origin == Host) is
+		// to insist the Host is one the operator configured.
+		if s.insecureNoAuth && len(s.origins) > 0 && !configured(host) {
+			return false
+		}
 		return true
 	}
-	for _, o := range s.origins {
-		if ou, err := url.Parse(o); err == nil && strings.EqualFold(ou.Host, u.Host) {
-			return true
-		}
-	}
-	return false
+	return configured(u.Host)
 }
 
 // AuditLog records every state-changing request into the audit_log table.

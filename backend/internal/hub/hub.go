@@ -16,10 +16,32 @@ type Event struct {
 	Data any    `json:"data"`
 }
 
+const (
+	wsWriteWait  = 10 * time.Second
+	wsPongWait   = 60 * time.Second
+	wsPingEvery  = 30 * time.Second
+	wsReadLimit  = 4096
+	wsSendBuffer = 64
+)
+
+// wsClient owns one websocket. gorilla/websocket allows a single concurrent
+// writer, so every outgoing frame goes through send and is written by one
+// goroutine (writePump); Broadcast never touches the connection directly.
+type wsClient struct {
+	conn *websocket.Conn
+	send chan Event
+	quit chan struct{}
+	once sync.Once
+}
+
+func (c *wsClient) close() { c.once.Do(func() { close(c.quit) }) }
+
 type Hub struct {
 	mu      sync.RWMutex
 	clients map[chan Event]struct{}
-	ws      map[*websocket.Conn]struct{}
+	ws      map[*wsClient]struct{}
+	closed  chan struct{}
+	closeMu sync.Once
 	// AllowedOrigins gates cross-site WebSocket handshakes. Empty = same-origin
 	// browsers only (any present Origin is rejected). Set from the app's
 	// configured origins at startup.
@@ -27,7 +49,27 @@ type Hub struct {
 }
 
 func New() *Hub {
-	return &Hub{clients: map[chan Event]struct{}{}, ws: map[*websocket.Conn]struct{}{}}
+	return &Hub{clients: map[chan Event]struct{}{}, ws: map[*wsClient]struct{}{}, closed: make(chan struct{})}
+}
+
+// Subscribers returns how many SSE streams and websockets are connected, so
+// producers can skip expensive collection when nobody is watching.
+func (h *Hub) Subscribers() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.clients) + len(h.ws)
+}
+
+// Close ends all SSE streams and websockets (called on server shutdown, since
+// http.Server.Shutdown does not wait for hijacked/streaming connections to end
+// on its own).
+func (h *Hub) Close() {
+	h.closeMu.Do(func() { close(h.closed) })
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for c := range h.ws {
+		c.close()
+	}
 }
 
 // originAllowed reports whether a WebSocket Origin is acceptable. An empty Origin
@@ -45,18 +87,29 @@ func originAllowed(origin string, allowed []string) bool {
 	return false
 }
 
+// Broadcast fans an event out to every SSE subscriber and websocket client
+// without ever blocking: a client whose buffer is full is slow or stalled, so an
+// SSE event is skipped for it and a websocket client is dropped (it reconnects).
 func (h *Hub) Broadcast(kind string, data any) {
 	event := Event{Type: kind, Data: data}
+	var slow []*wsClient
 	h.mu.RLock()
-	defer h.mu.RUnlock()
 	for client := range h.clients {
 		select {
 		case client <- event:
 		default:
 		}
 	}
-	for conn := range h.ws {
-		_ = conn.WriteJSON(event)
+	for c := range h.ws {
+		select {
+		case c.send <- event:
+		default:
+			slow = append(slow, c)
+		}
+	}
+	h.mu.RUnlock()
+	for _, c := range slow {
+		c.close()
 	}
 }
 
@@ -107,6 +160,8 @@ func (h *Hub) ServeSSE(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-h.closed:
+			return
 		case <-heartbeat.C:
 			_, _ = fmt.Fprint(w, ": heartbeat\n\n")
 			flusher.Flush()
@@ -126,19 +181,70 @@ func (h *Hub) ServeWebSocket(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	c := &wsClient{conn: conn, send: make(chan Event, wsSendBuffer), quit: make(chan struct{})}
 	h.mu.Lock()
-	h.ws[conn] = struct{}{}
+	select {
+	case <-h.closed: // shutting down
+		h.mu.Unlock()
+		_ = conn.Close()
+		return
+	default:
+	}
+	h.ws[c] = struct{}{}
 	h.mu.Unlock()
+
+	writerDone := make(chan struct{})
+	go func() {
+		defer close(writerDone)
+		h.writePump(c)
+	}()
 	defer func() {
 		h.mu.Lock()
-		delete(h.ws, conn)
+		delete(h.ws, c)
 		h.mu.Unlock()
+		c.close()
+		<-writerDone
 		_ = conn.Close()
 	}()
 
-	_ = conn.WriteJSON(Event{Type: "alert:count", Data: 0})
+	c.send <- Event{Type: "alert:count", Data: 0}
+
+	// Clients only listen; reading exists to process control frames, enforce the
+	// pong deadline (dead peers are detected) and bound anything a client sends.
+	conn.SetReadLimit(wsReadLimit)
+	_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	})
+	go func() { // unblock ReadMessage when the writer or Close() ends the client
+		<-c.quit
+		_ = conn.Close()
+	}()
 	for {
 		if _, _, err := conn.ReadMessage(); err != nil {
+			return
+		}
+	}
+}
+
+// writePump is the only goroutine that writes to c.conn.
+func (h *Hub) writePump(c *wsClient) {
+	ping := time.NewTicker(wsPingEvery)
+	defer ping.Stop()
+	defer c.close()
+	for {
+		select {
+		case ev := <-c.send:
+			_ = c.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
+			if err := c.conn.WriteJSON(ev); err != nil {
+				return
+			}
+		case <-ping.C:
+			_ = c.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
+			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		case <-c.quit:
 			return
 		}
 	}

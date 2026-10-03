@@ -1,5 +1,6 @@
 "use client"
 
+import { useTimeouts } from "@/lib/use-timeouts"
 import { Fragment, useState } from "react"
 import { toast } from "sonner"
 import {
@@ -93,6 +94,7 @@ function SlowCell({ n }: { n: number }) {
 function EndpointButton({ db }: { db: Database }) {
   const [copied, setCopied] = useState(false)
   const ep = `${db.host}:${db.port}`
+  const later = useTimeouts()
   return (
     <Tooltip>
       <TooltipTrigger
@@ -101,7 +103,7 @@ function EndpointButton({ db }: { db: Database }) {
             type="button"
             aria-label={`Copy endpoint ${ep}`}
             onClick={async () => {
-              if (await copyText(ep)) { setCopied(true); toast.success("Endpoint copied"); setTimeout(() => setCopied(false), 1600) }
+              if (await copyText(ep)) { setCopied(true); toast.success("Endpoint copied"); later(() => setCopied(false), 1600) }
               else toast.error("Copy failed")
             }}
             className="inline-flex max-w-[210px] items-center gap-1.5 rounded-sm font-mono text-xs text-muted-foreground hover:text-foreground focus-visible:outline-2"

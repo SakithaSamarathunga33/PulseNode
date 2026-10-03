@@ -1,17 +1,17 @@
 # Graph Report - PulseNode  (2026-10-03)
 
 ## Corpus Check
-- 499 files · ~468,428 words
+- 519 files · ~495,999 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 14 file(s) not represented in the graph (top: (none) 8, .example 2, .woff 2)
 
 ## Summary
-- 4217 nodes · 9209 edges · 421 communities (268 shown, 153 thin omitted)
-- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 332 edges (avg confidence: 0.87)
+- 4585 nodes · 10673 edges · 426 communities (273 shown, 153 thin omitted)
+- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 424 edges (avg confidence: 0.86)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `059d8546`
+- Built from commit: `c610a734`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -27,7 +27,7 @@
 - DB
 - lib/render-report.mjs
 - animated-theme-toggler.tsx
-- coolify/page.tsx
+- [id]/page.tsx
 - scripts/render-report.mjs
 - api.Server.systemUpdate handler
 - extract-claims.mjs
@@ -36,7 +36,7 @@
 - 4. Pages: full inventory (keep all of it)
 - README.md
 - Client
-- NewClient
+- .githubWebhook
 - cleanDomain
 - cn
 - Button
@@ -44,27 +44,27 @@
 - ai-application.md
 - React View Transitions
 - testing.T
-- net/http.Request
+- writeError
 - Vercel CLI with Tokens
 - Login System Implementation Plan
 - vercel.mjs
 - command.tsx
 - package.json
-- util.mjs
+- AlertEventFull
 - support-topics.mjs
 - lib/reconcile-candidates.mjs
-- .containerShell
-- [id]/page.tsx
+- alerts/page.tsx
+- containers/page.tsx
 - BrowserRealtime
 - compilerOptions
-- writeJSON
+- net/http.ResponseWriter
 - investigation-brief.mjs
-- github.go
+- Client
 - sanitizers/index.mjs
 - Server Monitoring Logo / App Icon
 - PulseNode Dark Logo
-- server.go
-- Encrypt
+- docker/client.go
+- DB
 - PulseNode — Projects & Deploy Feature Design
 - realtime-shared-worker.js
 - collect-signals.mjs
@@ -76,13 +76,13 @@
 - helmet.png - App Icon / Logo
 - PulseNode Logo (PNG, transparent background)
 - AES-GCM Encryption for Tokens and Env Vars
-- Server
-- Server
+- .startBackup
+- net/http.Request
 - SettingsPage
 - components.json
 - PostgreSQL
 - citations.mjs
-- net/http.ResponseWriter
+- decodeJSON
 - ref_node_fs
 - Step 2: Choose a Deploy Method
 - display-labels.mjs
@@ -99,16 +99,16 @@
 - Supabase
 - PulseNode — Agent Context
 - gate-investigations.mjs
-- scanners/index.mjs
+- lineOf
 - Gates
 - Patterns
-- composepolicy.go
+- composepolicy_test.go
 - Database Query Editor — Design Spec
 - React Composition Patterns
 - sparkles-text.tsx
 - merge-signals.mjs
 - devDependencies
-- prepare-investigation-brief.mjs
+- evaluator_test.go
 - throttle.mjs
 - db.AlertRule struct
 - db.AlertEvent struct
@@ -141,16 +141,16 @@
 - Quick Reference
 - CSS Animation Recipes
 - CSS Animation Recipes
-- ContainerTable.tsx
-- .DatabaseContainers
+- lucide-react
+- Hub
 - React View Transitions
 - processes/page.tsx
 - Domain Management — DB-backed saved domains + live discovery
-- lib/budget-summary.mjs
+- queue_test.go
 - middleware-broad-matcher.mjs
 - framework-support.mjs
 - View Transitions in Next.js
-- Collector
+- Queue
 - Doctrine
 - 6. Rendering Performance
 - Patterns and Guidelines
@@ -166,8 +166,8 @@
 - File Map
 - React Composition Patterns
 - vercel-optimize/SKILL.md
-- hard-gates.mjs
-- uncached-route.mjs
+- .Close
+- time.Time
 - count-correct.mjs
 - .discoverExternalProjects
 - scoring.md
@@ -182,7 +182,7 @@
 - scripts
 - scanner-driven.mjs
 - select-candidates.mjs
-- tooltip.tsx
+- layout.tsx
 - 2. List Performance
 - Implementation Workflow
 - grade-recommendation.mjs
@@ -193,21 +193,21 @@
 - docs-library.json
 - Verification
 - Vercel Optimize
-- Service
+- security/security.go
 - Task 4: Create auth_handler.go
 - Task 7: Create Next.js middleware
 - Contributor Covenant Code of Conduct
 - Task 5: Add requireAuth middleware + wire routes in server.go
-- secrets.go
-- verifyNextCacheComponentsRouteChainFile
-- cache-components-suspense-dedupe.mjs
+- run
+- normalizeProjectRootDirectory
+- mock-data.ts
 - edge-heavy-import.mjs
 - turbo-force-bypass.mjs
 - use-cache-date-stamp.mjs
 - Observability Plus Stop-And-Ask
 - 1. Eliminating Waterfalls
 - 2. Bundle Size Optimization
-- verifyCacheRecNotErrorDominatedOrAcknowledged
+- verifyNextCacheComponentsRouteChainFile
 - detect.go
 - Task 2: Add users table + DB helpers
 - resources/deploy.sh
@@ -228,7 +228,7 @@
 - Use Native Navigators for Navigation
 - Common Patterns
 - React View Transitions Skill
-- Card
+- stats/page.tsx
 - Build Cache Clear Button with Magic UI Terminal — Implementation Plan
 - Components
 - external-api-slow.mjs
@@ -281,7 +281,7 @@
 - PulseNode design system ("Spectrum")
 - middleware.ts
 - isr-overrevalidation.mjs
-- middleware-heavy.mjs
+- cold-start.mjs
 - observability-events-attribution.mjs
 - unoptimized-image.mjs
 - Support Topics
@@ -291,7 +291,7 @@
 - 3. Animation
 - 6. React State
 - Core Concepts
-- Common Patterns
+- go_pkg_testing
 - Changelog
 - extends
 - Task 1: Add bcrypt dependency
@@ -299,7 +299,7 @@
 - 11. Monorepo
 - 1. Core Rendering
 - 8. React Compiler
-- app.go
+- notify.go
 - builder.runContainer func
 - progress.tsx
 - deploy.sh
@@ -384,7 +384,7 @@
 - animation-derived-value.md
 - animation-gesture-detector-press.md
 - animation-gpu-properties.md
-- MagicUI Component Library
+- api.Server struct
 - fonts-config-plugin.md
 - imports-design-system-folder.md
 - js-hoist-intl.md
@@ -408,7 +408,7 @@
 - scroll-position-no-state.md
 - state-ground-truth.md
 - vercel-react-native-skills/rules/_template.md
-- cold-start.mjs
+- detect.ts
 - ui-image-gallery.md
 - ui-measure-views.md
 - ui-menus.md
@@ -417,11 +417,15 @@
 - ui-safe-area-scroll.md
 - ui-scrollview-content-inset.md
 - ui-styling.md
-- headers-in-page.mjs
+- contract.mjs
+- DatabasesPage
+- db_creds.go
 - How Multiple VTs Interact
-- missing-cache-headers.mjs
-- sveltekit-prerender-missing.mjs
+- Container
+- DockerImage
 - next.config.mjs
+- mustCIDRs
+- .checkComposePolicy
 - redeploy.sh
 - css.d.ts
 - ProcessConfirmDialog
@@ -433,37 +437,37 @@
 - pulsenode/backend
 
 ## God Nodes (most connected - your core abstractions)
-1. `writeJSON()` - 114 edges
-2. `cn()` - 91 edges
-3. `Button()` - 88 edges
-4. `DB` - 67 edges
-5. `writeError()` - 63 edges
-6. `react` - 60 edges
-7. `lucide-react` - 57 edges
-8. `Card()` - 46 edges
-9. `Pill()` - 45 edges
-10. `Alert()` - 43 edges
+1. `writeJSON()` - 126 edges
+2. `cn()` - 99 edges
+3. `Button()` - 89 edges
+4. `DB` - 78 edges
+5. `writeError()` - 65 edges
+6. `react` - 63 edges
+7. `lucide-react` - 59 edges
+8. `Alert()` - 52 edges
+9. `AlertDescription()` - 51 edges
+10. `Pill()` - 49 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Hue per area` --references--> `AppShell()`  [INFERRED]
   docs/design-system.md → components/AppShell.tsx
+- `Task 5: Create `DatabaseQueryEditor` Component` --references--> `DatabaseQueryEditor()`  [INFERRED]
+  docs/superpowers/plans/2026-05-22-database-query-editor.md → components/dashboard/DatabaseQueryEditor.tsx
 - `Files to Create / Modify` --references--> `DatabaseQueryEditor()`  [INFERRED]
   docs/superpowers/specs/2026-05-22-database-query-editor-design.md → components/dashboard/DatabaseQueryEditor.tsx
 - ``components/dashboard/DatabaseQueryEditor.tsx` (new)` --references--> `AlertDialog()`  [INFERRED]
   docs/superpowers/specs/2026-05-22-database-query-editor-design.md → components/ui/alert-dialog.tsx
 - `10.1 Use Compound Components Over Polymorphic Children` --references--> `Button()`  [INFERRED]
   .agents/skills/vercel-react-native-skills/AGENTS.md → components/ui/button.tsx
-- `Principles` --references--> `Label()`  [INFERRED]
-  docs/design-system.md → components/ui/label.tsx
 
 ## Import Cycles
 - None detected.
 
-## Communities (421 total, 153 thin omitted)
+## Communities (426 total, 153 thin omitted)
 
 ### Community 0 - "types.ts"
-Cohesion: 0.08
-Nodes (35): ALERT_RULES, ALERTS, CONTAINERS, COOLIFY_DEPLOYMENTS, COOLIFY_PROJECTS, DATABASES, HOST, IMAGES (+27 more)
+Cohesion: 0.14
+Nodes (18): MOCK COOLIFY_PROJECTS data, MOCK DATABASES data, AlertRule, CoolifyApp, CoolifyDatabase, CoolifyDeployment, CoolifyProject, CoolifyService (+10 more)
 
 ### Community 1 - "verify-claim.mjs"
 Cohesion: 0.13
@@ -474,56 +478,56 @@ Cohesion: 0.18
 Nodes (25): affectedFiles(), appliesAlsoEntry(), cacheLifeIntent(), dedupEditTarget(), dedupeRecommendations(), dedupIntent(), firstAffectedFile(), fixShape() (+17 more)
 
 ### Community 3 - "collector.go"
-Cohesion: 0.12
-Nodes (33): cpuCorePercents(), cpuModel(), diffPercent(), diskUsage(), distro(), firstLine(), getenv(), hostNetDev() (+25 more)
+Cohesion: 0.11
+Nodes (35): cpuCorePercents(), cpuModel(), diffPercent(), diskUsage(), distro(), firstLine(), getenv(), Collector (+27 more)
 
 ### Community 4 - "PulseNode Login System"
 Cohesion: 0.18
 Nodes (11): Task 1: Add bcrypt dependency (golang.org/x/crypto), Task 7: Create Next.js middleware.ts, POST /api/auth/login endpoint, GET /api/auth/status endpoint, bcrypt Password Hashing (cost 12), httpOnly JWT Session Cookie (pn_session), PulseNode Login System, Next.js Auth Middleware (middleware.ts) (+3 more)
 
 ### Community 5 - "context.Context"
-Cohesion: 0.12
-Nodes (12): recordContainerHeartbeats(), streamContainerStats(), cleanDockerStream(), Client, New(), shortID(), Container, ContainerStat (+4 more)
+Cohesion: 0.10
+Nodes (16): recordContainerHeartbeats(), streamContainerStats(), cleanDockerStream(), dbMeta(), Client, imageVersion(), New(), shortID() (+8 more)
 
 ### Community 6 - "workspace-resolver.mjs"
 Cohesion: 0.07
 Nodes (54): buildPackageLookup(), buildResolver(), DEFAULT_RESOLVE_OPTIONS, detectMonorepoRoot(), escapeRegExp(), expandParts(), expandResolvedSpecifier(), expandPureBarrel() (+46 more)
 
 ### Community 7 - "builder.go"
-Cohesion: 0.14
-Nodes (22): buildEnv(), CommitInfo(), componentLabel(), detectTraefikNetwork(), envFileValue(), gitAuthEnv(), Config, inspectState() (+14 more)
+Cohesion: 0.11
+Nodes (27): appHardeningArgs(), buildEnv(), CommitInfo(), componentLabel(), composeProject(), detectTraefikNetwork(), envFileValue(), envLimit() (+19 more)
 
 ### Community 8 - "DB"
 Cohesion: 0.05
-Nodes (8): updateState, DB, AlertEvent, AlertRule, AppInstallation, Domain, Heartbeat, NotificationChannel
+Nodes (10): aesKey(), boolToInt(), Decrypt(), Encrypt(), DB, Project, TestEncryptWithoutKeyFails(), AlertEvent (+2 more)
 
 ### Community 9 - "lib/render-report.mjs"
-Cohesion: 0.09
-Nodes (50): deriveProjectFacts(), asArray(), assertValidObservations(), buildFinalReportMessage(), candidateForDisplay(), canonicalRefOf(), compactFinalText(), costRoundsToCents() (+42 more)
+Cohesion: 0.10
+Nodes (50): formatCandidateLabel(), formatKind(), formatPublicText(), formatRoute(), asArray(), assertValidObservations(), candidateForDisplay(), compactFinalText() (+42 more)
 
 ### Community 10 - "animated-theme-toggler.tsx"
 Cohesion: 0.31
 Nodes (8): ThemeSwitcher(), AnimatedThemeToggler(), AnimatedThemeTogglerProps, getThemeTransitionClipPaths(), polygonCollapsed(), TransitionVariant, buttonVariants, react-dom
 
-### Community 11 - "coolify/page.tsx"
-Cohesion: 0.13
-Nodes (25): Code(), CoolifyPage(), DeployStatus(), ENGINE_TONE, EnginePill(), statusTone(), SubHeader(), Segmented() (+17 more)
+### Community 11 - "[id]/page.tsx"
+Cohesion: 0.11
+Nodes (30): age(), BackLink(), Deployment, DomainLink(), ExternalProjectView(), LogLine, Project, ProjectDetailPage() (+22 more)
 
 ### Community 12 - "scripts/render-report.mjs"
-Cohesion: 0.23
-Nodes (17): splitCustomerSafeObservations(), buildDebugArtifact(), candidateFamily(), candidateMatchesRef(), candidateTarget(), coerceOptionalString(), flattenObservations(), HARD_REGEN_TRIGGERS (+9 more)
+Cohesion: 0.19
+Nodes (19): buildFinalReportMessage(), extractCoverageLine(), stripDetailsLink(), buildDebugArtifact(), candidateFamily(), candidateMatchesRef(), candidateTarget(), coerceOptionalString() (+11 more)
 
 ### Community 14 - "extract-claims.mjs"
 Cohesion: 0.18
 Nodes (31): asArray(), cacheRecommendationFiles(), extractClaims(), isCacheCandidate(), mentionsAuthSensitiveParallelization(), mentionsCachedNotFoundOr404(), mentionsCacheLifeCdnHeaderClaim(), mentionsCacheLifetimeChange() (+23 more)
 
 ### Community 15 - "sidebar.tsx"
-Cohesion: 0.11
-Nodes (24): AppSidebar(), Separator(), Sidebar(), SidebarContent(), SidebarContext, SidebarContextProps, SidebarFooter(), SidebarGroup() (+16 more)
+Cohesion: 0.10
+Nodes (25): AppSidebar(), Separator(), SidebarContent(), SidebarContext, SidebarContextProps, SidebarFooter(), SidebarGroup(), SidebarGroupContent() (+17 more)
 
 ### Community 16 - "ManagedDatabase"
-Cohesion: 0.30
-Nodes (6): dbQueryResult, buildConnString(), Server, parseCSVResult(), parseTSVResult(), ManagedDatabase
+Cohesion: 0.21
+Nodes (9): dbQueryResult, buildConnString(), engineFromImage(), firstEnv(), Server, isDestructiveQuery(), parseCSVResult(), parseTSVResult() (+1 more)
 
 ### Community 18 - "4. Pages: full inventory (keep all of it)"
 Cohesion: 0.07
@@ -533,41 +537,45 @@ Nodes (26): 1. Product, 2. Current design system (for reference only; replace it
 Cohesion: 0.06
 Nodes (30): Code style, Commit messages — they drive releases, Contributing to PulseNode, Development setup, Pull requests, Reporting bugs / requesting features, Architecture, Behind an existing Traefik proxy (e.g. Coolify) (+22 more)
 
-### Community 21 - "NewClient"
-Cohesion: 0.20
-Nodes (4): Server, Server, NewClient(), ParseOwnerRepo()
+### Community 20 - "Client"
+Cohesion: 0.23
+Nodes (3): Client, Match, Route
+
+### Community 21 - ".githubWebhook"
+Cohesion: 0.32
+Nodes (3): deliveryCache, Server, ParseOwnerRepo()
 
 ### Community 23 - "cleanDomain"
-Cohesion: 0.17
-Nodes (11): domainSettingsResponse, cleanDomain(), currentDomainSettings(), expectedVPSIP(), Server, hostFromURL(), resolveDomain(), rootFromHost() (+3 more)
+Cohesion: 0.13
+Nodes (15): domainCheckResponse, domainSettingsResponse, cleanDomain(), currentDomainSettings(), expectedVPSIP(), Server, hostFromURL(), lookupPublicIP() (+7 more)
 
 ### Community 24 - "cn"
-Cohesion: 0.06
-Nodes (51): Chip(), Project, ProjectCard(), ProjectsPage(), RepoGroup(), repoSlug(), STATUS_TONE, StatusPill() (+43 more)
+Cohesion: 0.07
+Nodes (40): Chip(), Project, ProjectCard(), ProjectsPage(), RepoGroup(), repoSlug(), STATUS_TONE, StatusPill() (+32 more)
 
 ### Community 25 - "Button"
-Cohesion: 0.11
-Nodes (54): Use Compound Components Over Polymorphic Children, DatabasesPage, DatabasesPage(), StatusFilter, DeveloperIcon, IMAGE_ICON_MAP, PULL_EXAMPLES, ConnectDatabaseModal() (+46 more)
+Cohesion: 0.08
+Nodes (68): Use Compound Components Over Polymorphic Children, ChannelDialog(), Field(), RuleDialog(), DatabasesPage(), StatusFilter, ADJECTIVES, NewProjectForm() (+60 more)
 
 ### Community 26 - "goApi"
-Cohesion: 0.08
-Nodes (33): ContainersPage, LogsPanel (container logs drawer), RemoveDialog (confirm container remove), TerminalPanel (container exec), ConnectionStringPanel, DatabaseRow, DbDetails (schema/table browser), DbExpand (tabbed db panel) (+25 more)
+Cohesion: 0.19
+Nodes (16): ContainersPage, LogsPanel (container logs drawer), RemoveDialog (confirm container remove), TerminalPanel (container exec), NetworksPage, TopologySVG (network diagram), X-Data-Source: mock header pattern, WebSocket live metrics subscription pattern (+8 more)
 
 ### Community 27 - "ai-application.md"
 Cohesion: 0.06
 Nodes (25): AI application, Cross-references, Frequent gotchas, Priority patterns, Typical billing shape, Do Not Recommend When, Evidence To Check, Investigation Brief (+17 more)
 
 ### Community 28 - "React View Transitions"
-Cohesion: 0.12
-Nodes (16): Accessibility, Availability, Choosing Animation Style, CSS Pseudo-Elements, Full Compiled Document, Implementation Workflow, Next.js Integration, Props (+8 more)
+Cohesion: 0.06
+Nodes (30): Accessibility, Animation Triggers, Availability, Choosing Animation Style, Common Patterns, Composing Shared Elements with List Identity, Core Concepts, Critical Placement Rule (+22 more)
 
 ### Community 29 - "testing.T"
-Cohesion: 0.11
-Nodes (32): parseTraefikHosts(), TestParseTraefikHosts(), TestGithubRepoFileMissingPathReturns400(), TestGithubRepoRoutesWireOwnerRepoParams(), TestGithubRepoUpdateFileValidation(), TestWriteGitHubErrorMapsStatuses(), TestSanitizeName(), TestShortID() (+24 more)
+Cohesion: 0.10
+Nodes (39): TestGithubRepoFileMissingPathReturns400(), TestGithubRepoRoutesWireOwnerRepoParams(), TestGithubRepoUpdateFileValidation(), TestDetectMonorepo(), TestSanitizeName(), TestShortID(), TestAlertEventLifecycle(), Open() (+31 more)
 
-### Community 30 - "net/http.Request"
-Cohesion: 0.14
-Nodes (6): Server, isHTTPS(), Server, Server, writeError(), NewID()
+### Community 30 - "writeError"
+Cohesion: 0.11
+Nodes (11): View, engineMeta, ToView(), freePort(), Server, randHex(), sanitizeDBName(), Server (+3 more)
 
 ### Community 31 - "Vercel CLI with Tokens"
 Cohesion: 0.07
@@ -589,9 +597,9 @@ Nodes (16): CommandMenuProvider(), Ctx, CommandEmpty(), CommandGroup(), CommandI
 Cohesion: 0.07
 Nodes (26): name, private, version, clsx, cmdk, eslint, eslint-config-next, postcss (+18 more)
 
-### Community 36 - "util.mjs"
-Cohesion: 0.33
-Nodes (6): apply(), metadata, apply(), metadata, MODE_PATTERNS, extractRoute()
+### Community 36 - "AlertEventFull"
+Cohesion: 0.08
+Nodes (18): Broadcaster, ContainerState, Deps, Evaluator, HostSample, memStore, observation, Store (+10 more)
 
 ### Community 37 - "support-topics.mjs"
 Cohesion: 0.13
@@ -601,33 +609,33 @@ Nodes (26): citationApplies(), HERE, KNOWN_CANDIDATE_KINDS, loadSupportTopics(),
 Cohesion: 0.35
 Nodes (20): arrayAt(), deploymentRegressionDecision(), dropWithObservation(), formatInteger(), formatMs(), formatPct(), isrOverrevalidationDecision(), numberAt() (+12 more)
 
-### Community 40 - ".containerShell"
-Cohesion: 0.29
-Nodes (3): hijackedConn, Server, hijackDockerExec()
+### Community 40 - "alerts/page.tsx"
+Cohesion: 0.08
+Nodes (36): ago(), AlertEvent, AlertsPage(), ackAll(), act(), doDelete(), testChannel(), toggleChannel() (+28 more)
 
-### Community 41 - "[id]/page.tsx"
-Cohesion: 0.06
-Nodes (63): Confirm, ContainersPage(), pushCapped(), Tab, age(), Deployment, LogLine, Project (+55 more)
+### Community 41 - "containers/page.tsx"
+Cohesion: 0.09
+Nodes (43): Confirm, ContainersPage(), pushCapped(), Tab, Local dev / verify, Kbd(), Level, LEVEL_STYLE (+35 more)
 
 ### Community 43 - "compilerOptions"
 Cohesion: 0.11
 Nodes (18): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModules, jsx, lib, module (+10 more)
 
-### Community 44 - "writeJSON"
-Cohesion: 0.12
-Nodes (10): Server, formatSeconds(), Server, parseInt64(), parseRedisInfo(), writeJSON(), Server, emptyList() (+2 more)
+### Community 44 - "net/http.ResponseWriter"
+Cohesion: 0.08
+Nodes (18): statusRecorder, Server, coolifyProxy(), Server, formatSeconds(), Server, parseInt64(), parseRedisInfo() (+10 more)
 
 ### Community 45 - "investigation-brief.mjs"
-Cohesion: 0.19
-Nodes (23): absoluteBriefPath(), briefRoots(), buildBrief(), cachePolicyGuidance(), capBriefFiles(), closestAncestorLayoutFiles(), isCatchAllPlaceholder(), isDynamicPlaceholder() (+15 more)
+Cohesion: 0.11
+Nodes (39): absoluteBriefPath(), briefRoots(), buildBrief(), cachePolicyGuidance(), capBriefFiles(), citationSubset(), closestAncestorLayoutFiles(), inferFrameworkPlaybook() (+31 more)
 
-### Community 46 - "github.go"
-Cohesion: 0.08
-Nodes (24): ProjectSummary, buildProjectSummary(), TestBuildProjectSummary(), TestBuildProjectSummaryNilCommitAndWorkflow(), TestBuildProjectSummaryNilPullRequestsAndIssues(), TestBuildProjectSummaryPartialFailure(), AuthURL(), escapeRepoPath() (+16 more)
+### Community 46 - "Client"
+Cohesion: 0.09
+Nodes (25): ProjectSummary, buildProjectSummary(), TestBuildProjectSummary(), TestBuildProjectSummaryNilCommitAndWorkflow(), TestBuildProjectSummaryNilPullRequestsAndIssues(), TestBuildProjectSummaryPartialFailure(), escapeRepoPath(), Client (+17 more)
 
 ### Community 47 - "sanitizers/index.mjs"
 Cohesion: 0.11
-Nodes (14): sanitizeCitations(), applyDollarStrip(), stripDollarLiterals(), metadata, STRING_FIELDS, metadata, STRING_FIELDS, metadata (+6 more)
+Nodes (13): applyDollarStrip(), stripDollarLiterals(), metadata, STRING_FIELDS, metadata, STRING_FIELDS, metadata, STRING_FIELDS (+5 more)
 
 ### Community 48 - "Server Monitoring Logo / App Icon"
 Cohesion: 0.43
@@ -637,13 +645,13 @@ Nodes (7): Dark Navy and Cyan/Blue Neon Color Scheme, Hexagonal Border Frame, Se
 Cohesion: 0.36
 Nodes (8): PulseNode Brand, Hexagon Server Icon, Pulse/Heartbeat Wave Icon Element, Server Rack Icon Element, PulseNode Dark Logo, Blue and Cyan Color Scheme, Dark Navy Background, PulseNode Wordmark Typography
 
-### Community 50 - "server.go"
-Cohesion: 0.10
-Nodes (17): Config, TestProtectedPID(), firstNonEmpty(), installedVersion(), NewServer(), protectedPID(), runningAtLeast(), signalHandler() (+9 more)
+### Community 50 - "docker/client.go"
+Cohesion: 0.15
+Nodes (8): domainsResponse, inUseHost, inUseRef, savedDomain, allCloudflareIPs(), isCloudflareIP(), formatPorts(), portBinding
 
-### Community 51 - "Encrypt"
-Cohesion: 0.11
-Nodes (8): aesKey(), boolToInt(), Decrypt(), Encrypt(), Project, TestEncryptWithoutKeyFails(), ConnectedDatabase, GitHubAccount
+### Community 51 - "DB"
+Cohesion: 0.20
+Nodes (5): boolInt(), DB, scanEvent(), scanRule(), rowScanner
 
 ### Community 52 - "PulseNode — Projects & Deploy Feature Design"
 Cohesion: 0.07
@@ -662,12 +670,12 @@ Cohesion: 0.24
 Nodes (16): collectInputFiles(), escapeRegExp(), extractFenceBlocks(), extractJsonValue(), findBalancedJsonSpans(), inferCandidateRefFromFile(), isRecordObject(), log() (+8 more)
 
 ### Community 56 - "gates/index.mjs"
-Cohesion: 0.16
-Nodes (16): GATE_VERSION, gates, MAX_CODE_CANDIDATES, metadata, HERE, main(), REFS, renderCandidates() (+8 more)
+Cohesion: 0.11
+Nodes (21): GATE_VERSION, gates, MAX_CODE_CANDIDATES, metadata, scanners, isApplicable(), metadata, scan() (+13 more)
 
 ### Community 57 - "route-normalize.mjs"
-Cohesion: 0.21
-Nodes (18): candidateKey(), canonicalizeBranchPrefix(), canonicalizeRoute(), decodeSegmentToken(), dedupeCandidates(), firstRouteSegment(), isBase64FlagState(), isDynamicPlaceholder() (+10 more)
+Cohesion: 0.19
+Nodes (20): canonicalRefOf(), enrichRecFromCandidates(), candidateKey(), canonicalizeBranchPrefix(), canonicalizeRoute(), decodeSegmentToken(), dedupeCandidates(), firstRouteSegment() (+12 more)
 
 ### Community 58 - "PulseNode Logo (Dark Theme)"
 Cohesion: 0.47
@@ -689,13 +697,13 @@ Nodes (5): Hexagon Icon Element, PulseNode Logo (PNG, transparent background), P
 Cohesion: 0.40
 Nodes (5): AES-GCM Encryption for Tokens and Env Vars, deployment_logs SQLite table, deployments SQLite table, github_accounts SQLite table, projects SQLite table
 
-### Community 63 - "Server"
-Cohesion: 0.14
-Nodes (5): backupJob, progressWriter, backupsDir(), Server, Server
+### Community 63 - ".startBackup"
+Cohesion: 0.27
+Nodes (3): backupJob, backupsDir(), Server
 
-### Community 64 - "Server"
-Cohesion: 0.15
-Nodes (5): Server, Server, InstallationRepos(), NewAppClient(), ParseRSAPrivateKey()
+### Community 64 - "net/http.Request"
+Cohesion: 0.10
+Nodes (14): isHTTPS(), Server, Server, oauthStateName(), Server, Server, originAllowed(), IsBuildMarker() (+6 more)
 
 ### Community 65 - "SettingsPage"
 Cohesion: 0.50
@@ -711,11 +719,11 @@ Nodes (3): Relational Database, PostgreSQL Official Logo, PostgreSQL
 
 ### Community 68 - "citations.mjs"
 Cohesion: 0.18
-Nodes (17): compareVersion(), HERE, LIBRARY_PATH, libraryForStack(), loadLibrary(), lookupSkillRule(), lookupUrl(), matchesFrameworkVersion() (+9 more)
+Nodes (18): compareVersion(), HERE, LIBRARY_PATH, libraryForStack(), loadLibrary(), lookupSkillRule(), lookupUrl(), matchesFrameworkVersion() (+10 more)
 
-### Community 69 - "net/http.ResponseWriter"
-Cohesion: 0.11
-Nodes (8): statusRecorder, coolifyProxy(), Server, validHostname(), decodeJSON(), Server, validBranch(), Server
+### Community 69 - "decodeJSON"
+Cohesion: 0.12
+Nodes (15): channelView, ValidateRule(), DecodeChannel(), EncodeConfig(), Channel, MergeConfig(), NormalizeConfig(), TestEncodeDecodeRoundTripEncrypts() (+7 more)
 
 ### Community 70 - "ref_node_fs"
 Cohesion: 0.14
@@ -726,8 +734,8 @@ Cohesion: 0.10
 Nodes (19): Agent-Specific Notes, Claude Code / terminal-based agents, CLI Auth Failure, Codex, Deploy to Vercel, Escalated Network Access (Codex / sandboxed environments), Linked (`.vercel/` exists) + has git remote → Git Push, Linked (`.vercel/` exists) + no git remote → `vercel deploy` (+11 more)
 
 ### Community 72 - "display-labels.mjs"
-Cohesion: 0.15
-Nodes (20): formatCandidateLabel(), formatKind(), formatNumberLike(), formatPublicText(), formatRoute(), formatSignal(), formatSignalPart(), formatSignalValue() (+12 more)
+Cohesion: 0.12
+Nodes (25): buildBudgetSummary(), buildChatPreview(), buildExactChatMessage(), buildOptions(), buildPrintCheck(), buildQuestionPayload(), buildQuestionText(), renderBudgetSummaryMarkdown() (+17 more)
 
 ### Community 73 - "Firebase"
 Cohesion: 0.67
@@ -750,12 +758,12 @@ Cohesion: 0.11
 Nodes (17): Architecture, Backend (`backend/`), Build Method Detection (auto), Container Naming, Deploy Pipeline, Deployment Commands, Docker Container Stats, Domain Generation (+9 more)
 
 ### Community 85 - "gate-investigations.mjs"
-Cohesion: 0.18
-Nodes (15): applyAuthDisqualifier(), AUTH_ROUTE_REGEX, isAuthRoute(), CandidateContractError, candidateLabel(), nonEmptyString(), VALID_SCOPES, validateCandidate() (+7 more)
+Cohesion: 0.17
+Nodes (18): applyAuthDisqualifier(), AUTH_ROUTE_REGEX, isAuthRoute(), applyHardGates(), FLAGS_ENDPOINT, flagsEndpointReason(), isFlagsEndpointCandidate(), isWorkflowRuntimeEndpointCandidate() (+10 more)
 
-### Community 86 - "scanners/index.mjs"
-Cohesion: 0.16
-Nodes (14): isApplicable(), metadata, scan(), scanners, metadata, scan(), metadata, scan() (+6 more)
+### Community 86 - "lineOf"
+Cohesion: 0.09
+Nodes (28): apply(), metadata, apply(), metadata, MODE_PATTERNS, countMatches(), findRepeated(), metadata (+20 more)
 
 ### Community 87 - "Gates"
 Cohesion: 0.11
@@ -765,9 +773,9 @@ Nodes (17): `build_minutes_fanout`, Candidate gates, `cold_start`, `cwv_poor`, `
 Cohesion: 0.11
 Nodes (17): `cache-components-suspense-dedupe` — 'use cache' with multiple Suspense boundaries on the same data, `edge-heavy-import` — Heavy / node-only import inside edge-runtime file, `force-dynamic` — export const dynamic = 'force-dynamic', `headers-in-page` — Dynamic API call forcing dynamic rendering, `large-static-asset` — Large file in public/, `max-age-without-s-maxage` — Cache-Control: max-age without s-maxage, `middleware-broad-matcher` — Middleware matcher missing or too broad, `missing-cache-headers` — Cacheable route or fetch with no caching (Cache-Control absent or no-store) (+9 more)
 
-### Community 89 - "composepolicy.go"
-Cohesion: 0.17
-Nodes (15): composeViolations(), envFileViolations(), Config, isRemoteContext(), lexicallyWithin(), resolvedWithin(), TestBuildEnvExcludesPanelSecrets(), TestComposeViolationsAllowsOrdinaryApps() (+7 more)
+### Community 89 - "composepolicy_test.go"
+Cohesion: 0.14
+Nodes (21): gitAuthEnv(), composeViolations(), envFileViolations(), isRemoteContext(), lexicallyWithin(), present(), resolvedWithin(), TestBuildEnvExcludesPanelSecrets() (+13 more)
 
 ### Community 90 - "Database Query Editor — Design Spec"
 Cohesion: 0.11
@@ -789,9 +797,9 @@ Nodes (16): annotateCodebaseScan(), annotateFinding(), assertObject(), bestRoute
 Cohesion: 0.18
 Nodes (11): devDependencies, eslint, eslint-config-next, postcss, shadcn, tailwindcss, @tailwindcss/postcss, @types/node (+3 more)
 
-### Community 95 - "prepare-investigation-brief.mjs"
-Cohesion: 0.24
-Nodes (15): citationSubset(), inferFrameworkPlaybook(), inferPlaybook(), candidateRefFor(), buildFanoutPlan(), buildManifest(), candidateFamilyKey(), HERE (+7 more)
+### Community 95 - "evaluator_test.go"
+Cohesion: 0.27
+Nodes (16): bus, harness, Compare(), channel(), cpuRule(), newHarness(), TestBriefSpikeShorterThanDurationNeverFires(), TestChannelRouting() (+8 more)
 
 ### Community 96 - "throttle.mjs"
 Cohesion: 0.12
@@ -802,12 +810,12 @@ Cohesion: 0.12
 Nodes (16): 5.10 Subscribe to Derived State, 5.11 Use Functional setState Updates, 5.12 Use Lazy State Initialization, 5.13 Use Transitions for Non-Urgent Updates, 5.14 Use useDeferredValue for Expensive Derived Renders, 5.15 Use useRef for Transient Values, 5.1 Calculate Derived State During Rendering, 5.2 Defer State Reads to Usage Point (+8 more)
 
 ### Community 109 - "observation-safety.mjs"
-Cohesion: 0.31
-Nodes (15): candidateTarget(), contradictsNoChangeReason(), evidenceText(), hasImplementationGradeObservationAction(), hasStaleNextCacheApiObservation(), hasUnsafeBotProtectionObservation(), hasUnsupportedCacheLifeCdnClaim(), hasUnsupportedCacheLifeCdnText() (+7 more)
+Cohesion: 0.29
+Nodes (16): candidateTarget(), contradictsNoChangeReason(), evidenceText(), hasImplementationGradeObservationAction(), hasStaleNextCacheApiObservation(), hasUnsafeBotProtectionObservation(), hasUnsupportedCacheLifeCdnClaim(), hasUnsupportedCacheLifeCdnText() (+8 more)
 
 ### Community 110 - "ConfirmDialog"
-Cohesion: 0.12
-Nodes (23): DatabaseQueryEditor(), handleTableClick(), loadTablePage(), DeleteDialog(), ConfirmDialog(), AlertDialog(), AlertDialogAction(), AlertDialogCancel() (+15 more)
+Cohesion: 0.21
+Nodes (19): DeleteDialog(), ConfirmDialog(), AlertDialog(), AlertDialogAction(), AlertDialogCancel(), AlertDialogContent(), AlertDialogDescription(), AlertDialogFooter() (+11 more)
 
 ### Community 111 - "Sections"
 Cohesion: 0.12
@@ -815,19 +823,19 @@ Nodes (15): 10. Design System (design-system), 11. Monorepo (monorepo), 12. Thir
 
 ### Community 112 - "Deployment"
 Cohesion: 0.43
-Nodes (3): nullable(), scanDeployment(), Deployment
+Nodes (3): Deployment, nullable(), scanDeployment()
 
 ### Community 113 - "Build Cache Clear Button with Magic UI Terminal"
 Cohesion: 0.15
 Nodes (13): docker builder prune -f command, Magic UI Terminal Component, shadcn Dialog Component, SSE Stream for Build Cache Output, Frontend Projects Pages (Next.js), LogTerminal Component, SSE Hub (Server-Sent Events), Build Cache Clear Button with Magic UI Terminal (+5 more)
 
 ### Community 114 - ".Routes"
-Cohesion: 0.07
-Nodes (28): main.main entrypoint, api.Server.listAuditLog handler, api.Server.authLogin handler, api.Server.authSetup handler, api.Server.authStatus handler, api.Server.provisionDatabase handler, api.Server.runProvision async func, api.Server.metricsLive handler (+20 more)
+Cohesion: 0.12
+Nodes (14): api.Server.authLogin handler, api.Server.authSetup handler, api.Server.authStatus handler, api.Server.AuditLog middleware, clientIP(), Server, RateLimit(), api.Server.requireAuth middleware (+6 more)
 
 ### Community 115 - "main.go"
-Cohesion: 0.07
-Nodes (24): containerHeartbeats, dbSchemaResult, dbTableInfo, domainCheckResponse, domainsResponse, engineMeta, heartbeatPoint, inUseHost (+16 more)
+Cohesion: 0.11
+Nodes (11): channelBody, containerHeartbeats, dbSchemaResult, dbTableInfo, heartbeatPoint, metricItem, metricsResponse, ruleBody (+3 more)
 
 ### Community 116 - "Patterns and Guidelines"
 Cohesion: 0.12
@@ -842,8 +850,8 @@ Cohesion: 0.13
 Nodes (13): Common changes, Contributing to `vercel-optimize`, Output contracts, Rules, Contributing, Install, License, Requirements (+5 more)
 
 ### Community 119 - "verify-and-regen.mjs"
-Cohesion: 0.31
-Nodes (11): summarizeClaimResults(), applyQualityFloor(), deriveRootFromSignals(), detectRepoRoot(), fileResolvesAt(), pickProbeFile(), resolveRepoRoot(), log() (+3 more)
+Cohesion: 0.27
+Nodes (12): summarizeClaimResults(), applyQualityFloor(), deriveProjectFacts(), deriveRootFromSignals(), detectRepoRoot(), fileResolvesAt(), pickProbeFile(), resolveRepoRoot() (+4 more)
 
 ### Community 120 - "Recommendations"
 Cohesion: 0.13
@@ -858,8 +866,8 @@ Cohesion: 0.13
 Nodes (14): 1. Eliminating Waterfalls (CRITICAL), 2. Bundle Size Optimization (CRITICAL), 3. Server-Side Performance (HIGH), 4. Client-Side Data Fetching (MEDIUM-HIGH), 5. Re-render Optimization (MEDIUM), 6. Rendering Performance (MEDIUM), 7. JavaScript Performance (LOW-MEDIUM), 8. Advanced Patterns (LOW) (+6 more)
 
 ### Community 123 - ".issueSession"
-Cohesion: 0.33
-Nodes (4): Server, sessionVersion(), setSessionCookie(), User
+Cohesion: 0.30
+Nodes (5): Server, sessionVersion(), setSessionCookie(), tooManyAttempts(), User
 
 ### Community 124 - "React Native Skills"
 Cohesion: 0.11
@@ -877,29 +885,29 @@ Nodes (14): Backdrop-Blur Workaround, CSS Animation Recipes, Directional Navigat
 Cohesion: 0.13
 Nodes (14): Backdrop-Blur Workaround, CSS Animation Recipes, Directional Navigation, Fade, Persistent Element Isolation, Reduced Motion, Scale, Separate Enter/Exit Classes (+6 more)
 
-### Community 129 - "ContainerTable.tsx"
-Cohesion: 0.09
-Nodes (33): Busy, ContainerCards(), ContainerTable(), isBusy(), RowActions(), RowHandlers, Sort, SortHead() (+25 more)
+### Community 129 - "lucide-react"
+Cohesion: 0.06
+Nodes (66): IconTip(), Busy, ContainerCards(), IconAction(), isBusy(), RowActions(), RowHandlers, Sort (+58 more)
 
-### Community 130 - ".DatabaseContainers"
-Cohesion: 0.50
-Nodes (3): dbMeta(), imageVersion(), Database
+### Community 130 - "Hub"
+Cohesion: 0.18
+Nodes (8): updateState, api.Server.provisionDatabase handler, api.Server.runProvision async func, db.ManagedDatabase struct, Hub, originAllowed(), Event, wsClient
 
 ### Community 131 - "React View Transitions"
-Cohesion: 0.11
-Nodes (18): Abstract, Accessibility, Availability, Choosing Animation Style, CSS Pseudo-Elements, How Multiple VTs Interact, Nested VT Limitation, Next.js Integration (+10 more)
+Cohesion: 0.14
+Nodes (14): Abstract, Accessibility, Availability, Choosing Animation Style, CSS Pseudo-Elements, Next.js Integration, React View Transitions, `router.back()` and Browser Back Button (+6 more)
 
 ### Community 132 - "processes/page.tsx"
-Cohesion: 0.07
-Nodes (72): AlertsPage(), CHANNEL_CARDS, MOCK_NEW_ALERT, Row, SEV_META, SevIcon(), StateFilter, StatePill() (+64 more)
+Cohesion: 0.06
+Nodes (84): Code(), CoolifyPage(), DeployStatus(), ENGINE_TONE, EnginePill(), statusTone(), SubHeader(), CheckResult (+76 more)
 
 ### Community 133 - "Domain Management — DB-backed saved domains + live discovery"
 Cohesion: 0.14
 Nodes (13): Auto-seed on first boot, Backend, Data model, DB methods (`db.go`), Decisions (from brainstorming), Domain Management — DB-backed saved domains + live discovery, Frontend (`app/domain/page.tsx`), Live "in use" inventory (+5 more)
 
-### Community 134 - "lib/budget-summary.mjs"
-Cohesion: 0.29
-Nodes (11): buildBudgetSummary(), buildChatPreview(), buildExactChatMessage(), buildOptions(), buildPrintCheck(), buildQuestionPayload(), buildQuestionText(), renderBudgetSummaryMarkdown() (+3 more)
+### Community 134 - "queue_test.go"
+Cohesion: 0.37
+Nodes (16): TestMain(), addProject(), newDep(), newQ(), TestCloseTimeoutCancelsRunningBuild(), TestCloseWaitsForInFlightAndRejectsNewWork(), testDB(), TestFailedDeployKeepsContainerRef() (+8 more)
 
 ### Community 135 - "middleware-broad-matcher.mjs"
 Cohesion: 0.67
@@ -913,9 +921,9 @@ Nodes (20): classifyFrameworkSupport(), CORE_SUPPORTED_FRAMEWORKS, frameworkLabe
 Cohesion: 0.15
 Nodes (12): Layout-Level ViewTransition, `loading.tsx` as Suspense Boundary, Next.js Implementation Additions, Programmatic Navigation, Same-Route Dynamic Segment Transitions, Server Components, Server-Side Filtering with `router.replace`, Setup (+4 more)
 
-### Community 138 - "Collector"
-Cohesion: 0.12
-Nodes (12): env(), main(), pollInterval(), streamSystemMetrics(), Hub, New(), Collector, NewCollector() (+4 more)
+### Community 138 - "Queue"
+Cohesion: 0.10
+Nodes (10): sessionRevocations, newSessionRevocations(), api.Server.githubCallback handler, builder.Config struct, db.GitHubAccount struct, db.Project struct, Queue, New() (+2 more)
 
 ### Community 139 - "Doctrine"
 Cohesion: 0.17
@@ -934,8 +942,8 @@ Cohesion: 0.17
 Nodes (15): buildScriptHasMigrationSideEffect(), compilePattern(), parseJsonLike(), readClaimFile(), readOptionalJsonFile(), recSeparatesTurboBuildSideEffects(), siblingPackageJson(), snippetFoundElsewhere() (+7 more)
 
 ### Community 143 - "update.go"
-Cohesion: 0.31
-Nodes (11): envVarVal(), loadDotEnv(), resolveCompose(), runDetachedComposeUp(), runUpdate(), selfImage(), streamCmd(), streamCmdEnv() (+3 more)
+Cohesion: 0.15
+Nodes (13): hijackedConn, hijackDockerExec(), envVarVal(), loadDotEnv(), resolveCompose(), runDetachedComposeUp(), runUpdate(), selfImage() (+5 more)
 
 ### Community 144 - "ref_node_path"
 Cohesion: 0.21
@@ -950,8 +958,8 @@ Cohesion: 0.18
 Nodes (10): 1. Component Architecture (HIGH), 2. State Management (MEDIUM), 3. Implementation Patterns (MEDIUM), 4. React 19 APIs (MEDIUM), Full Compiled Document, How to Use, Quick Reference, React Composition Patterns (+2 more)
 
 ### Community 147 - "withRouteShapeWarnings"
-Cohesion: 0.18
-Nodes (15): byRoute(), gate(), metadata, ratioOverThreshold(), round2(), sumRows(), extractErrors(), extractFromStatusRows() (+7 more)
+Cohesion: 0.11
+Nodes (23): byRoute(), gate(), metadata, ratioOverThreshold(), round2(), sumRows(), extractErrors(), extractFromStatusRows() (+15 more)
 
 ### Community 148 - "impact-label.mjs"
 Cohesion: 0.38
@@ -977,13 +985,13 @@ Nodes (9): Component Architecture (CRITICAL), Core Principles, Creating a New Ru
 Cohesion: 0.27
 Nodes (4): Install, Procedure, Requirements, vercel-optimize
 
-### Community 154 - "hard-gates.mjs"
-Cohesion: 0.33
-Nodes (9): applyHardGates(), FLAGS_ENDPOINT, flagsEndpointReason(), isFlagsEndpointCandidate(), isWorkflowRuntimeEndpointCandidate(), normalizeRoute(), VERCEL_FLAGS_PACKAGES, WORKFLOW_ENDPOINT_PREFIXES (+1 more)
+### Community 154 - ".Close"
+Cohesion: 0.15
+Nodes (5): AlertRule, AppInstallation, Domain, Heartbeat, LogWriter
 
-### Community 155 - "uncached-route.mjs"
-Cohesion: 0.24
-Nodes (8): Candidate, CandidateScope, GateMetadata, Signals, extractCacheHitRates(), extractMethodShares(), gate(), metadata
+### Community 155 - "time.Time"
+Cohesion: 0.16
+Nodes (5): loginLimiter, progressWriter, pollInterval(), limiterKey(), NewCollector()
 
 ### Community 156 - "count-correct.mjs"
 Cohesion: 0.27
@@ -994,8 +1002,8 @@ Cohesion: 0.47
 Nodes (4): externalProject, Server, selfComposeProject(), ContainerLabels
 
 ### Community 158 - "scoring.md"
-Cohesion: 0.20
-Nodes (9): Discountable vs non-discountable SKUs, Impact framing — the magnitude rule, `impactLabel` schema, Playbook selection matrix, Quality floor and prune rules, Sort order and platform-rec cap, Step 4 — Score and report, Table of contents (+1 more)
+Cohesion: 0.22
+Nodes (8): Discountable vs non-discountable SKUs, Impact framing — the magnitude rule, `impactLabel` schema, Quality floor and prune rules, Sort order and platform-rec cap, Step 4 — Score and report, Table of contents, The customer-facing report template
 
 ### Community 159 - "Pipeline"
 Cohesion: 0.20
@@ -1018,12 +1026,12 @@ Cohesion: 0.20
 Nodes (9): Common Mistakes, Implementation Workflow, Step 1: Audit the App, Step 2: Add CSS Recipes, Step 3: Isolate Persistent Elements, Step 4: Add Directional Page Transitions, Step 5: Add Suspense Reveals, Step 6: Add Shared Element Transitions (+1 more)
 
 ### Community 164 - "verifyNextCacheLifetimeFreshnessSupported"
-Cohesion: 0.24
-Nodes (11): cacheLifeNeedsContentFreshnessProof(), configContainsTag(), dedupeCacheTags(), escapeRegExp(), extractCacheTags(), extractCacheTagsFromFiles(), hasConfigDrivenInvalidation(), hasLiteralInvalidation() (+3 more)
+Cohesion: 0.19
+Nodes (14): cacheLifeNeedsContentFreshnessProof(), configContainsTag(), dedupeCacheTags(), escapeRegExp(), execFileP, extractCacheTags(), extractCacheTagsFromFiles(), hasConfigDrivenInvalidation() (+6 more)
 
 ### Community 165 - "AppShell.tsx"
-Cohesion: 0.21
-Nodes (11): AppShell(), SidebarInset(), SidebarProvider(), ALL_ITEMS, Area, areaOf(), NAV_GROUPS, NavBadge (+3 more)
+Cohesion: 0.20
+Nodes (12): AppShell(), SidebarInset(), SidebarProvider(), ALL_ITEMS, Area, areaOf(), NAV_GROUPS, NavBadge (+4 more)
 
 ### Community 166 - "PulseNode Projects & Deploy Feature"
 Cohesion: 0.22
@@ -1041,9 +1049,9 @@ Nodes (8): candidateForGroup(), gate(), groupFindings(), metadata, observedCache
 Cohesion: 0.36
 Nodes (8): candidateIdentity(), DEFAULT_KIND_CAPS, DIVERSITY_ELIGIBILITY, durationMsFromSignal(), isDiversityEligible(), numberFromEvidence(), numberFromSignal(), selectLaunchCandidates()
 
-### Community 170 - "tooltip.tsx"
-Cohesion: 0.16
-Nodes (15): IconTip(), geistMono, geistSans, metadata, RootLayout(), Home(), IconAction(), IconAction() (+7 more)
+### Community 170 - "layout.tsx"
+Cohesion: 0.21
+Nodes (9): geistMono, geistSans, metadata, RootLayout(), Home(), Providers(), Toaster(), TooltipProvider() (+1 more)
 
 ### Community 171 - "2. List Performance"
 Cohesion: 0.22
@@ -1058,8 +1066,8 @@ Cohesion: 0.39
 Nodes (11): grade(), gradeRecommendation(), isAccountScope(), roundTo(), scoreActionability(), scoreEvidence(), scoreEvidenceAccount(), scoreGrounding() (+3 more)
 
 ### Community 174 - "auth_test.go"
-Cohesion: 0.11
-Nodes (22): Config, newAuthTestServer(), postSetup(), protectedOK(), TestPasswordChangeRevokesSessions(), TestRequireAuthFailsClosedWithoutAdmin(), TestRequireAuthInsecureOptOut(), TestSameOriginWrites() (+14 more)
+Cohesion: 0.07
+Nodes (37): Config, newLoginLimiter(), newAuthTestServer(), postSetup(), protectedOK(), TestPasswordChangeRevokesSessions(), TestProtectedPID(), TestRequireAuthFailsClosedWithoutAdmin() (+29 more)
 
 ### Community 175 - "Task 8: Add Security section to settings page"
 Cohesion: 0.22
@@ -1071,7 +1079,7 @@ Nodes (7): apply(), collectText(), matchConcurrency(), matchProviders(), metadat
 
 ### Community 177 - "Topbar.tsx"
 Cohesion: 0.13
-Nodes (22): useCommandMenu(), Topbar(), DialogState, ProcessActions(), ProcessConfirm(), procName(), Risk, Breadcrumb() (+14 more)
+Nodes (21): useCommandMenu(), Topbar(), DialogState, ProcessActions(), ProcessConfirm(), procName(), Risk, Breadcrumb() (+13 more)
 
 ### Community 178 - "docs-library.json"
 Cohesion: 0.25
@@ -1085,9 +1093,9 @@ Nodes (7): Claim types, Dispositions, Re-gen trigger and accept criteria, Table 
 Cohesion: 0.25
 Nodes (8): Failure Copy, Final Customer Terms, Framework Support, Prerequisites, Recommendation Rules, Run Directory, Scanner Rules, Vercel Optimize
 
-### Community 181 - "Service"
-Cohesion: 0.36
-Nodes (3): Service, mockSBOMs(), mockScans()
+### Community 181 - "security/security.go"
+Cohesion: 0.16
+Nodes (18): ecoOf(), Service, newSummary(), ParseCycloneDX(), ParseSPDX(), ParseTrivy(), failRunner(), newTestService() (+10 more)
 
 ### Community 182 - "Task 4: Create auth_handler.go"
 Cohesion: 0.50
@@ -1105,17 +1113,17 @@ Nodes (7): Attribution, Contributor Covenant Code of Conduct, Enforcement, Enfor
 Cohesion: 0.25
 Nodes (8): code:go (// requireAuth replaces s.auth.Require. It checks whether a ), code:go (r.Get("/api/github/callback", s.githubCallback)), code:go (r.Get("/api/auth/status", s.authStatus)), code:go (r.Route("/api", func(r chi.Router) {), code:go (r.Route("/api", func(r chi.Router) {), code:bash (cd /home/sakitha/apps/vps/backend && go build ./...), code:bash (cd /home/sakitha/apps/vps && git add backend/internal/api/mi), Task 5: Add requireAuth middleware + wire routes in server.go
 
-### Community 186 - "secrets.go"
-Cohesion: 0.14
-Nodes (11): Server, jwtSecret(), randomHex(), EnsureEncryptionKey(), LoadOrCreateSecret(), TestEnsureEncryptionKeyGeneratesWhenMissing(), TestLoadOrCreateSecretPersists(), TestMain() (+3 more)
+### Community 186 - "run"
+Cohesion: 0.09
+Nodes (22): Config, env(), main(), pruneDaily(), run(), streamSystemMetrics(), firstNonEmpty(), installedVersion() (+14 more)
 
-### Community 187 - "verifyNextCacheComponentsRouteChainFile"
+### Community 187 - "normalizeProjectRootDirectory"
+Cohesion: 0.20
+Nodes (10): asArray(), firstAccessiblePath(), firstDynamicRouteChainReason(), normalizeProjectRootDirectory(), pathSuffixMatches(), readNextRouteChainFiles(), recommendationFilesFromRec(), repoPaths() (+2 more)
+
+### Community 188 - "mock-data.ts"
 Cohesion: 0.12
-Nodes (18): asArray(), execFileP, firstAccessiblePath(), firstDynamicRouteChainReason(), isCatchAllPlaceholder(), isDynamicPlaceholder(), layoutAppliesToCandidateRoute(), normalizeProjectRootDirectory() (+10 more)
-
-### Community 188 - "cache-components-suspense-dedupe.mjs"
-Cohesion: 0.48
-Nodes (6): countMatches(), findRepeated(), metadata, record(), scan(), truncate()
+Nodes (15): ALERT_RULES, ALERTS, CONTAINERS, COOLIFY_DEPLOYMENTS, COOLIFY_PROJECTS, DATABASES, HOST, IMAGES (+7 more)
 
 ### Community 189 - "edge-heavy-import.mjs"
 Cohesion: 0.48
@@ -1141,13 +1149,13 @@ Nodes (7): 1.1 Check Cheap Conditions Before Async Flags, 1.2 Defer Await Until 
 Cohesion: 0.29
 Nodes (7): 2.1 Avoid Barrel File Imports, 2.2 Conditional Module Loading, 2.3 Defer Non-Critical Third-Party Libraries, 2.4 Dynamic Imports for Heavy Components, 2.5 Prefer Statically Analyzable Paths, 2.6 Preload Based on User Intent, 2. Bundle Size Optimization
 
-### Community 195 - "verifyCacheRecNotErrorDominatedOrAcknowledged"
-Cohesion: 0.40
-Nodes (5): formatPct(), functionStatusForRoute(), numberValue(), routeFromCandidateRef(), verifyCacheRecNotErrorDominatedOrAcknowledged()
+### Community 195 - "verifyNextCacheComponentsRouteChainFile"
+Cohesion: 0.22
+Nodes (10): formatPct(), functionStatusForRoute(), isCatchAllPlaceholder(), isDynamicPlaceholder(), layoutAppliesToCandidateRoute(), normalizeRouteForLayoutMatch(), numberValue(), routeFromCandidateRef() (+2 more)
 
 ### Community 197 - "detect.go"
-Cohesion: 0.19
-Nodes (12): api.Server.githubCallback handler, builder.Config struct, TestDetectMonorepo(), buildableDir(), Detect(), DetectMonorepo(), fileExists(), IsBuildMarker() (+4 more)
+Cohesion: 0.57
+Nodes (6): TestComposeFileNameIsSharedByPolicyAndUp(), buildableDir(), composeFileName(), Detect(), DetectMonorepo(), fileExists()
 
 ### Community 198 - "Task 2: Add users table + DB helpers"
 Cohesion: 0.33
@@ -1168,6 +1176,10 @@ Nodes (5): defaultNormalize(), normalizeColdStart(), normalizerFor(), QUERIES, n
 ### Community 204 - "undeclared-dep.mjs"
 Cohesion: 0.47
 Nodes (5): apply(), extractCodeBlocks(), metadata, NODE_BUILTINS, pkgRoot()
+
+### Community 205 - ".repoClient"
+Cohesion: 0.50
+Nodes (3): Server, TestWriteGitHubErrorMapsStatuses(), writeGitHubError()
 
 ### Community 206 - "API service"
 Cohesion: 0.33
@@ -1213,9 +1225,9 @@ Nodes (6): Common Patterns, Composing Shared Elements with List Identity, Enter/
 Cohesion: 0.33
 Nodes (5): Installation, React View Transitions Skill, Resources, Skill Structure, What This Skill Covers
 
-### Community 217 - "Card"
-Cohesion: 0.09
-Nodes (50): CallbackInner(), GitHubAppCallbackPage(), Account, GitHubPage(), OAuthSettings, AuthStatus, LoginForm(), handleSubmit() (+42 more)
+### Community 217 - "stats/page.tsx"
+Cohesion: 0.08
+Nodes (49): CallbackInner(), GitHubAppCallbackPage(), Account, GitHubPage(), OAuthSettings, AuthStatus, LoginForm(), handleSubmit() (+41 more)
 
 ### Community 218 - "Build Cache Clear Button with Magic UI Terminal — Implementation Plan"
 Cohesion: 0.33
@@ -1421,9 +1433,9 @@ Nodes (6): Hue per area, Motion, Page skeleton, Principles, PulseNode design sys
 Cohesion: 0.67
 Nodes (3): extractRows(), gate(), metadata
 
-### Community 270 - "middleware-heavy.mjs"
-Cohesion: 0.67
-Nodes (3): gate(), metadata, sumRows()
+### Community 270 - "cold-start.mjs"
+Cohesion: 0.29
+Nodes (6): extractColdStarts(), gate(), metadata, gate(), metadata, sumRows()
 
 ### Community 271 - "observability-events-attribution.mjs"
 Cohesion: 0.67
@@ -1450,12 +1462,12 @@ Cohesion: 0.50
 Nodes (4): 6.1 Minimize State Variables and Derive Values, 6.2 Use fallback state instead of initialState, 6.3 useState Dispatch updaters for State That Depends on Current Value, 6. React State
 
 ### Community 279 - "Core Concepts"
-Cohesion: 0.22
-Nodes (9): Animation Triggers, Core Concepts, Critical Placement Rule, The `<ViewTransition>` Component, Animation Triggers, Core Concepts, Critical Placement Rule, The `<ViewTransition>` Component (+1 more)
+Cohesion: 0.50
+Nodes (4): Animation Triggers, Core Concepts, Critical Placement Rule, The `<ViewTransition>` Component
 
-### Community 280 - "Common Patterns"
-Cohesion: 0.33
-Nodes (6): Common Patterns, Composing Shared Elements with List Identity, Enter/Exit, Force Re-Enter with `key`, List Reorder, Suspense Fallback to Content
+### Community 280 - "go_pkg_testing"
+Cohesion: 0.23
+Nodes (8): parseTraefikHosts(), TestParseTraefikHosts(), New(), dial(), TestCloseEndsClients(), TestConcurrentBroadcastDeliversToClients(), TestSlowClientDoesNotBlockBroadcast(), waitClients()
 
 ### Community 281 - "Changelog"
 Cohesion: 0.50
@@ -1485,9 +1497,9 @@ Nodes (3): 1.1 Never Use && with Potentially Falsy Values, 1.2 Wrap Strings in T
 Cohesion: 0.67
 Nodes (3): 8.1 Destructure Functions Early in Render (React Compiler), 8.2 Use .get() and .set() for Reanimated Shared Values (not .value), 8. React Compiler
 
-### Community 288 - "app.go"
-Cohesion: 0.21
-Nodes (4): b64u(), AppClient, Installation, InstallationToken
+### Community 288 - "notify.go"
+Cohesion: 0.06
+Nodes (35): Sender, buildEmail(), Message, hostOf(), NewSender(), parseRecipients(), PublicConfig(), redactURLErr() (+27 more)
 
 ### Community 289 - "builder.runContainer func"
 Cohesion: 0.67
@@ -1513,45 +1525,57 @@ Nodes (4): computeBotShare(), gate(), metadata, totalRequestsFromSignals()
 Cohesion: 0.67
 Nodes (3): gate(), metadata, unique()
 
-### Community 374 - "MagicUI Component Library"
+### Community 374 - "api.Server struct"
+Cohesion: 0.27
+Nodes (11): main.main entrypoint, api.Server.listAuditLog handler, api.Server.metricsLive handler, api.Server.deployProject handler, api.Server.streamDeploymentLogs SSE func, api.Server struct, auth.Middleware struct, db.DB struct (+3 more)
+
+### Community 398 - "detect.ts"
+Cohesion: 0.25
+Nodes (8): detectSuspicious (security engine), ProcessesPage, KNOWN_SAFE, MINER_KEYWORDS, SuspicionResult, Suspicious process detection engine, MOCK PROCESSES data, Process
+
+### Community 407 - "contract.mjs"
+Cohesion: 0.39
+Nodes (6): CandidateContractError, candidateLabel(), nonEmptyString(), VALID_SCOPES, validateCandidate(), validateCandidates()
+
+### Community 408 - "DatabasesPage"
 Cohesion: 0.29
-Nodes (6): BlurFade Component, BorderBeam Component, NumberTicker Component, NumberTicker RAF Easing Animation, generateSparkle Helper Function, SparklesText Component
+Nodes (7): ConnectionStringPanel, DatabaseRow, DatabasesPage, DbDetails (schema/table browser), DbExpand (tabbed db panel), CustomConnection, DbMetrics
 
-### Community 398 - "cold-start.mjs"
-Cohesion: 0.67
-Nodes (3): extractColdStarts(), gate(), metadata
+### Community 409 - "db_creds.go"
+Cohesion: 0.43
+Nodes (6): mongoToolCmd(), mysqlAuthEnv(), redisAuthEnv(), yamlSingleQuote(), TestDBCredentialsStayOffArgv(), TestMongoWrapperWritesConfigFileAndCleansUp()
 
-### Community 407 - "headers-in-page.mjs"
-Cohesion: 0.67
-Nodes (3): isApplicable(), metadata, scan()
-
-### Community 408 - "How Multiple VTs Interact"
+### Community 410 - "How Multiple VTs Interact"
 Cohesion: 0.50
 Nodes (4): How Multiple VTs Interact, Nested VT Limitation, Two Patterns Coexist, Use `default="none"` Liberally
 
-### Community 409 - "missing-cache-headers.mjs"
-Cohesion: 0.67
-Nodes (3): isApplicable(), metadata, scan()
+### Community 411 - "Container"
+Cohesion: 0.50
+Nodes (4): Mock data fallback pattern (initial state), MOCK CONTAINERS data, Container, CoolifyMeta
+
+### Community 412 - "DockerImage"
+Cohesion: 1.00
+Nodes (3): ImagesPage, MOCK IMAGES data, DockerImage
 
 ## Knowledge Gaps
-- **1433 isolated node(s):** `AUTH_ROUTE_REGEX`, `HERE`, `LIBRARY_PATH`, `SERVICE_DIMENSION`, `SPEC_GENERATORS` (+1428 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1766 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **1464 isolated node(s):** `AUTH_ROUTE_REGEX`, `HERE`, `LIBRARY_PATH`, `SERVICE_DIMENSION`, `SPEC_GENERATORS` (+1459 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1811 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **153 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `PulseNode Login System` connect `PulseNode Login System` to `Login System Implementation Plan`, `Card`, `secrets.go`, `PulseNode Projects & Deploy Feature`?**
-  _High betweenness centrality (0.101) - this node is a cross-community bridge._
-- **Why does `Button()` connect `Button` to `ContainerTable.tsx`, `command.tsx`, `processes/page.tsx`, `[id]/page.tsx`, `tooltip.tsx`, `animated-theme-toggler.tsx`, `ConfirmDialog`, `sidebar.tsx`, `Topbar.tsx`, `cn`, `Card`, `React Native Skills`?**
-  _High betweenness centrality (0.034) - this node is a cross-community bridge._
-- **Why does `AlertsPage()` connect `processes/page.tsx` to `[id]/page.tsx`, `coolify/page.tsx`, `Core Concepts`, `cn`, `Card`, `Button`?**
-  _High betweenness centrality (0.020) - this node is a cross-community bridge._
-- **Are the 111 inferred relationships involving `writeJSON()` (e.g. with `.authLogin()` and `.authLogout()`) actually correct?**
-  _`writeJSON()` has 111 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 2 inferred relationships involving `Button()` (e.g. with `10.1 Use Compound Components Over Polymorphic Children` and `Use Compound Components Over Polymorphic Children`) actually correct?**
-  _`Button()` has 2 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `PulseNode Login System` connect `PulseNode Login System` to `Login System Implementation Plan`, `stats/page.tsx`, `main.go`, `PulseNode Projects & Deploy Feature`?**
+  _High betweenness centrality (0.119) - this node is a cross-community bridge._
+- **Why does `Button()` connect `Button` to `lucide-react`, `command.tsx`, `processes/page.tsx`, `alerts/page.tsx`, `containers/page.tsx`, `animated-theme-toggler.tsx`, `[id]/page.tsx`, `ConfirmDialog`, `sidebar.tsx`, `Topbar.tsx`, `cn`, `stats/page.tsx`, `React Native Skills`?**
+  _High betweenness centrality (0.025) - this node is a cross-community bridge._
+- **Why does `DB` connect `DB` to `AlertEventFull`, `context.Context`, `queue_test.go`, `.Close`, `Queue`, `net/http.ResponseWriter`, `time.Time`, `Deployment`, `ManagedDatabase`, `main.go`, `run`, `.issueSession`, `testing.T`?**
+  _High betweenness centrality (0.023) - this node is a cross-community bridge._
+- **Are the 123 inferred relationships involving `writeJSON()` (e.g. with `.ackAllAlerts()` and `.authLogin()`) actually correct?**
+  _`writeJSON()` has 123 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `AUTH_ROUTE_REGEX`, `HERE`, `LIBRARY_PATH` to the rest of the system?**
-  _1433 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _1464 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `types.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.07823613086770982 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.14035087719298245 - nodes in this community are weakly interconnected._
+- **Should `verify-claim.mjs` be split into smaller, more focused modules?**
+  _Cohesion score 0.12550607287449392 - nodes in this community are weakly interconnected._

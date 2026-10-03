@@ -105,7 +105,10 @@ export function UPlotChart({ series, height = 200, mode = "line", max }: UPlotCh
       chart.destroy()
       chartRef.current = null
     }
-  }, [height, max, mode, themeTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Rebuild the chart only on structural changes (size/scale/mode/theme). Series values are pushed
+  // into the existing chart by the effect below, and `series` is a new array every render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [height, max, mode, themeTick])
 
   useEffect(() => {
     chartRef.current?.setData(data)

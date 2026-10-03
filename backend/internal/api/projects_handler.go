@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -12,6 +13,7 @@ import (
 
 	"pulsenode/backend/internal/builder"
 	"pulsenode/backend/internal/db"
+	"pulsenode/backend/internal/queue"
 )
 
 func (s *Server) freePort(w http.ResponseWriter, r *http.Request) {
@@ -245,15 +247,28 @@ func (s *Server) deployProject(w http.ResponseWriter, r *http.Request) {
 		Status:    "queued",
 		Trigger:   "manual",
 	}
-	if err := s.db.CreateDeployment(dep); err != nil {
-		writeError(w, err)
+	if err := s.queue.Submit(dep, "", ""); err != nil {
+		writeDeployError(w, err)
 		return
 	}
 
-	_ = s.db.UpdateProjectStatus(id, "building", "")
-	s.queue.Enqueue(dep.ID)
-
 	writeJSON(w, http.StatusAccepted, map[string]string{"deploymentId": dep.ID})
+}
+
+// writeDeployError maps queue errors to HTTP: a project that is already
+// deploying is a 409, a full or stopping queue is a retryable 503.
+func writeDeployError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, queue.ErrBusy):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+	case errors.Is(err, queue.ErrNoProject):
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+	case errors.Is(err, queue.ErrQueueFull), errors.Is(err, queue.ErrClosed):
+		w.Header().Set("Retry-After", "30")
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
+	default:
+		writeError(w, err)
+	}
 }
 
 // rollbackDeployment redeploys the image a previous successful deployment
@@ -287,13 +302,10 @@ func (s *Server) rollbackDeployment(w http.ResponseWriter, r *http.Request) {
 		CommitSHA: target.CommitSHA,
 		CommitMsg: target.CommitMsg,
 	}
-	if err := s.db.CreateDeployment(dep); err != nil {
-		writeError(w, err)
+	if err := s.queue.Submit(dep, "", ""); err != nil { // records the target's commit from dep
+		writeDeployError(w, err)
 		return
 	}
-	_ = s.db.UpdateDeploymentCommit(dep.ID, target.CommitSHA, target.CommitMsg)
-	_ = s.db.UpdateProjectStatus(id, "building", "")
-	s.queue.Enqueue(dep.ID)
 
 	writeJSON(w, http.StatusAccepted, map[string]string{"deploymentId": dep.ID})
 }

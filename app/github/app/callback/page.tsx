@@ -1,15 +1,18 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
+import { useTimeouts } from "@/lib/use-timeouts"
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Loader2, CheckCircle2, XCircle } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 
-const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
+const GO_API = API_BASE
 
 function CallbackInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const later = useTimeouts()
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading")
   const [message, setMessage] = useState("")
 
@@ -72,14 +75,14 @@ function CallbackInner() {
           setStatus("ok")
           setMessage(`Installation registered for ${d.accountLogin ?? "your account"}.`)
         }
-        setTimeout(() => router.push("/github"), 1500)
+        later(() => router.push("/github"), 1500)
       })
       .catch(e => {
         setStatus("error")
         setMessage(e.message)
-        setTimeout(() => router.push("/github"), 3000)
+        later(() => router.push("/github"), 3000)
       })
-  }, [searchParams, router])
+  }, [searchParams, router, later])
 
   return (
     <div className="grid min-h-screen place-items-center bg-background p-4">

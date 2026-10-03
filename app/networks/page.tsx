@@ -1,14 +1,15 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Boxes, Download, Network, RefreshCw, Upload } from "lucide-react"
-import { NETWORKS as MOCK_NETWORKS } from "@/lib/mock-data"
+import { AlertCircle, Boxes, Download, Network, RefreshCw, Upload } from "lucide-react"
 import { nodeApi } from "@/lib/api"
 import { getSocket } from "@/lib/socket"
 import type { DockerNetwork, SystemMetrics } from "@/lib/types"
 import { StatCard } from "@/components/dashboard/StatCard"
 import { Pill } from "@/components/dashboard/Pill"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/pn/EmptyState"
 import { NetChart } from "@/components/networks/NetChart"
 import { Badge } from "@/components/ui/badge"
@@ -27,15 +28,18 @@ function pushCapped(arr: number[], val: number, max = 60) {
 }
 
 export default function NetworksPage() {
-  const [networks,  setNetworks]  = useState<DockerNetwork[]>(MOCK_NETWORKS)
+  const [networks,  setNetworks]  = useState<DockerNetwork[]>([])
+  const [loaded,    setLoaded]    = useState(false)
+  const [loadError, setLoadError] = useState(false)
   const [rxHist,    setRxHist]    = useState<number[]>([0, 0])
   const [txHist,    setTxHist]    = useState<number[]>([0, 0])
   const [rxRate,    setRxRate]    = useState(0)
 
   function fetchNetworks() {
     nodeApi.get<DockerNetwork[]>("/api/docker/networks")
-      .then(({ data }) => setNetworks(data))
-      .catch(() => {})
+      .then(({ data }) => { setNetworks(data); setLoadError(false) })
+      .catch(() => setLoadError(true))
+      .finally(() => setLoaded(true))
   }
 
   useEffect(() => {
@@ -67,6 +71,13 @@ export default function NetworksPage() {
         }
       />
       <PageBody className="motion-safe:animate-in motion-safe:fade-in-0 duration-300">
+        {loadError && (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertTitle>Could not load networks</AlertTitle>
+            <AlertDescription>The Docker API did not respond. The list may be out of date.</AlertDescription>
+          </Alert>
+        )}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard label="Networks" icon={Network} value={networks.length} tone="acc" />
           <StatCard label="Container attachments" icon={Boxes} value={totalContainers} tone="acc" />
@@ -80,7 +91,11 @@ export default function NetworksPage() {
         </div>
 
         <Card className="gap-0 py-0">
-          {networks.length === 0 ? (
+          {!loaded ? (
+            <div className="space-y-3 p-4">
+              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
+            </div>
+          ) : networks.length === 0 ? (
             <EmptyState className="m-4" icon={Network} title="No networks found" description="Docker did not report any networks." />
           ) : (
             <div className="overflow-x-auto">

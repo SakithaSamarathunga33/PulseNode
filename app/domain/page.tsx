@@ -1,5 +1,6 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
 import { useEffect, useState } from "react"
 import { AlertCircle, CheckCircle2, Copy, Globe, Loader2, Plus, RefreshCw, Star, Trash2, XCircle } from "lucide-react"
 import { toast } from "sonner"
@@ -18,7 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { copyText } from "@/lib/utils"
 
-const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
+const GO_API = API_BASE
 
 type SavedDomain = {
   host: string
@@ -177,7 +178,7 @@ export default function DomainPage() {
         title="Domain"
         description="Save the domains you use, verify their DNS, and see what each container is serving."
       />
-      <PageBody className="max-w-4xl">
+      <PageBody>
         {message && (
           <Alert variant="destructive"><AlertCircle /><AlertDescription>{message}</AlertDescription></Alert>
         )}

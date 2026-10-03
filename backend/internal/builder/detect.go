@@ -16,15 +16,24 @@ const (
 // Detect returns the build method for a cloned repo directory.
 // Priority: docker-compose.yml > Dockerfile > nixpacks
 func Detect(dir string) Method {
-	for _, name := range []string{"docker-compose.yml", "docker-compose.yaml"} {
-		if fileExists(dir + "/" + name) {
-			return MethodCompose
-		}
+	if composeFileName(dir) != "" {
+		return MethodCompose
 	}
 	if fileExists(dir + "/Dockerfile") {
 		return MethodDockerfile
 	}
 	return MethodNixpacks
+}
+
+// composeFileName is the compose file a repo ships ("" if none). Policy check,
+// `config` and `up` all use this one name, so what is validated is what runs.
+func composeFileName(dir string) string {
+	for _, name := range []string{"docker-compose.yml", "docker-compose.yaml"} {
+		if fileExists(dir + "/" + name) {
+			return name
+		}
+	}
+	return ""
 }
 
 // DetectMonorepo reports a frontend/ + backend/ split: true only when BOTH a

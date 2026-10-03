@@ -6,16 +6,21 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"pulsenode/backend/internal/db"
 	"pulsenode/backend/internal/github"
+	"pulsenode/backend/internal/queue"
 )
 
 const webhookSecretKey = "github_webhook_secret"
@@ -148,8 +153,17 @@ func (s *Server) githubWebhookInfo(w http.ResponseWriter, r *http.Request) {
 // by verifying the HMAC-SHA256 signature against the stored secret. The branch
 // poller remains as a fallback for installs that haven't configured webhooks.
 func (s *Server) githubWebhook(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, 5<<20)) // 5 MB cap
+	// GitHub caps webhook payloads at 25 MB. The HMAC needs the whole body, so
+	// bound the read up front instead of letting an unauthenticated POST stream
+	// unlimited data into memory.
+	r.Body = http.MaxBytesReader(w, r.Body, maxWebhookBody)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "payload too large"})
+			return
+		}
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "read body"})
 		return
 	}
@@ -168,6 +182,14 @@ func (s *Server) githubWebhook(w http.ResponseWriter, r *http.Request) {
 	sigHeader := r.Header.Get("X-Hub-Signature-256")
 	if !validSignature(secret, sigHeader, body) && !validSignature(appSecret, sigHeader, body) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid signature"})
+		return
+	}
+
+	// Replay protection: a captured, correctly-signed delivery must not trigger
+	// deploys again. Only authenticated requests reach this point.
+	delivery := r.Header.Get("X-GitHub-Delivery")
+	if delivery != "" && recentDeliveries.seen(delivery) {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "duplicate"})
 		return
 	}
 
@@ -220,20 +242,76 @@ func (s *Server) githubWebhook(w http.ResponseWriter, r *http.Request) {
 		if !ok || !strings.EqualFold(owner, wantOwner) || !strings.EqualFold(repo, wantRepo) {
 			continue
 		}
-		dep := &db.Deployment{ID: db.NewID("dep"), ProjectID: p.ID, Status: "queued", Trigger: "auto"}
-		if err := s.db.CreateDeployment(dep); err != nil {
+		// Already built (or already known) — nothing new to deploy.
+		if payload.HeadCommit.ID != "" && payload.HeadCommit.ID == p.LastCommitSHA {
 			continue
 		}
-		if payload.HeadCommit.ID != "" {
-			_ = s.db.UpdateDeploymentCommit(dep.ID, payload.HeadCommit.ID, firstLine(payload.HeadCommit.Message))
-			_ = s.db.UpdateProjectCommit(p.ID, payload.HeadCommit.ID)
+		dep := &db.Deployment{ID: db.NewID("dep"), ProjectID: p.ID, Status: "queued", Trigger: "auto"}
+		// The commit recorded here is display metadata only. The project's baseline
+		// commit is NOT taken from the payload: the build records the commit it
+		// actually checked out, so a replayed/stale payload can't move the baseline.
+		switch err := s.queue.Submit(dep, payload.HeadCommit.ID, firstLine(payload.HeadCommit.Message)); {
+		case err == nil:
+			triggered = append(triggered, p.Name)
+		case errors.Is(err, queue.ErrBusy):
+			// a build for this project is already running; the poller catches up afterwards
+		case errors.Is(err, queue.ErrQueueFull), errors.Is(err, queue.ErrClosed):
+			// Tell GitHub it failed so the delivery can be redelivered; don't mark it seen.
+			w.Header().Set("Retry-After", "30")
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
+			return
+		default:
+			log.Printf("[webhook] %s: submit: %v", p.Name, err)
 		}
-		_ = s.db.UpdateProjectStatus(p.ID, "building", "")
-		s.queue.Enqueue(dep.ID)
-		triggered = append(triggered, p.Name)
+	}
+	if delivery != "" {
+		recentDeliveries.add(delivery)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "triggered": triggered})
+}
+
+// maxWebhookBody is GitHub's documented payload cap.
+const maxWebhookBody = 25 << 20
+
+// deliveryCache remembers X-GitHub-Delivery IDs for a while so replays are ignored.
+type deliveryCache struct {
+	mu  sync.Mutex
+	ids map[string]time.Time
+}
+
+const (
+	deliveryTTL = time.Hour
+	deliveryCap = 4096
+)
+
+var recentDeliveries = &deliveryCache{ids: map[string]time.Time{}}
+
+func (c *deliveryCache) seen(id string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	t, ok := c.ids[id]
+	return ok && time.Since(t) < deliveryTTL
+}
+
+func (c *deliveryCache) add(id string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now := time.Now()
+	if len(c.ids) >= deliveryCap {
+		for k, t := range c.ids {
+			if now.Sub(t) >= deliveryTTL {
+				delete(c.ids, k)
+			}
+		}
+		for k := range c.ids { // still full of live entries: evict arbitrary ones
+			if len(c.ids) < deliveryCap {
+				break
+			}
+			delete(c.ids, k)
+		}
+	}
+	c.ids[id] = now
 }
 
 // validSignature reports whether the GitHub X-Hub-Signature-256 header matches

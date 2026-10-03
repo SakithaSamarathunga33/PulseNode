@@ -126,6 +126,10 @@ func (s *Server) saveDomain(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "host is required"})
 		return
 	}
+	if !validHostname(host) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid hostname"})
+		return
+	}
 	if _, err := s.db.UpsertDomain(host); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return

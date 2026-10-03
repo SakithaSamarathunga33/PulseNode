@@ -1,5 +1,6 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
 import { useState, useEffect, useCallback } from "react"
 import { Key, Unlink, ExternalLink, ChevronRight, Shield, Webhook, GitBranch, Loader2, Check, Eye, EyeOff, AlertCircle } from "lucide-react"
 import { GitHubDark } from "developer-icons"
@@ -17,7 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 
-const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
+const GO_API = API_BASE
 
 type Account = { login: string; avatarUrl: string; tokenType: "oauth" | "pat" }
 type OAuthSettings = { clientId: string; hasSecret: boolean; configured: boolean }
@@ -139,7 +140,7 @@ export default function GitHubPage() {
         description="Connect your GitHub account to deploy projects from private and public repositories."
         actions={account && <Pill tone="ok" dot>Connected</Pill>}
       />
-      <PageBody className="max-w-4xl">
+      <PageBody>
         {/* Account */}
         {account ? (
           <Card>

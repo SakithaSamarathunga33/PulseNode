@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/subtle"
+	"errors"
 	"net/http"
 	"os"
 	"strings"
@@ -12,7 +13,16 @@ import (
 	"pulsenode/backend/internal/github"
 )
 
-const oauthStateCookie = "pn_oauth_state"
+// oauthStateName is the cookie that binds the OAuth callback to this browser.
+// Over HTTPS it carries the __Host- prefix, which browsers only accept when it is
+// Secure, Path=/ and has no Domain — so a sibling subdomain (e.g. a deployed app)
+// cannot plant its own state value for the panel host ("cookie tossing").
+func oauthStateName(r *http.Request) string {
+	if isHTTPS(r) {
+		return "__Host-pn_oauth_state"
+	}
+	return "pn_oauth_state"
+}
 
 func (s *Server) githubAuthURL(w http.ResponseWriter, r *http.Request) {
 	origin := os.Getenv("NEXT_PUBLIC_ORIGIN")
@@ -21,7 +31,7 @@ func (s *Server) githubAuthURL(w http.ResponseWriter, r *http.Request) {
 	// into completing an OAuth flow the attacker started (account swap).
 	state := randomHex(16)
 	http.SetCookie(w, &http.Cookie{
-		Name: oauthStateCookie, Value: state, Path: "/", MaxAge: 600,
+		Name: oauthStateName(r), Value: state, Path: "/", MaxAge: 600,
 		HttpOnly: true, Secure: isHTTPS(r), SameSite: http.SameSiteLaxMode,
 	})
 	writeJSON(w, http.StatusOK, map[string]string{"url": github.AuthURL(callback, state)})
@@ -33,13 +43,13 @@ func (s *Server) githubCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing code", http.StatusBadRequest)
 		return
 	}
-	c, err := r.Cookie(oauthStateCookie)
+	c, err := r.Cookie(oauthStateName(r))
 	state := r.URL.Query().Get("state")
 	if err != nil || state == "" || subtle.ConstantTimeCompare([]byte(c.Value), []byte(state)) != 1 {
 		http.Error(w, "invalid OAuth state — start the GitHub connection again", http.StatusBadRequest)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: oauthStateCookie, Value: "", Path: "/", MaxAge: -1})
+	http.SetCookie(w, &http.Cookie{Name: oauthStateName(r), Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: isHTTPS(r), SameSite: http.SameSiteLaxMode})
 	origin := os.Getenv("NEXT_PUBLIC_ORIGIN")
 	callback := origin + "/go/api/github/callback"
 
@@ -223,13 +233,15 @@ func (s *Server) githubSaveOAuthSettings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	// Persist to .env.local (appended/replaced)
-	if err := upsertEnvLocal("GITHUB_CLIENT_ID", body.ClientID); err != nil {
-		writeError(w, err)
-		return
-	}
-	if err := upsertEnvLocal("GITHUB_CLIENT_SECRET", body.ClientSecret); err != nil {
-		writeError(w, err)
-		return
+	for _, kv := range [][2]string{{"GITHUB_CLIENT_ID", body.ClientID}, {"GITHUB_CLIENT_SECRET", body.ClientSecret}} {
+		if err := upsertEnvLocal(kv[0], kv[1]); err != nil {
+			if errors.Is(err, errInvalidEnvValue) {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "client ID and secret must be single-line values"})
+				return
+			}
+			writeError(w, err)
+			return
+		}
 	}
 	// Also set in process env so OAuth works immediately without restart
 	os.Setenv("GITHUB_CLIENT_ID", body.ClientID)

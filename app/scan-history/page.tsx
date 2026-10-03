@@ -1,12 +1,11 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { toast } from "sonner"
 import {
-  ShieldCheck, Package, Play, Eye, CheckCircle2, XCircle, Loader2, ScanSearch,
+  ShieldCheck, Package, Play, Eye, CheckCircle2, XCircle, Loader2, ScanSearch, AlertCircle, CircleSlash,
 } from "lucide-react"
-import { SCANS as MOCK_SCANS } from "@/lib/mock-data"
-import { nodeApi, pythonApi } from "@/lib/api"
+import { nodeApi } from "@/lib/api"
 import type { Scan } from "@/lib/types"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { SearchInput } from "@/components/pn/SearchInput"
@@ -18,7 +17,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
@@ -27,12 +27,16 @@ import {
 } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
-function StatusPill({ status }: { status: Scan["status"] }) {
+type ScanRow = Omit<Scan, "status"> & { status: Scan["status"] | "unavailable"; message?: string }
+
+function StatusPill({ status }: { status: ScanRow["status"] }) {
   switch (status) {
     case "done":
       return <Pill tone="ok"><CheckCircle2 className="size-3" />Done</Pill>
     case "failed":
       return <Pill tone="bad"><XCircle className="size-3" />Failed</Pill>
+    case "unavailable":
+      return <Pill tone="warn"><CircleSlash className="size-3" />Unavailable</Pill>
     case "running":
       return <Pill tone="info"><Loader2 className="size-3 animate-spin" />Running</Pill>
     default:
@@ -53,20 +57,27 @@ function SevTile({ label, value, tone }: { label: string; value: number; tone: "
 }
 
 export default function ScanHistoryPage() {
-  const [selectedScan, setSelectedScan] = useState<Scan | null>(null)
+  const [selectedScan, setSelectedScan] = useState<ScanRow | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [search, setSearch] = useState("")
-  const [scans, setScans] = useState<Scan[]>(MOCK_SCANS)
+  const [scans, setScans] = useState<ScanRow[] | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [scanner, setScanner] = useState<{ trivy: boolean; syft: boolean } | null>(null)
   const [scanModalOpen, setScanModalOpen] = useState(false)
   const [scanTarget, setScanTarget] = useState("")
   const [scanning, setScanning] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
 
-  useEffect(() => {
-    pythonApi.get<Scan[]>("/security/scans")
-      .then(({ data }) => { if (data.length > 0) setScans(data) })
-      .catch(() => {})
+  const loadScans = useCallback(() => {
+    nodeApi.get<ScanRow[]>("/security/scans")
+      .then(({ data }) => { setScans(data); setLoadError(null) })
+      .catch((e: unknown) => setLoadError(e instanceof Error ? e.message : "Could not load scans"))
   }, [])
+
+  useEffect(() => {
+    loadScans()
+    nodeApi.get<{ trivy: boolean; syft: boolean }>("/security/status").then(({ data }) => setScanner(data)).catch(() => {})
+  }, [loadScans])
 
   useEffect(() => {
     if (!scanModalOpen) { setScanTarget(""); setScanError(null); setScanning(false) }
@@ -77,9 +88,19 @@ export default function ScanHistoryPage() {
     setScanning(true)
     setScanError(null)
     try {
-      await nodeApi.post("/security/scan", { target: scanTarget.trim() })
-      toast.success(`Scan queued for ${scanTarget.trim()}`)
+      const res = await nodeApi.post<ScanRow>("/security/scan", { target: scanTarget.trim() })
+      if (res.status === "unavailable") {
+        setScanError(res.message ?? "The scanner is not available in this PulseNode image.")
+        return
+      }
+      if (res.status === "failed") {
+        setScanError(res.message ?? "The scan failed.")
+        loadScans()
+        return
+      }
+      toast.success(`Scan finished for ${scanTarget.trim()}`)
       setScanModalOpen(false)
+      loadScans()
     } catch (e: unknown) {
       setScanError(e instanceof Error ? e.message : "scan failed")
     } finally {
@@ -87,21 +108,22 @@ export default function ScanHistoryPage() {
     }
   }
 
-  const succeeded = scans.filter(s => s.status === "done").length
-  const failed    = scans.filter(s => s.status === "failed").length
+  const list = useMemo(() => scans ?? [], [scans])
+  const succeeded = list.filter(s => s.status === "done").length
+  const failed    = list.filter(s => s.status === "failed").length
 
-  const totalCrit = scans.reduce((a, s) => a + s.crit, 0)
-  const totalHigh = scans.reduce((a, s) => a + s.high, 0)
-  const totalMed  = scans.reduce((a, s) => a + s.med, 0)
-  const totalLow  = scans.reduce((a, s) => a + s.low, 0)
+  const totalCrit = list.filter(s => s.status === "done").reduce((a, s) => a + s.crit, 0)
+  const totalHigh = list.filter(s => s.status === "done").reduce((a, s) => a + s.high, 0)
+  const totalMed  = list.filter(s => s.status === "done").reduce((a, s) => a + s.med, 0)
+  const totalLow  = list.filter(s => s.status === "done").reduce((a, s) => a + s.low, 0)
 
-  const filteredScans = useMemo(() => scans.filter(s =>
+  const filteredScans = useMemo(() => list.filter(s =>
     !search ||
     s.id.toLowerCase().includes(search.toLowerCase()) ||
     s.image.toLowerCase().includes(search.toLowerCase())
-  ), [scans, search])
+  ), [list, search])
 
-  function openSheet(scan: Scan) {
+  function openSheet(scan: ScanRow) {
     setSelectedScan(scan)
     setSheetOpen(true)
   }
@@ -113,7 +135,7 @@ export default function ScanHistoryPage() {
         title="Scan History"
         description={
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="tabular-nums">{scans.length} scans</span>
+            <span className="tabular-nums">{list.length} scans</span>
             <Pill tone="ok" dot>{succeeded} succeeded</Pill>
             <Pill tone={failed > 0 ? "bad" : "outline"} dot={failed > 0}>{failed} failed</Pill>
           </span>
@@ -126,6 +148,20 @@ export default function ScanHistoryPage() {
         }
       />
       <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
+        {loadError && (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertTitle>Could not load scan history</AlertTitle>
+            <AlertDescription>{loadError}</AlertDescription>
+          </Alert>
+        )}
+        {scanner && !scanner.trivy && (
+          <Alert>
+            <CircleSlash />
+            <AlertTitle>Vulnerability scanner not installed</AlertTitle>
+            <AlertDescription>This PulseNode image has no Trivy, so scans cannot run. Update PulseNode to get the built-in scanner. No results are ever estimated.</AlertDescription>
+          </Alert>
+        )}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard label="Critical" value={totalCrit} tone="bad" sub="across all scans" />
           <StatCard label="High" value={totalHigh} tone="warn" sub="across all scans" />
@@ -142,12 +178,14 @@ export default function ScanHistoryPage() {
           />
         </div>
 
-        {filteredScans.length === 0 ? (
+        {scans === null && !loadError ? (
+          <Skeleton className="h-48 rounded-xl" />
+        ) : filteredScans.length === 0 ? (
           <EmptyState
             icon={ScanSearch}
-            title={scans.length === 0 ? "No scans yet" : "No scans match your search"}
-            description={scans.length === 0 ? "Run a scan to check an image for vulnerabilities." : "Try a different scan ID or image."}
-            action={scans.length === 0 ? <Button onClick={() => setScanModalOpen(true)}>Scan now</Button> : undefined}
+            title={list.length === 0 ? "No scans yet" : "No scans match your search"}
+            description={list.length === 0 ? "Run a scan to check an image for vulnerabilities." : "Try a different scan ID or image."}
+            action={list.length === 0 ? <Button onClick={() => setScanModalOpen(true)}>Scan now</Button> : undefined}
           />
         ) : (
           <Card className="overflow-x-auto p-0">
@@ -224,6 +262,11 @@ export default function ScanHistoryPage() {
                 <SevTile label="MED" value={selectedScan.med} tone="med" />
                 <SevTile label="LOW" value={selectedScan.low} tone="low" />
               </div>
+              {selectedScan.message && (
+                <Alert variant={selectedScan.status === "failed" ? "destructive" : "default"}>
+                  <AlertDescription className="break-words font-mono text-xs">{selectedScan.message}</AlertDescription>
+                </Alert>
+              )}
             </div>
           )}
         </SheetContent>

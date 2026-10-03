@@ -90,3 +90,12 @@ html[data-magicui-theme-vt="active"]::view-transition-group(root) {
 html[data-magicui-theme-vt="active"]::view-transition-new(root) {
   clip-path: var(--magicui-theme-vt-clip-from);
 }
+
+/* Login screen backdrop (the page is always dark; see ThemeProvider forcedTheme). */
+.login-bg {
+  background-color: var(--background);
+  background-image: url("/login-bg.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}

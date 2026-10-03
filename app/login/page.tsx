@@ -1,5 +1,6 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AlertCircle, Loader2 } from "lucide-react"
@@ -10,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { BorderBeam } from "@/components/magicui/border-beam"
 
-const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
+const GO_API = API_BASE
 
 interface AuthStatus {
   enabled: boolean
@@ -96,22 +97,14 @@ function LoginForm() {
   if (checking) {
     return (
       <div className="grid min-h-screen place-items-center bg-background text-foreground">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" aria-label="Loading" />
+        <div role="status"><Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden /><span className="sr-only">Loading</span></div>
       </div>
     )
   }
 
   return (
-    <main
-      className="relative flex min-h-screen items-center justify-center bg-background p-4 text-foreground"
-      style={{
-        backgroundImage: "url('/file_0000000053ac720b95e22d8410d1da4d.png')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-      }}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-black/55" />
+    <main className="login-bg relative flex min-h-screen items-center justify-center p-4 text-foreground">
+      <div className="pointer-events-none absolute inset-0 bg-background/70" />
       <Card className="relative z-10 w-full max-w-sm overflow-hidden motion-safe:animate-in fade-in-0 duration-300">
         <BorderBeam size={120} duration={8} borderWidth={2} colorFrom="var(--primary)" colorTo="var(--chart-5)" />
         <CardHeader className="items-center text-center">
@@ -203,7 +196,7 @@ export default function LoginPage() {
   return (
     <Suspense fallback={
       <div className="grid min-h-screen place-items-center bg-background text-foreground">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" aria-label="Loading" />
+        <div role="status"><Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden /><span className="sr-only">Loading</span></div>
       </div>
     }>
       <LoginForm />

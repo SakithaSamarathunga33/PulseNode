@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { toast } from "sonner"
-import { IMAGES as MOCK_IMAGES } from "@/lib/mock-data"
 import { nodeApi } from "@/lib/api"
 import type { DockerImage } from "@/lib/types"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
@@ -16,12 +15,13 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Layers, Loader2, Trash2, Download, HardDrive, ShieldAlert, PackageSearch } from "lucide-react"
+import { AlertCircle, Layers, Loader2, Trash2, Download, HardDrive, ShieldAlert, PackageSearch } from "lucide-react"
 import {
   Docker, GitHubDark, PostgreSQL, MySQL, MariaDB, Redis,
   MongoDB, ClickHouse, Elastic,
@@ -58,7 +58,9 @@ const PULL_EXAMPLES = ["nginx:latest", "postgres:16-alpine", "redis:7-alpine"]
 
 export default function ImagesPage() {
   const [search, setSearch] = useState("")
-  const [images, setImages] = useState<DockerImage[]>(MOCK_IMAGES)
+  const [images, setImages] = useState<DockerImage[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState(false)
   const [pruning, setPruning] = useState(false)
   const [pullOpen, setPullOpen] = useState(false)
   const [pullImage, setPullImage] = useState("")
@@ -67,8 +69,9 @@ export default function ImagesPage() {
 
   const fetchImages = useCallback(() => {
     nodeApi.get<DockerImage[]>("/api/docker/images")
-      .then(({ data }) => setImages(data))
-      .catch(() => {})
+      .then(({ data }) => { setImages(data); setLoadError(false) })
+      .catch(() => setLoadError(true))
+      .finally(() => setLoaded(true))
   }, [])
 
   useEffect(() => { fetchImages() }, [fetchImages])
@@ -136,12 +139,25 @@ export default function ImagesPage() {
         }
       />
       <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
+        {loadError && (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertTitle>Could not load images</AlertTitle>
+            <AlertDescription>The Docker API did not respond. The list may be out of date.</AlertDescription>
+          </Alert>
+        )}
+        {!loaded ? (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[104px] rounded-xl" />)}
+          </div>
+        ) : (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard icon={Layers} label="Total images" value={images.length} tone="acc" />
           <StatCard icon={HardDrive} label="Disk used" value={Math.round(totalMb)} unit="MB" tone="info" />
           <StatCard icon={ShieldAlert} label="Vulnerabilities" value={vulnSum} tone={vulnSum > 0 ? "bad" : "ok"} sub="crit + high" />
           <StatCard icon={Layers} label="Avg layers" value={avgLayers} tone="acc" />
         </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
           <SearchInput
@@ -152,7 +168,11 @@ export default function ImagesPage() {
           />
         </div>
 
-        {filtered.length === 0 ? (
+        {!loaded ? (
+          <div className="space-y-3 rounded-xl border bg-card p-4">
+            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
+          </div>
+        ) : filtered.length === 0 ? (
           <EmptyState
             icon={PackageSearch}
             title={images.length === 0 ? "No images yet" : "No images match your search"}

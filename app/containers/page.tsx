@@ -3,9 +3,10 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { AlertCircle, Box, LayoutDashboard, Play, RefreshCw, RotateCcw, Search, Square, Trash2 } from "lucide-react"
 import { AnimatedSpan, TerminalWindow } from "@/components/magicui/terminal"
-import { CONTAINERS as MOCK_CONTAINERS, HOST as MOCK_HOST } from "@/lib/mock-data"
-import { nodeApi, API_BASE } from "@/lib/api"
+import { nodeApi } from "@/lib/api"
+import { clearBuildCache } from "@/lib/build-cache"
 import { getSocket } from "@/lib/socket"
+import { useTimeouts } from "@/lib/use-timeouts"
 import type { Container, ContainerStats, HostInfo, SystemMetrics } from "@/lib/types"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { LiveBadge } from "@/components/pn/LiveBadge"
@@ -13,6 +14,7 @@ import { EmptyState } from "@/components/pn/EmptyState"
 import { Segmented } from "@/components/pn/Segmented"
 import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
 import { HostHealth } from "@/components/containers/HostHealth"
+import { EMPTY_HOST } from "@/components/containers/utils"
 import { ContainerCards, ContainerTable, type Sort, type SortKey } from "@/components/containers/ContainerTable"
 import { LogsPanel, TerminalPanel } from "@/components/containers/ContainerPanels"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -37,9 +39,11 @@ export default function ContainersPage() {
   const [search, setSearch]       = useState("")
   const [sort, setSort]           = useState<Sort>({ key: "name", dir: 1 })
   const [sel, setSel]             = useState<Record<string, boolean>>({})
-  const [containers, setContainers] = useState<Container[]>(MOCK_CONTAINERS)
-  const [host, setHost]             = useState<HostInfo>(MOCK_HOST)
+  const [containers, setContainers] = useState<Container[]>([])
+  const [host, setHost]             = useState<HostInfo>(EMPTY_HOST)
   const [loaded, setLoaded]         = useState(false)
+  const [hostLoaded, setHostLoaded] = useState(false)
+  const later = useTimeouts()
   const [loadError, setLoadError]   = useState(false)
   const [spin, setSpin]             = useState(false)
   const [cpuHist, setCpuHist]       = useState<number[]>([0, 0])
@@ -70,6 +74,7 @@ export default function ContainersPage() {
         setNetHist(seed(data.network.rx)); setNetOutHist(seed(data.network.tx))
       })
       .catch(() => {})
+      .finally(() => setHostLoaded(true))
   }, [])
 
   useEffect(() => {
@@ -137,35 +142,35 @@ export default function ContainersPage() {
     setSpin(true)
     refreshContainers()
     loadHost()
-    setTimeout(() => setSpin(false), 700)
-  }, [refreshContainers, loadHost])
+    later(() => setSpin(false), 700)
+  }, [refreshContainers, loadHost, later])
 
   const handleStop = useCallback(async (c: Container) => {
     setActionBusy(prev => ({ ...prev, [`stop-${c.id}`]: true }))
     try {
       await nodeApi.post(`/api/docker/stop/${c.id}`)
-      setTimeout(refreshContainers, 1200)
+      later(refreshContainers, 1200)
     } catch {}
     setActionBusy(prev => ({ ...prev, [`stop-${c.id}`]: false }))
-  }, [refreshContainers])
+  }, [refreshContainers, later])
 
   const handleRestart = useCallback(async (c: Container) => {
     setActionBusy(prev => ({ ...prev, [`restart-${c.id}`]: true }))
     try {
       await nodeApi.post(`/api/docker/restart/${c.id}`)
-      setTimeout(refreshContainers, 2000)
+      later(refreshContainers, 2000)
     } catch {}
     setActionBusy(prev => ({ ...prev, [`restart-${c.id}`]: false }))
-  }, [refreshContainers])
+  }, [refreshContainers, later])
 
   const handleStart = useCallback(async (c: Container) => {
     setActionBusy(prev => ({ ...prev, [`start-${c.id}`]: true }))
     try {
       await nodeApi.post(`/api/docker/start/${c.id}`)
-      setTimeout(refreshContainers, 1200)
+      later(refreshContainers, 1200)
     } catch {}
     setActionBusy(prev => ({ ...prev, [`start-${c.id}`]: false }))
-  }, [refreshContainers])
+  }, [refreshContainers, later])
 
   const confirmRemove = useCallback(async (c: Container) => {
     setActionBusy(prev => ({ ...prev, [`remove-${c.id}`]: true }))
@@ -177,55 +182,14 @@ export default function ContainersPage() {
     setActionBusy(prev => ({ ...prev, [`remove-${c.id}`]: false }))
   }, [])
 
-  const handleClearCache = async () => {
-    setCacheLines(["$ docker builder prune -f"])
-    setCacheState("running")
+  const handleClearCache = () => {
+    setCacheLines([])
     setCacheOpen(true)
-
-    try {
-      const res = await fetch(
-        `${API_BASE}/api/docker/build-cache/clear`,
-        { method: "POST" }
-      )
-      if (!res.body) throw new Error("No response body")
-
-      const reader = res.body.getReader()
-      cacheReaderRef.current = reader
-      const decoder = new TextDecoder()
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split("\n")
-
-        for (const raw of lines) {
-          const trimmed = raw.trim()
-          if (!trimmed.startsWith("data:")) continue
-          try {
-            const payload = JSON.parse(trimmed.slice(5).trim())
-            if (payload.type === "line") {
-              setCacheLines(prev => [...prev, payload.text])
-            } else if (payload.type === "done") {
-              setCacheLines(prev => [...prev, "✔ Build cache cleared."])
-              setCacheState("done")
-            } else if (payload.type === "error") {
-              setCacheLines(prev => [...prev, `✗ ${payload.text}`])
-              setCacheState("error")
-            }
-          } catch {
-            // malformed SSE line — skip
-          }
-        }
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setCacheLines(prev => [...prev, `✗ ${msg}`])
-      setCacheState("error")
-    } finally {
-      setCacheState(prev => prev === "running" ? "done" : prev)
-    }
+    return clearBuildCache({
+      onLine: line => setCacheLines(prev => [...prev, line]),
+      onState: setCacheState,
+      readerRef: cacheReaderRef,
+    })
   }
 
   const handleCacheDialogClose = () => {
@@ -314,15 +278,15 @@ export default function ContainersPage() {
           <Alert variant="destructive">
             <AlertCircle />
             <AlertTitle>Could not load containers</AlertTitle>
-            <AlertDescription>The Docker API did not respond, so the list below may be placeholder data.</AlertDescription>
+            <AlertDescription>The Docker API did not respond. Retry with Refresh.</AlertDescription>
           </Alert>
         )}
 
-        <HostHealth
+        {!hostLoaded ? <Skeleton className="h-[148px] rounded-xl" /> : <HostHealth
           host={host}
           cpuHist={cpuHist} ramHist={ramHist} diskHist={diskHist}
           netInHist={netHist} netOutHist={netOutHist} netRx={netRx} netTx={netTx}
-        />
+        />}
 
         <section aria-labelledby="ct-title" className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -357,7 +321,7 @@ export default function ContainersPage() {
                   placeholder="Filter by name or image"
                   className="pr-8 pl-8"
                 />
-                <kbd className="pointer-events-none absolute right-2 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border bg-muted px-1 font-mono text-[10px] text-muted-foreground">/</kbd>
+                <kbd className="pointer-events-none absolute right-2 hidden sm:inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border bg-muted px-1 font-mono text-[11px] text-muted-foreground">/</kbd>
               </label>
             </div>
           </div>

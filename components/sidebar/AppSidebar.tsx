@@ -13,26 +13,27 @@ import { LiveBadge } from "@/components/pn/LiveBadge"
 import { TONE_BG, toneFor } from "@/components/containers/utils"
 import { getSocket } from "@/lib/socket"
 import { nodeApi } from "@/lib/api"
-import { ALERTS, HOST } from "@/lib/mock-data"
 import { NAV_GROUPS, SETTINGS_ITEM, type NavBadge } from "@/lib/nav"
-import type { Alert, SystemMetrics } from "@/lib/types"
-
-const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
+import type { Alert, HostInfo, SystemMetrics } from "@/lib/types"
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const [cpu, setCpu] = useState(HOST.cpu.usage)
+  const [cpu, setCpu] = useState<number | null>(null)
+  const [host, setHost] = useState<{ name: string; ip: string } | null>(null)
   const [hasUpdate, setHasUpdate] = useState(false)
   const [coolifyEnabled, setCoolifyEnabled] = useState(false)
-  const [counts, setCounts] = useState<Partial<Record<NavBadge, number>>>({
-    alerts: ALERTS.filter(a => a.state === "firing").length,
-  })
+  const [counts, setCounts] = useState<Partial<Record<NavBadge, number>>>({})
 
   useEffect(() => {
-    fetch(`${GO_API}/config`).then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d?.coolifyEnabled) setCoolifyEnabled(true) }).catch(() => {})
-    fetch(`${GO_API}/api/system/version`).then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d?.hasUpdate) setHasUpdate(true) }).catch(() => {})
+    nodeApi.get<{ coolifyEnabled?: boolean }>("/config")
+      .then(({ data }) => { if (data?.coolifyEnabled) setCoolifyEnabled(true) }).catch(() => {})
+    nodeApi.get<{ hasUpdate?: boolean }>("/api/system/version")
+      .then(({ data }) => { if (data?.hasUpdate) setHasUpdate(true) }).catch(() => {})
+    nodeApi.get<HostInfo>("/api/host")
+      .then(({ data }) => {
+        setHost({ name: data.name, ip: data.ip })
+        if (typeof data.cpu?.usage === "number") setCpu(c => c ?? data.cpu.usage)
+      }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -52,7 +53,7 @@ export function AppSidebar() {
       })
     })
     return () => { cancelled = true }
-  }, [])
+  }, [pathname]) // re-count after create/delete elsewhere in the app
 
   useEffect(() => {
     try {
@@ -61,9 +62,13 @@ export function AppSidebar() {
       const onAlert = (a: Alert) => {
         if (a.state === "firing") setCounts(p => ({ ...p, alerts: (p.alerts ?? 0) + 1 }))
       }
+      const onAlertCount = (n: number) => { if (typeof n === "number") setCounts(p => ({ ...p, alerts: n })) }
       socket.on("system:metrics", onMetrics)
       socket.on("alert:new", onAlert)
-      return () => { socket.off("system:metrics", onMetrics); socket.off("alert:new", onAlert) }
+      socket.on("alert:count", onAlertCount)
+      return () => {
+        socket.off("system:metrics", onMetrics); socket.off("alert:new", onAlert); socket.off("alert:count", onAlertCount)
+      }
     } catch { /* socket unavailable during SSR */ }
   }, [])
 
@@ -138,21 +143,21 @@ export function AppSidebar() {
           <div className="space-y-2 rounded-lg border bg-card p-2.5 shadow-card">
             <div className="flex items-baseline justify-between">
               <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Host CPU</span>
-              <span className="text-sm font-semibold tabular-nums"><NumberTicker value={cpu} decimals={1} />%</span>
+              <span className="text-sm font-semibold tabular-nums">{cpu === null ? "—" : <><NumberTicker value={cpu} decimals={1} />%</>}</span>
             </div>
             <div
-              role="meter" aria-label="Host CPU" aria-valuenow={Math.round(cpu)} aria-valuemin={0} aria-valuemax={100}
+              role="meter" aria-label="Host CPU" aria-valuenow={Math.round(cpu ?? 0)} aria-valuemin={0} aria-valuemax={100}
               className="relative h-1 rounded-full bg-muted"
             >
-              <div className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ${TONE_BG[toneFor(cpu)]}`} style={{ width: `${Math.min(100, cpu)}%` }} />
+              <div className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ${TONE_BG[toneFor(cpu ?? 0)]}`} style={{ width: `${Math.min(100, cpu ?? 0)}%` }} />
               <span className="absolute -top-0.5 left-[60%] h-2 w-px bg-border" aria-hidden />
               <span className="absolute -top-0.5 left-[80%] h-2 w-px bg-border" aria-hidden />
             </div>
             <div className="h-px bg-border" />
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 flex-col">
-                <span className="truncate text-sm font-medium">{HOST.name}</span>
-                <span className="truncate font-mono text-[11px] text-muted-foreground">{HOST.ip}</span>
+                <span className="truncate text-sm font-medium">{host?.name ?? "—"}</span>
+                <span className="truncate font-mono text-[11px] text-muted-foreground">{host?.ip ?? ""}</span>
               </div>
               <LiveBadge className="text-[11px]">Live</LiveBadge>
             </div>

@@ -1,12 +1,15 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { ArrowDownRight, ArrowUpRight, BarChart3, Cpu, HardDrive, MemoryStick, Network, Trash2 } from "lucide-react"
-import { HOST as MOCK_HOST, SPARKS as MOCK_SPARKS } from "@/lib/mock-data"
-import { nodeApi, pythonApi, API_BASE } from "@/lib/api"
+import { AlertCircle, ArrowDownRight, ArrowUpRight, BarChart3, Cpu, HardDrive, MemoryStick, Network, Trash2 } from "lucide-react"
+import { nodeApi } from "@/lib/api"
+import { clearBuildCache } from "@/lib/build-cache"
+import { EMPTY_HOST } from "@/components/containers/utils"
 import { getSocket } from "@/lib/socket"
 import type { HostInfo, SystemMetrics } from "@/lib/types"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { SummaryStrip } from "@/components/pn/SummaryStrip"
 import { ProgressBar } from "@/components/dashboard/ProgressBar"
@@ -73,68 +76,28 @@ function pushHistory(arr: number[], val: number): number[] {
 
 
 export default function StatsPage() {
-  const [host, setHost]             = useState<HostInfo>(MOCK_HOST)
-  const [cpuHist,      setCpuHist]      = useState<number[]>(MOCK_SPARKS.cpuLong)
-  const [ramHist,      setRamHist]      = useState<number[]>(MOCK_SPARKS.memLong)
-  const [diskHist,     setDiskHist]     = useState<number[]>(MOCK_SPARKS.disk)
+  const [host, setHost]             = useState<HostInfo>(EMPTY_HOST)
+  const [hostState, setHostState] = useState<"loading" | "ok" | "error">("loading")
+  const [cpuHist,      setCpuHist]      = useState<number[]>([0, 0])
+  const [ramHist,      setRamHist]      = useState<number[]>([0, 0])
+  const [diskHist,     setDiskHist]     = useState<number[]>([0, 0])
   const [diskReadHist, setDiskReadHist] = useState<number[]>([0])
   const [diskWriteHist,setDiskWriteHist]= useState<number[]>([0])
-  const [netHist,      setNetHist]      = useState<number[]>(MOCK_SPARKS.net)
-  const [netTxHist,    setNetTxHist]    = useState<number[]>(MOCK_SPARKS.netTx)
+  const [netHist,      setNetHist]      = useState<number[]>([0, 0])
+  const [netTxHist,    setNetTxHist]    = useState<number[]>([0, 0])
   const [cacheOpen,  setCacheOpen]  = useState(false)
   const [cacheLines, setCacheLines] = useState<string[]>([])
   const [cacheState, setCacheState] = useState<"idle" | "running" | "done" | "error">("idle")
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
 
-  const handleClearCache = async () => {
-    setCacheLines(["$ docker builder prune -f"])
-    setCacheState("running")
+  const handleClearCache = () => {
+    setCacheLines([])
     setCacheOpen(true)
-
-    try {
-      const res = await fetch(
-        `${API_BASE}/api/docker/build-cache/clear`,
-        { method: "POST" }
-      )
-      if (!res.body) throw new Error("No response body")
-
-      const reader = res.body.getReader()
-      readerRef.current = reader
-      const decoder = new TextDecoder()
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split("\n")
-
-        for (const raw of lines) {
-          const trimmed = raw.trim()
-          if (!trimmed.startsWith("data:")) continue
-          try {
-            const payload = JSON.parse(trimmed.slice(5).trim())
-            if (payload.type === "line") {
-              setCacheLines(prev => [...prev, payload.text])
-            } else if (payload.type === "done") {
-              setCacheLines(prev => [...prev, "✔ Build cache cleared."])
-              setCacheState("done")
-            } else if (payload.type === "error") {
-              setCacheLines(prev => [...prev, `✗ ${payload.text}`])
-              setCacheState("error")
-            }
-          } catch {
-            // malformed SSE line — skip
-          }
-        }
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setCacheLines(prev => [...prev, `✗ ${msg}`])
-      setCacheState("error")
-    } finally {
-      setCacheState(prev => prev === "running" ? "done" : prev)
-    }
+    return clearBuildCache({
+      onLine: line => setCacheLines(prev => [...prev, line]),
+      onState: setCacheState,
+      readerRef: readerRef,
+    })
   }
 
   const handleCacheDialogClose = () => {
@@ -147,11 +110,11 @@ export default function StatsPage() {
 
   useEffect(() => {
     nodeApi.get<HostInfo>("/api/host")
-      .then(({ data }) => setHost(data))
-      .catch(() => {})
+      .then(({ data }) => { setHost(data); setHostState("ok") })
+      .catch(() => setHostState("error"))
 
     // Seed charts with real historical data from Python psutil
-    pythonApi.get<PyMetrics[]>("/metrics/history")
+    nodeApi.get<PyMetrics[]>("/metrics/history")
       .then(({ data }) => {
         if (data.length > 0) {
           setCpuHist(data.map(d => d.cpu))
@@ -174,6 +137,12 @@ export default function StatsPage() {
       setDiskWriteHist(prev  => pushHistory(prev, m.diskWrite ?? 0))
       setNetHist(prev        => pushHistory(prev, m.netIn))
       setNetTxHist(prev      => pushHistory(prev, m.netOut))
+      setHost(prev => ({
+        ...prev,
+        cpu: { ...prev.cpu, usage: Math.round(m.cpu * 10) / 10 },
+        memory: { ...prev.memory, pct: Math.round(m.ram * 10) / 10 },
+        disk: { ...prev.disk, pct: Math.round(m.disk * 10) / 10 },
+      }))
     }
     socket.on("system:metrics", handler)
     return () => { socket.off("system:metrics", handler) }
@@ -197,7 +166,14 @@ export default function StatsPage() {
         actions={<LiveBadge>Live</LiveBadge>}
       />
       <PageBody className="motion-safe:animate-in motion-safe:fade-in-0 duration-300">
-        <SummaryStrip
+        {hostState === "error" && (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertTitle>Could not load host details</AlertTitle>
+            <AlertDescription>The host API did not respond, so values below may be zero or out of date.</AlertDescription>
+          </Alert>
+        )}
+        {hostState === "loading" ? <Skeleton className="h-[112px] rounded-xl" /> : <SummaryStrip
           aria-label="Current values"
           items={[
             { label: "CPU", icon: Cpu, value: host.cpu.usage, unit: "%", meta: <Trend data={cpuHist} unit=" pts" />, tone: tone(host.cpu.usage) },
@@ -205,7 +181,7 @@ export default function StatsPage() {
             { label: "Disk", icon: HardDrive, value: host.disk.pct, unit: "%", meta: <Trend data={diskHist} unit=" pts" extra={`${host.disk.free} ${host.disk.unit} free`} />, tone: tone(host.disk.pct) },
             { label: "Network", icon: Network, value: host.network.rx, unit: `${host.network.unit} in`, meta: <Trend data={netHist} unit={` ${host.network.unit}`} extra={`TX ${host.network.tx}`} /> },
           ]}
-        />
+        />}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <ChartCard title="CPU usage" value={host.cpu.usage} unit="%" live legend={[{ label: "CPU %", color: C1 }]}>

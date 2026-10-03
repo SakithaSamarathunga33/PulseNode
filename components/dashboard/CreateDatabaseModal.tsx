@@ -1,5 +1,6 @@
 "use client"
 
+import { useTimeouts } from "@/lib/use-timeouts"
 import { useEffect, useRef, useState } from "react"
 import { ArrowLeft, Check, CheckCircle2, Clock, Copy, Loader2, XCircle } from "lucide-react"
 import { DbIcon } from "@/components/dashboard/DbIcon"
@@ -58,11 +59,12 @@ interface Creds {
 
 function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false)
+  const later = useTimeouts()
   async function copy() {
     const ok = await copyText(value)
     if (!ok) return
     setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    later(() => setCopied(false), 2000)
   }
   return (
     <div className="space-y-1">
@@ -85,10 +87,10 @@ export function CreateDatabaseModal({ onClose, onCreated }: { onClose: () => voi
   const [progress, setProgress] = useState("Starting provisioning…")
   const [creds,    setCreds]    = useState<Creds | null>(null)
   const [errMsg,   setErrMsg]   = useState("")
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+    return () => { if (pollRef.current) clearTimeout(pollRef.current) }
   }, [])
 
   async function provision() {
@@ -111,35 +113,32 @@ export function CreateDatabaseModal({ onClose, onCreated }: { onClose: () => voi
 
     setProgress("Pulling image and creating container… (this may take a few minutes)")
 
-    // Poll for status every 3s for up to 5 min
+    // Poll for status every 3s for up to 5 min. Self-scheduling, so a slow
+    // request can never overlap the next tick (which could finish twice).
     const started = Date.now()
-    pollRef.current = setInterval(async () => {
-      if (Date.now() - started > 5 * 60 * 1000) {
-        clearInterval(pollRef.current!)
-        setErrMsg("Timed out waiting for database to start")
-        setPhase("error")
-        return
-      }
+    const fail = (msg: string) => { setErrMsg(msg); setPhase("error") }
+    const tick = async () => {
+      if (Date.now() - started > 5 * 60 * 1000) return fail("Timed out waiting for database to start")
       try {
         const { data: db } = await nodeApi.get<{ status: string; name: string }>(`/api/databases/managed/${id}`)
         if (db.status === "running") {
-          clearInterval(pollRef.current!)
           setProgress("Fetching credentials…")
           const { data: c } = await nodeApi.get<Creds>(`/api/databases/managed/${id}/credentials`)
           setCreds(c)
           setPhase("done")
           onCreated()
-        } else if (db.status === "error") {
-          clearInterval(pollRef.current!)
-          setErrMsg("Provisioning failed — check container logs for details")
-          setPhase("error")
-        } else {
-          setProgress(`Container status: ${db.status} — waiting…`)
+          return
         }
-      } catch {
-        // network blip, keep polling
+        if (db.status === "error") return fail("Provisioning failed — check container logs for details")
+        setProgress(`Container status: ${db.status} — waiting…`)
+      } catch (e) {
+        const status = (e as { status?: number }).status
+        // A 4xx (not found, forbidden…) will not fix itself; anything else is a network blip.
+        if (status && status >= 400 && status < 500) return fail(e instanceof Error ? e.message : "Lost track of the database")
       }
-    }, 3000)
+      pollRef.current = setTimeout(tick, 3000)
+    }
+    pollRef.current = setTimeout(tick, 3000)
   }
 
   return (

@@ -1,5 +1,6 @@
 "use client"
 
+import { API_BASE, nodeApi } from "@/lib/api"
 import { useState, useEffect, useCallback, Suspense } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -17,7 +18,7 @@ import { SearchInput } from "@/components/pn/SearchInput"
 import { FormField, ChoiceGroup, BUILD_METHODS } from "@/components/projects/forms"
 import { cn } from "@/lib/utils"
 
-const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
+const GO_API = API_BASE
 
 type Repo = { name: string; full_name: string; private: boolean; clone_url: string; default_branch: string }
 
@@ -76,8 +77,8 @@ function NewProjectForm() {
   const loadRepos = useCallback(async () => {
     setReposLoading(true)
     try {
-      const r = await fetch(`${GO_API}/api/github/repos`)
-      if (r.ok) setRepos(await r.json())
+      const { data } = await nodeApi.get<Repo[]>("/api/github/repos")
+      setRepos(data)
     } catch { /* ignore */ }
     finally { setReposLoading(false) }
   }, [])
@@ -85,9 +86,8 @@ function NewProjectForm() {
   useEffect(() => { loadRepos() }, [loadRepos])
 
   useEffect(() => {
-    fetch((process.env.NEXT_PUBLIC_GO_API ?? "") + "/api/domain/settings")
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.rootDomain) setRootDomain(d.rootDomain) })
+    nodeApi.get<{ rootDomain?: string }>("/api/domain/settings")
+      .then(({ data }) => { if (data?.rootDomain) setRootDomain(data.rootDomain) })
       .catch(() => {})
   }, [])
 
@@ -97,13 +97,10 @@ function NewProjectForm() {
     setBranches([repo.default_branch])
     // Load branches
     try {
-      const r = await fetch(`${GO_API}/api/github/branches?repo=${encodeURIComponent(repo.full_name)}`)
-      if (r.ok) {
-        const list: string[] = await r.json()
-        setBranches(list)
-        if (list.includes(repo.default_branch)) setSelectedBranch(repo.default_branch)
-        else if (list[0]) setSelectedBranch(list[0])
-      }
+      const { data: list } = await nodeApi.get<string[]>(`/api/github/branches?repo=${encodeURIComponent(repo.full_name)}`)
+      setBranches(list)
+      if (list.includes(repo.default_branch)) setSelectedBranch(repo.default_branch)
+      else if (list[0]) setSelectedBranch(list[0])
     } catch { /* use default */ }
   }
 
@@ -115,16 +112,12 @@ function NewProjectForm() {
     setDomain("")
     setMonorepo(null)
     try {
-      const r = await fetch(`${GO_API}/api/projects/free-port`)
-      if (r.ok) {
-        const d = await r.json()
-        setPort(String(d.port))
-      }
+      const { data } = await nodeApi.get<{ port: number }>("/api/projects/free-port")
+      setPort(String(data.port))
     } catch { /* keep default */ }
     // Probe layout so the form can mirror what the deploy pipeline will do.
-    fetch(`${GO_API}/api/github/detect-layout?repo=${encodeURIComponent(repo.full_name)}&branch=${encodeURIComponent(branch)}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => setMonorepo(Boolean(d?.monorepo)))
+    nodeApi.get<{ monorepo?: boolean }>(`/api/github/detect-layout?repo=${encodeURIComponent(repo.full_name)}&branch=${encodeURIComponent(branch)}`)
+      .then(({ data }) => setMonorepo(Boolean(data?.monorepo)))
       .catch(() => setMonorepo(false))
     setStep(2)
   }
@@ -141,13 +134,14 @@ function NewProjectForm() {
     setSelectedRepo(match)
     setSelectedBranch(branch)
     setBranches([branch])
-    fetch(`${GO_API}/api/github/branches?repo=${encodeURIComponent(match.full_name)}`)
-      .then(r => r.ok ? r.json() : null)
-      .then((list: string[] | null) => { if (list) setBranches(list) })
+    nodeApi.get<string[]>(`/api/github/branches?repo=${encodeURIComponent(match.full_name)}`)
+      .then(({ data: list }) => { if (list) setBranches(list) })
       .catch(() => {})
     setDeployMode("separate")
     if (prefillComponent === "frontend" || prefillComponent === "backend") setComponent(prefillComponent)
     goToStep2(match, branch)
+  // One-shot prefill guarded by `prefillDone`; the step handlers are intentionally not deps (they change
+  // every render and would re-run the prefill).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repos, prefillDone, prefillRepo, prefillBranch, prefillComponent])
 

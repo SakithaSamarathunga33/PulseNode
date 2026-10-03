@@ -165,7 +165,7 @@ export function DatabaseQueryEditor({
   const isMongo = db.engine === "mongodb"
   const hasQuery = query.trim().length > 0
 
-  function loadSchema(dbName?: string) {
+  const loadSchema = useCallback((dbName?: string) => {
     const qs = dbName ? `?database=${encodeURIComponent(dbName)}` : ""
     nodeApi
       .get<DbSchemaResult>(`/api/database/${db.name}/schema${qs}`)
@@ -177,17 +177,17 @@ export function DatabaseQueryEditor({
         if (!dbName && data.databases.length > 0) setSelectedDatabase(data.databases[0])
       })
       .catch(err => setError((err as ApiError).message ?? "Failed to load schema"))
-  }
+  }, [db.name])
 
   // Load database list on mount
-  useEffect(() => { loadSchema() }, [db.name]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadSchema() }, [loadSchema])
 
   // Reload table list when selected database changes
   useEffect(() => {
     if (!selectedDatabase) return
     loadSchema(selectedDatabase)
     setTableView(null)
-  }, [db.name, selectedDatabase]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadSchema, selectedDatabase])
 
   const runQuery = useCallback(
     async (force = false) => {
@@ -218,7 +218,7 @@ export function DatabaseQueryEditor({
         setLoading(false)
       }
     },
-    [query, db.name, selectedDatabase, hasQuery] // eslint-disable-line react-hooks/exhaustive-deps
+    [query, db.name, selectedDatabase, hasQuery, loadSchema]
   )
 
   async function loadTablePage(tableName: string, page: number) {
@@ -322,7 +322,7 @@ export function DatabaseQueryEditor({
 
         {/* Body: terminal-surface editor */}
         <div
-          className="m-3 overflow-hidden rounded-xl border border-[var(--t-border)] bg-[var(--t-bg)] text-[var(--t-fg)] [--t-bg:#0d1117] [--t-bar:#161b22] [--t-border:#30363d] [--t-hover:#21262d] [--t-fg:#e6edf3] [--t-muted:#8b949e]"
+          className="m-3 overflow-hidden rounded-xl border border-[var(--t-border)] bg-[var(--t-bg)] text-[var(--t-fg)]"
         >
           <div className="flex items-center gap-2 border-b border-[var(--t-border)] bg-[var(--t-bar)] px-3 py-1.5">
             <span className="font-mono text-xs text-[var(--t-muted)]">

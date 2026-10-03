@@ -3,10 +3,9 @@
 import { useState, useMemo, useEffect, useCallback } from "react"
 import { toast } from "sonner"
 import {
-  Activity, ArrowDown, ArrowUp, ArrowUpDown, Ban, CheckCircle2, Cpu, PlayCircle, ShieldAlert, ShieldCheck, X,
+  Activity, AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Ban, CheckCircle2, Cpu, PlayCircle, ShieldAlert, ShieldCheck, X,
 } from "lucide-react"
-import { PROCESSES as MOCK_PROCESSES } from "@/lib/mock-data"
-import { nodeApi, pythonApi } from "@/lib/api"
+import { nodeApi } from "@/lib/api"
 import type { Process } from "@/lib/types"
 import { Pill } from "@/components/dashboard/Pill"
 import { ProgressBar } from "@/components/dashboard/ProgressBar"
@@ -16,6 +15,7 @@ import { Segmented } from "@/components/pn/Segmented"
 import { EmptyState } from "@/components/pn/EmptyState"
 import { LiveBadge } from "@/components/pn/LiveBadge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -103,7 +103,9 @@ export default function ProcessesPage() {
   const [search,     setSearch]      = useState("")
   const [sortKey,    setSortKey]     = useState<SortKey>("cpu")
   const [sortDir,    setSortDir]     = useState<"asc" | "desc">("desc")
-  const [processes,   setProcesses]   = useState<Process[]>(MOCK_PROCESSES)
+  const [processes,   setProcesses]   = useState<Process[]>([])
+  const [loaded,     setLoaded]      = useState(false)
+  const [loadError,  setLoadError]   = useState(false)
   const [cpuCores,    setCpuCores]    = useState<number[]>([])
   const [dialog,     setDialog]      = useState<DialogState>(null)
   const [blocked,    setBlocked]     = useState<Process[]>([])
@@ -111,21 +113,19 @@ export default function ProcessesPage() {
 
   useEffect(() => {
     function fetchProcesses() {
-      pythonApi.get<PyProcess[]>("/metrics/processes")
-        .then(({ data }) => {
-          if (data.length >= 5) setProcesses(data.map(mapPyProcess))
-          else return nodeApi.get<Process[]>("/api/pm2/list")
-            .then(({ data: pm2 }) => { if (pm2.length) setProcesses(pm2) })
-        })
-        .catch(() => {
+      nodeApi.get<PyProcess[]>("/metrics/processes")
+        .then(({ data }) => { setProcesses(data.map(mapPyProcess)); setLoadError(false) })
+        .catch(() =>
+          // Host process list unavailable — fall back to the PM2 list.
           nodeApi.get<Process[]>("/api/pm2/list")
-            .then(({ data }) => { if (data.length) setProcesses(data) })
-            .catch(() => {})
-        })
+            .then(({ data }) => { setProcesses(data); setLoadError(false) })
+            .catch(() => setLoadError(true)),
+        )
+        .finally(() => setLoaded(true))
     }
 
     function fetchCores() {
-      pythonApi.get<{ cpuCores?: number[] }>("/metrics/live")
+      nodeApi.get<{ cpuCores?: number[] }>("/metrics/live")
         .then(({ data }) => { if (data.cpuCores?.length) setCpuCores(data.cpuCores) })
         .catch(() => {})
     }
@@ -237,6 +237,13 @@ export default function ProcessesPage() {
       </PageHeader>
 
       <PageBody className="motion-safe:animate-in motion-safe:fade-in-0 duration-300">
+        {loadError && (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertTitle>Could not load processes</AlertTitle>
+            <AlertDescription>The process list did not respond. Retrying every 5 seconds.</AlertDescription>
+          </Alert>
+        )}
         <ProcessConfirm
           dialog={dialog}
           onClose={() => setDialog(null)}
@@ -332,8 +339,15 @@ export default function ProcessesPage() {
                   </TableBody>
                 </Table>
               </div>
-              {sorted.length === 0 && (
-                <EmptyState className="m-4" icon={Activity} title="No processes match" description="Try a different search term." />
+              {!loaded && (
+                <div className="space-y-3 p-4">
+                  {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
+                </div>
+              )}
+              {loaded && sorted.length === 0 && (
+                <EmptyState className="m-4" icon={Activity}
+                  title={processes.length === 0 ? "No processes reported" : "No processes match"}
+                  description={processes.length === 0 ? "The host did not return any processes." : "Try a different search term."} />
               )}
               <div className="flex items-center justify-between border-t px-4 py-2.5 text-xs text-muted-foreground">
                 <span>Showing {sorted.length} of {processes.length} processes</span>
@@ -446,8 +460,8 @@ export default function ProcessesPage() {
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-col items-start gap-1">
-                                {result.reasons.map((r, i) => (
-                                  <Pill key={i} tone="warn" className="h-auto whitespace-normal py-0.5 text-left">{r}</Pill>
+                                {result.reasons.map(r => (
+                                  <Pill key={r} tone="warn" className="h-auto whitespace-normal py-0.5 text-left">{r}</Pill>
                                 ))}
                               </div>
                             </TableCell>

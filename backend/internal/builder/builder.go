@@ -1,18 +1,18 @@
 package builder
 
 import (
-	"bufio"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -226,23 +226,32 @@ func (cfg Config) buildCompose(ctx context.Context, dir, containerName string, e
 		}
 	}
 
+	// One compose file, one project name, used for the policy check AND for up/ps,
+	// so what was validated is exactly what runs.
+	file := composeFileName(dir)
+	if file == "" {
+		return "", fmt.Errorf("no docker-compose.yml found")
+	}
+	project := composeProject(cfg.ProjectID)
+
 	// After .env is written, so ${VAR:?required} interpolation resolves.
-	cfg.log("system", "→ Checking docker-compose.yml…")
-	if err := cfg.checkComposePolicy(ctx, dir); err != nil {
+	cfg.log("system", fmt.Sprintf("→ Checking %s…", file))
+	if err := cfg.checkComposePolicy(ctx, dir, file, project); err != nil {
 		return "", err
 	}
 
 	cfg.log("system", "→ Building and starting containers…")
-	if err := cfg.run(ctx, dir, "docker", "compose",
-		"-f", "docker-compose.yml",
+	if err := cfg.run(ctx, dir, "docker", "compose", "-p", project,
+		"-f", file,
 		"-f", "docker-compose.pulsenode.yml",
 		"up", "-d", "--build"); err != nil {
 		return "", fmt.Errorf("compose up: %w", err)
 	}
+	cfg.removeStaleComposeContainers(ctx, project)
 
 	// Get first running container name from compose project
-	out, err := runOutput(ctx, dir, "docker", "compose",
-		"-f", "docker-compose.yml",
+	out, err := runOutput(ctx, dir, "docker", "compose", "-p", project,
+		"-f", file,
 		"-f", "docker-compose.pulsenode.yml",
 		"ps", "-q")
 	if err != nil || strings.TrimSpace(out) == "" {
@@ -250,6 +259,30 @@ func (cfg Config) buildCompose(ctx context.Context, dir, containerName string, e
 	}
 	ids := strings.Fields(strings.TrimSpace(out))
 	return ids[0][:min(12, len(ids[0]))], nil
+}
+
+// composeProject is the fixed compose project name for a project's deployments.
+// Before this, the name came from the (random) temp clone directory, so every
+// deploy was a brand-new compose project and old containers were never replaced.
+func composeProject(projectID string) string {
+	return "pn-" + sanitizeName(projectID)
+}
+
+// removeStaleComposeContainers removes containers that still carry this project's
+// Traefik router label but belong to a different compose project (or none) — the
+// leftovers of earlier deploys that used a per-deploy project name. Old and new
+// share identical routing labels, so a leftover would keep taking traffic.
+func (cfg Config) removeStaleComposeContainers(ctx context.Context, project string) {
+	out, _ := runOutput(ctx, "", "docker", "ps", "-aq", "--filter",
+		"label=traefik.http.routers.pn-"+cfg.ProjectID+".entrypoints")
+	for _, id := range strings.Fields(out) {
+		owner, err := runOutput(ctx, "", "docker", "inspect", "-f", `{{index .Config.Labels "com.docker.compose.project"}}`, id)
+		if err != nil || strings.TrimSpace(owner) == project {
+			continue
+		}
+		cfg.log("system", "→ Removing a container left over from a previous deploy")
+		_ = runSilent(ctx, "docker", "rm", "-f", id)
+	}
 }
 
 func (cfg Config) buildDockerfile(ctx context.Context, dir, imageRef, slug string, envMap map[string]string) (string, error) {
@@ -382,6 +415,7 @@ func (cfg Config) deployService(ctx context.Context, imageRef, slug string, envM
 	newName := fmt.Sprintf("%s-%d", namePrefix, time.Now().Unix())
 
 	args := []string{"run", "-d", "--name", newName, "--restart", "unless-stopped", "--network", traefikNet}
+	args = append(args, appHardeningArgs()...)
 	args = append(args,
 		"--label", "traefik.enable=true",
 		"--label", fmt.Sprintf("pulsenode.project=%s", id),
@@ -437,6 +471,49 @@ func (cfg Config) deployService(ctx context.Context, imageRef, slug string, envM
 
 	cfg.removeOldContainers(ctx, id, spec.component, cid)
 	return cid, nil
+}
+
+// appCaps are the only capabilities a deployed app keeps. Docker's default set
+// minus the ones almost nothing needs (raw sockets, mknod, audit, setfcap…):
+// enough for nginx/postgres/node images to drop privileges and bind low ports.
+var appCaps = []string{"CHOWN", "DAC_OVERRIDE", "FOWNER", "SETUID", "SETGID", "NET_BIND_SERVICE", "KILL"}
+
+// envLimit returns an env override for a resource limit, or def. "0" or
+// "unlimited" turns the limit off (returns "").
+func envLimit(key, def string) string {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		v = def
+	}
+	if v == "0" || strings.EqualFold(v, "unlimited") {
+		return ""
+	}
+	return v
+}
+
+// appHardeningArgs are the `docker run` flags every deployed app gets: no extra
+// privileges, a minimal capability set, memory/CPU/pids ceilings so one app can't
+// starve the host or its neighbours, and rotated logs so a chatty app can't fill
+// the disk. Limits are overridable (or disabled with 0) via
+// PULSENODE_APP_MEMORY (default 1g), PULSENODE_APP_PIDS (1024) and PULSENODE_APP_CPUS
+// (default unlimited — docker rejects a value above the host's core count, so there
+// is no safe universal number).
+func appHardeningArgs() []string {
+	args := []string{"--cap-drop", "ALL"}
+	for _, c := range appCaps {
+		args = append(args, "--cap-add", c)
+	}
+	args = append(args, "--security-opt", "no-new-privileges")
+	if v := envLimit("PULSENODE_APP_MEMORY", "1g"); v != "" {
+		args = append(args, "--memory", v)
+	}
+	if v := envLimit("PULSENODE_APP_CPUS", ""); v != "" {
+		args = append(args, "--cpus", v)
+	}
+	if v := envLimit("PULSENODE_APP_PIDS", "1024"); v != "" {
+		args = append(args, "--pids-limit", v)
+	}
+	return append(args, "--log-driver", "json-file", "--log-opt", "max-size=10m", "--log-opt", "max-file=3")
 }
 
 // runMonorepo builds and deploys a frontend/ + backend/ repo as two services on
@@ -753,15 +830,18 @@ func buildEnv(extra []string) []string {
 
 // gitAuthEnv sends the token as an HTTP header scoped to the repo's host, via
 // git's env-based config, so it never appears in argv or the clone's .git/config.
+// The token is a GitHub credential, so it is only ever sent to https://github.com:
+// a project pointing at any other host (or plain http) clones without it, instead
+// of handing a `repo`-scope token to whoever runs that server.
 func gitAuthEnv(repoURL, token string) []string {
 	u, err := url.Parse(repoURL)
-	if token == "" || err != nil || u.Host == "" {
+	if token == "" || err != nil || u.Scheme != "https" || u.User != nil || !strings.EqualFold(u.Host, "github.com") {
 		return nil
 	}
 	cred := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + token))
 	return []string{
 		"GIT_CONFIG_COUNT=1",
-		"GIT_CONFIG_KEY_0=http." + u.Scheme + "://" + u.Host + "/.extraheader",
+		"GIT_CONFIG_KEY_0=http.https://github.com/.extraheader",
 		"GIT_CONFIG_VALUE_0=Authorization: Basic " + cred,
 	}
 }
@@ -774,20 +854,57 @@ func (cfg Config) runEnv(ctx context.Context, dir string, extraEnv []string, nam
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	cmd.Env = buildEnv(extraEnv)
-	stdout, _ := cmd.StdoutPipe()
-	stderr, _ := cmd.StderrPipe()
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	streamLines := func(r io.Reader, stream string) {
-		sc := bufio.NewScanner(r)
-		for sc.Scan() {
-			cfg.log(stream, sc.Text())
+	// Plain writers (not StdoutPipe + goroutines): os/exec then owns the copy
+	// goroutines and Wait() returns only after every byte was delivered, so the
+	// tail of the output — usually the error message — is never lost.
+	var mu sync.Mutex // stdout and stderr copy concurrently
+	emit := func(stream string) func(string) {
+		return func(line string) {
+			mu.Lock()
+			defer mu.Unlock()
+			cfg.log(stream, line)
 		}
 	}
-	go streamLines(stdout, "stdout")
-	go streamLines(stderr, "stderr")
-	return cmd.Wait()
+	stdout, stderr := &lineWriter{emit: emit("stdout")}, &lineWriter{emit: emit("stderr")}
+	cmd.Stdout, cmd.Stderr = stdout, stderr
+	err := cmd.Run()
+	stdout.flush()
+	stderr.flush()
+	return err
+}
+
+// maxLogLine caps one emitted log line; longer output is split rather than
+// buffered without bound (and, unlike bufio.Scanner, never stops reading).
+const maxLogLine = 1 << 20
+
+// lineWriter turns a byte stream into log lines.
+type lineWriter struct {
+	emit func(string)
+	buf  []byte
+}
+
+func (w *lineWriter) Write(p []byte) (int, error) {
+	w.buf = append(w.buf, p...)
+	for {
+		i := bytes.IndexByte(w.buf, '\n')
+		if i < 0 {
+			break
+		}
+		w.emit(strings.TrimSuffix(string(w.buf[:i]), "\r"))
+		w.buf = w.buf[i+1:]
+	}
+	if len(w.buf) >= maxLogLine {
+		w.emit(string(w.buf))
+		w.buf = nil
+	}
+	return len(p), nil
+}
+
+func (w *lineWriter) flush() {
+	if len(w.buf) > 0 {
+		w.emit(strings.TrimSuffix(string(w.buf), "\r"))
+		w.buf = nil
+	}
 }
 
 func runOutput(ctx context.Context, dir string, name string, args ...string) (string, error) {

@@ -10,8 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -20,13 +22,16 @@ import (
 type DB struct{ *sql.DB }
 
 func Open(path string) (*DB, error) {
-	raw, err := sql.Open("sqlite", path+"?_journal_mode=WAL&_foreign_keys=on")
+	raw, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)")
 	if err != nil {
 		return nil, err
 	}
-	raw.SetMaxOpenConns(1) // SQLite: one writer at a time
+	// SQLite: one writer at a time. The _pragma options in the DSN are applied to
+	// every new connection the pool opens, so they survive connection recycling.
+	raw.SetMaxOpenConns(1)
 	d := &DB{raw}
 	if err := d.migrate(); err != nil {
+		_ = raw.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return d, nil
@@ -34,9 +39,6 @@ func Open(path string) (*DB, error) {
 
 func (d *DB) migrate() error {
 	_, err := d.Exec(`
-PRAGMA busy_timeout = 5000;
-PRAGMA synchronous  = NORMAL;
-
 CREATE TABLE IF NOT EXISTS github_accounts (
   id           INTEGER PRIMARY KEY,
   login        TEXT NOT NULL,
@@ -356,23 +358,23 @@ func (d *DB) DeleteGitHubAccount() error {
 // ── Projects ──────────────────────────────────────────────────────────────────
 
 type Project struct {
-	ID            string
-	Name          string
-	RepoURL       string
-	Branch        string
-	BuildMethod   string
-	BuildCommand  string
-	Port          int
-	Domain        string
-	EnvVars       string // JSON map, encrypted at rest (frontend/single-service env)
+	ID             string
+	Name           string
+	RepoURL        string
+	Branch         string
+	BuildMethod    string
+	BuildCommand   string
+	Port           int
+	Domain         string
+	EnvVars        string // JSON map, encrypted at rest (frontend/single-service env)
 	BackendEnvVars string // JSON map, encrypted at rest (monorepo backend env; "" otherwise)
-	BaseDir       string // "" | "frontend" | "backend" — subfolder to build from when deployed as a separate monorepo component
-	ContainerID   string
-	Status        string
-	AutoDeploy    bool
-	LastCommitSHA string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	BaseDir        string // "" | "frontend" | "backend" — subfolder to build from when deployed as a separate monorepo component
+	ContainerID    string
+	Status         string
+	AutoDeploy     bool
+	LastCommitSHA  string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 func (d *DB) CreateProject(p *Project) error {
@@ -397,7 +399,7 @@ func (d *DB) ListProjects() ([]Project, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Project
+	out := []Project{}
 	for rows.Next() {
 		var p Project
 		var enc string
@@ -438,6 +440,54 @@ func (d *DB) GetProject(id string) (*Project, error) {
 func (d *DB) UpdateProjectStatus(id, status, containerID string) error {
 	_, err := d.Exec(`UPDATE projects SET status=?, container_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`, status, containerID, id)
 	return err
+}
+
+// UpdateProjectStatusKeep changes only the status, leaving container_id alone —
+// used when a deploy starts (the previous container is still serving) and when a
+// deploy fails (the reference to that still-running container must survive).
+func (d *DB) UpdateProjectStatusKeep(id, status string) error {
+	_, err := d.Exec(`UPDATE projects SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`, status, id)
+	return err
+}
+
+// ClaimProjectForDeploy atomically moves a project to "building" unless a deploy
+// is already queued/building. It returns the previous status so the caller can
+// release the claim if enqueueing fails. container_id is left untouched.
+func (d *DB) ClaimProjectForDeploy(id string) (prev string, claimed bool, err error) {
+	tx, err := d.Begin()
+	if err != nil {
+		return "", false, err
+	}
+	defer tx.Rollback()
+	if err := tx.QueryRow(`SELECT status FROM projects WHERE id=?`, id).Scan(&prev); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	if prev == "building" || prev == "queued" {
+		return prev, false, nil
+	}
+	if _, err := tx.Exec(`UPDATE projects SET status='building', updated_at=CURRENT_TIMESTAMP WHERE id=?`, id); err != nil {
+		return "", false, err
+	}
+	return prev, true, tx.Commit()
+}
+
+// ResetStuckProjects fixes projects left in building/queued by a crash when no
+// deployment is actually queued or building for them any more. Projects with a
+// live container go back to "running", others to "failed".
+func (d *DB) ResetStuckProjects() (int64, error) {
+	res, err := d.Exec(`
+UPDATE projects
+SET status = CASE WHEN COALESCE(container_id,'') <> '' THEN 'running' ELSE 'failed' END,
+    updated_at = CURRENT_TIMESTAMP
+WHERE status IN ('building','queued')
+  AND id NOT IN (SELECT project_id FROM deployments WHERE status IN ('queued','building'))`)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 func (d *DB) UpdateProject(id, name, branch, buildMethod, buildCommand string, port int, domain, envVars, backendEnvVars string, autoDeploy bool) error {
@@ -497,16 +547,21 @@ ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAM
 }
 
 func (d *DB) DeleteProject(id string) error {
-	_, err := d.Exec(`DELETE FROM deployment_logs WHERE deployment_id IN (SELECT id FROM deployments WHERE project_id=?)`, id)
+	tx, err := d.Begin()
 	if err != nil {
 		return err
 	}
-	_, err = d.Exec(`DELETE FROM deployments WHERE project_id=?`, id)
-	if err != nil {
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM deployment_logs WHERE deployment_id IN (SELECT id FROM deployments WHERE project_id=?)`, id); err != nil {
 		return err
 	}
-	_, err = d.Exec(`DELETE FROM projects WHERE id=?`, id)
-	return err
+	if _, err := tx.Exec(`DELETE FROM deployments WHERE project_id=?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM projects WHERE id=?`, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // ── Deployments ───────────────────────────────────────────────────────────────
@@ -543,7 +598,7 @@ func (d *DB) ListDeployments(projectID string) ([]Deployment, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Deployment
+	out := []Deployment{}
 	for rows.Next() {
 		var dep Deployment
 		if err := scanDeployment(rows, &dep); err != nil {
@@ -589,7 +644,7 @@ func (d *DB) GetQueuedDeployments() ([]Deployment, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Deployment
+	out := []Deployment{}
 	for rows.Next() {
 		var dep Deployment
 		if err := scanDeployment(rows, &dep); err != nil {
@@ -607,13 +662,123 @@ func (d *DB) AppendLog(deploymentID, stream, line string) error {
 	return err
 }
 
+// LogWriter buffers a deployment's log lines and writes them in batches (every
+// ~250ms or 100 lines) in one transaction, instead of one INSERT per line — the
+// DB has a single connection, so per-line writes would starve API requests
+// during chatty builds. Close flushes whatever is left.
+type LogWriter struct {
+	d    *DB
+	dep  string
+	mu   sync.Mutex
+	buf  [][2]string
+	stop chan struct{}
+	done chan struct{}
+	once sync.Once
+}
+
+const (
+	logFlushEvery = 250 * time.Millisecond
+	logFlushLines = 100
+)
+
+func (d *DB) NewLogWriter(deploymentID string) *LogWriter {
+	w := &LogWriter{d: d, dep: deploymentID, stop: make(chan struct{}), done: make(chan struct{})}
+	go w.loop()
+	return w
+}
+
+func (w *LogWriter) loop() {
+	defer close(w.done)
+	t := time.NewTicker(logFlushEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+			w.Flush()
+		case <-w.stop:
+			return
+		}
+	}
+}
+
+// Add queues one line; safe for concurrent use.
+func (w *LogWriter) Add(stream, line string) {
+	w.mu.Lock()
+	w.buf = append(w.buf, [2]string{stream, line})
+	full := len(w.buf) >= logFlushLines
+	w.mu.Unlock()
+	if full {
+		w.Flush()
+	}
+}
+
+// Flush writes everything buffered so far.
+func (w *LogWriter) Flush() {
+	w.mu.Lock()
+	rows := w.buf
+	w.buf = nil
+	w.mu.Unlock()
+	if len(rows) == 0 {
+		return
+	}
+	if err := w.d.insertLogs(w.dep, rows); err != nil {
+		log.Printf("[db] deployment %s: dropped %d log lines: %v", w.dep, len(rows), err)
+	}
+}
+
+// Close stops the background flusher and flushes the remainder. Idempotent.
+func (w *LogWriter) Close() {
+	w.once.Do(func() { close(w.stop) })
+	<-w.done
+	w.Flush()
+}
+
+func (d *DB) insertLogs(deploymentID string, rows [][2]string) error {
+	tx, err := d.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	stmt, err := tx.Prepare(`INSERT INTO deployment_logs (deployment_id, stream, line) VALUES (?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	for _, r := range rows {
+		if _, err := stmt.Exec(deploymentID, r[0], r[1]); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// ── Retention ─────────────────────────────────────────────────────────────────
+
+// PruneOld deletes deployment logs, audit entries and old alert history older
+// than the given ages so those append-only tables stay bounded. Timestamps are
+// compared with SQLite's own clock to match the CURRENT_TIMESTAMP defaults.
+func (d *DB) PruneOld(logsAge, auditAge, alertsAge time.Duration) error {
+	days := func(a time.Duration) string { return fmt.Sprintf("-%d days", int(a.Hours()/24)) }
+	var firstErr error
+	for _, q := range []struct{ sql, age string }{
+		{`DELETE FROM deployment_logs WHERE ts < datetime('now', ?)`, days(logsAge)},
+		{`DELETE FROM audit_log WHERE created_at < datetime('now', ?)`, days(auditAge)},
+		{`DELETE FROM alert_history WHERE fired_at < datetime('now', ?)`, days(alertsAge)},
+	} {
+		if _, err := d.Exec(q.sql, q.age); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
 func (d *DB) GetLogs(deploymentID string) ([]map[string]string, error) {
 	rows, err := d.Query(`SELECT stream, line, ts FROM deployment_logs WHERE deployment_id=? ORDER BY id ASC`, deploymentID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []map[string]string
+	out := []map[string]string{}
 	for rows.Next() {
 		var stream, line string
 		var ts time.Time
@@ -662,7 +827,7 @@ func (d *DB) ListManagedDatabases() ([]ManagedDatabase, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []ManagedDatabase
+	out := []ManagedDatabase{}
 	for rows.Next() {
 		var m ManagedDatabase
 		var enc string
@@ -740,7 +905,7 @@ func (d *DB) ListConnectedDatabases() ([]ConnectedDatabase, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []ConnectedDatabase
+	out := []ConnectedDatabase{}
 	for rows.Next() {
 		var c ConnectedDatabase
 		if err := rows.Scan(&c.ID, &c.Name, &c.Engine, &c.Host, &c.Port, &c.Username, &c.DBName, &c.CreatedAt); err != nil {
@@ -782,7 +947,7 @@ func (d *DB) ListAlertRules() ([]AlertRule, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []AlertRule
+	out := []AlertRule{}
 	for rows.Next() {
 		var r AlertRule
 		var enabled int
@@ -835,7 +1000,7 @@ func (d *DB) ListAlertHistory(limit int) ([]AlertEvent, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []AlertEvent
+	out := []AlertEvent{}
 	for rows.Next() {
 		var e AlertEvent
 		if err := rows.Scan(&e.ID, &e.RuleID, &e.RuleName, &e.Metric, &e.Value, &e.Severity, &e.State, &e.FiredAt, &e.ResolvedAt); err != nil {
@@ -869,7 +1034,7 @@ func (d *DB) ListNotificationChannels() ([]NotificationChannel, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []NotificationChannel
+	out := []NotificationChannel{}
 	for rows.Next() {
 		var c NotificationChannel
 		var enabled int
@@ -890,8 +1055,10 @@ func (d *DB) DeleteNotificationChannel(id string) error {
 // ── Audit Log ─────────────────────────────────────────────────────────────────
 
 func (d *DB) InsertAuditLog(actor, action, resource, ip string, status int) {
-	_, _ = d.Exec(`INSERT INTO audit_log (actor,action,resource,ip,status) VALUES (?,?,?,?,?)`,
-		actor, action, resource, ip, status)
+	if _, err := d.Exec(`INSERT INTO audit_log (actor,action,resource,ip,status) VALUES (?,?,?,?,?)`,
+		actor, action, resource, ip, status); err != nil {
+		log.Printf("[db] audit log write failed (%s %s): %v", actor, action, err)
+	}
 }
 
 // ── Users (auth) ──────────────────────────────────────────────────────────────
@@ -969,7 +1136,7 @@ func (d *DB) ListDomains() ([]Domain, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Domain
+	out := []Domain{}
 	for rows.Next() {
 		var dm Domain
 		var isPrimary, lastProxied int
@@ -1053,7 +1220,7 @@ func (d *DB) ListAppInstallations() ([]AppInstallation, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []AppInstallation
+	out := []AppInstallation{}
 	for rows.Next() {
 		var a AppInstallation
 		if err := rows.Scan(&a.ID, &a.InstallationID, &a.AccountLogin, &a.AccountType, &a.CreatedAt); err != nil {
@@ -1124,7 +1291,7 @@ func (d *DB) ListHeartbeatsSince(since time.Time) ([]Heartbeat, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Heartbeat
+	out := []Heartbeat{}
 	for rows.Next() {
 		var h Heartbeat
 		var up int

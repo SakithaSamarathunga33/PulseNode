@@ -224,11 +224,19 @@ func (s *Server) Routes() http.Handler {
 		r.Patch("/alerts/rules/{id}", s.updateAlertRule)
 		r.Delete("/alerts/rules/{id}", s.deleteAlertRule)
 		r.Get("/alerts/history", s.listAlertHistory)
+		r.Post("/alerts/history/{id}/ack", s.setAlertState("ack"))
+		r.Post("/alerts/history/{id}/resolve", s.setAlertState("resolved"))
+		r.Post("/alerts/ack-all", s.ackAllAlerts)
+		r.Get("/alerts/mute", s.getAlertMute)
+		r.Post("/alerts/mute", s.setAlertMute)
 
 		// Notification channels
 		r.Get("/alerts/channels", s.listNotificationChannels)
 		r.Post("/alerts/channels", s.createNotificationChannel)
+		r.Patch("/alerts/channels/{id}", s.updateNotificationChannel)
 		r.Delete("/alerts/channels/{id}", s.deleteNotificationChannel)
+		r.Post("/alerts/channels/test", s.testDraftChannel)
+		r.Post("/alerts/channels/{id}/test", s.testSavedChannel)
 
 		// Audit log
 		r.Get("/audit", s.listAuditLog)
@@ -262,6 +270,7 @@ func (s *Server) Routes() http.Handler {
 	r.With(s.requireAuth).Get("/metrics/history", s.metricsHistory)
 	r.With(s.requireAuth).Get("/metrics/processes", s.processes)
 
+	r.With(s.requireAuth).Get("/security/status", s.securityStatus)
 	r.With(s.requireAuth).Get("/security/scans", s.securityScans)
 	r.With(s.requireAuth).Post("/security/scan", s.securityScan)
 	r.With(s.requireAuth).Get("/security/sboms", s.securitySBOMs)

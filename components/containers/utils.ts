@@ -1,5 +1,7 @@
 /** Helpers shared by the Dashboard's host-health card and container table. */
 
+import type { HostInfo } from "@/lib/types"
+
 export type Tone = "ok" | "warn" | "bad"
 
 /** Usage thresholds used everywhere on the dashboard: 60% = elevated, 80% = high. */
@@ -38,4 +40,14 @@ export function trendOf(data: number[], unit: string) {
   const avg = prev.reduce((a, b) => a + b, 0) / (prev.length || 1)
   const delta = last - avg
   return { text: `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}${unit}`, up: delta >= 0 }
+}
+
+/** Zero-valued host shown before (or without) a successful /api/host response. */
+export const EMPTY_HOST: HostInfo = {
+  name: "", distro: "", kernel: "", uptime: "", ip: "", region: "", apps: 0, load: [0, 0, 0],
+  cpu: { cores: 0, model: "", usage: 0 },
+  memory: { used: 0, total: 0, unit: "GB", pct: 0 },
+  disk: { used: 0, total: 0, free: 0, unit: "GB", pct: 0 },
+  swap: { used: 0, total: 0, pct: 0 },
+  network: { rx: 0, tx: 0, unit: "KB/s" },
 }

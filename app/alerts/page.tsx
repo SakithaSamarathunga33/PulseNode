@@ -1,144 +1,253 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { toast } from "sonner"
 import {
-  Bell, BellOff, Mail, MessageSquare, Zap, Siren,
-  AlertTriangle, Info, CheckCircle2, XCircle, Check, BellRing, Flame, Eye,
+  Bell, BellOff, Mail, MessageSquare, Send, Webhook, Siren, AlertTriangle, Info, CheckCircle2, XCircle,
+  Check, BellRing, Flame, Eye, Plus, Pencil, Trash2, Loader2, AlertCircle, Hash,
 } from "lucide-react"
-import { ALERTS, ALERT_RULES } from "@/lib/mock-data"
+import { nodeApi, type ApiError } from "@/lib/api"
 import { getSocket } from "@/lib/socket"
-import type { Alert as AlertT, AlertRule } from "@/lib/types"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { SearchInput } from "@/components/pn/SearchInput"
 import { Segmented } from "@/components/pn/Segmented"
 import { EmptyState } from "@/components/pn/EmptyState"
-import { StatCard } from "@/components/dashboard/StatCard"
+import { SummaryStrip } from "@/components/pn/SummaryStrip"
+import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
 import { Pill } from "@/components/dashboard/Pill"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 
-type Row = AlertT & { uid: number; fresh?: boolean }
+type AlertEvent = {
+  id: number; ruleId: string; rule: string; metric: string; severity: "critical" | "warning" | "info"
+  sev: "bad" | "warn" | "info"; target: string; state: "firing" | "ack" | "resolved"
+  message: string; value: number; firedAt: string; ackedAt: string | null; resolvedAt: string | null
+}
+type Rule = {
+  id: string; name: string; metric: string; operator: string; threshold: number; duration: number
+  severity: "critical" | "warning" | "info"; target: string; channelIds: string[]; cooldown: number; enabled: boolean
+}
+type Channel = {
+  id: string; name: string; type: ChannelType; enabled: boolean; summary: string; config: Record<string, string>
+}
+type ChannelType = "webhook" | "slack" | "discord" | "telegram" | "smtp"
+type Tab = "history" | "rules" | "channels"
+type StateFilter = "all" | "firing" | "ack" | "resolved"
 
-const SEV_META = {
-  bad:  { icon: XCircle,       cls: "bg-danger/12 text-danger",   label: "Critical" },
-  warn: { icon: AlertTriangle, cls: "bg-warning/14 text-warning", label: "Warning" },
-  info: { icon: Info,          cls: "bg-info/12 text-info",       label: "Info" },
-  ok:   { icon: CheckCircle2,  cls: "bg-success/12 text-success", label: "OK" },
+const METRICS: { value: string; label: string; percent: boolean; hint: string }[] = [
+  { value: "host.cpu", label: "Host CPU", percent: true, hint: "CPU usage of the server" },
+  { value: "host.memory", label: "Host memory", percent: true, hint: "RAM usage of the server" },
+  { value: "host.disk", label: "Host disk", percent: true, hint: "Disk usage of the root filesystem" },
+  { value: "container.down", label: "Container down", percent: false, hint: "A container is exited, dead or restarting" },
+  { value: "deploy.failed", label: "Deploy failed", percent: false, hint: "A project deployment fails" },
+]
+const metricOf = (v: string) => METRICS.find(m => m.value === v)
+
+const SEV = {
+  critical: { icon: XCircle, cls: "bg-danger/12 text-danger", label: "Critical", tone: "bad" },
+  warning: { icon: AlertTriangle, cls: "bg-warning/14 text-warning", label: "Warning", tone: "warn" },
+  info: { icon: Info, cls: "bg-info/12 text-info", label: "Info", tone: "info" },
 } as const
 
-function SevIcon({ sev }: { sev: AlertT["sev"] }) {
-  const m = SEV_META[sev]
-  if (!m) return <span className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground"><Bell className="size-4" /></span>
-  const Icon = m.icon
+const CHANNEL_META: Record<ChannelType, { label: string; icon: typeof Mail; desc: string }> = {
+  webhook: { label: "Webhook", icon: Webhook, desc: "POST JSON to any URL, optionally HMAC-signed" },
+  slack: { label: "Slack", icon: Hash, desc: "Incoming webhook into a Slack channel" },
+  discord: { label: "Discord", icon: MessageSquare, desc: "Webhook into a Discord channel" },
+  telegram: { label: "Telegram", icon: Send, desc: "Bot message to a chat or channel" },
+  smtp: { label: "Email", icon: Mail, desc: "Send through your SMTP server" },
+}
+
+const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
+
+function ago(iso: string): string {
+  const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000))
+  if (s < 60) return "just now"
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
+  return `${Math.floor(s / 86400)}d ago`
+}
+
+function ruleExpr(r: Rule): string {
+  const m = metricOf(r.metric)
+  if (!m?.percent) return (m?.label ?? r.metric) + (r.target && r.target !== "*" ? ` · ${r.target}` : "")
+  return `${r.metric} ${r.operator} ${r.threshold}%${r.duration ? ` for ${r.duration >= 60 ? `${Math.round(r.duration / 60)}m` : `${r.duration}s`}` : ""}`
+}
+
+function SevIcon({ severity }: { severity: AlertEvent["severity"] }) {
+  const m = SEV[severity] ?? SEV.info
   return (
     <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", m.cls)} title={m.label}>
-      <Icon className="size-4" aria-label={m.label} />
+      <m.icon className="size-4" aria-label={m.label} />
     </span>
   )
 }
 
 function StatePill({ state }: { state: string }) {
-  switch (state) {
-    case "firing":   return <Pill tone="bad" dot>Firing</Pill>
-    case "ack":      return <Pill tone="warn" dot>Acknowledged</Pill>
-    case "resolved": return <Pill tone="ok" dot>Resolved</Pill>
-    default:         return <Pill tone="outline">{state}</Pill>
-  }
+  if (state === "firing") return <Pill tone="bad" dot>Firing</Pill>
+  if (state === "ack") return <Pill tone="warn" dot>Acknowledged</Pill>
+  if (state === "resolved") return <Pill tone="ok" dot>Resolved</Pill>
+  return <Pill tone="outline">{state}</Pill>
 }
 
-const CHANNEL_CARDS = [
-  { id: "email",     icon: Mail,          name: "Email",     desc: "Notifications to team inboxes via SMTP",           routes: 3 },
-  { id: "slack",     icon: MessageSquare, name: "Slack",     desc: "Post alerts to #ops-alerts channel",               routes: 5 },
-  { id: "pagerduty", icon: Zap,           name: "PagerDuty", desc: "Escalation & on-call routing for critical alerts", routes: 2 },
-]
-
-const MOCK_NEW_ALERT: AlertT = {
-  sev: "bad", title: "Simulated: Memory spike detected", target: "coolify-db",
-  time: "just now", rule: "host.mem > 92% for 3m", state: "firing",
-}
-
-type Tab = "history" | "rules" | "channels"
-type StateFilter = "all" | "firing" | "ack" | "resolved"
+const selectCls =
+  "h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
 
 export default function AlertsPage() {
-  const uidRef = useRef(0)
-  const nextUid = () => ++uidRef.current
-  const [activeTab, setActiveTab] = useState<Tab>("history")
-  const [alerts, setAlerts] = useState<Row[]>(() => ALERTS.map(a => ({ ...a, uid: ++uidRef.current })))
-  const [rules, setRules] = useState<AlertRule[]>(ALERT_RULES)
+  const [tab, setTab] = useState<Tab>("history")
+  const [events, setEvents] = useState<AlertEvent[] | null>(null)
+  const [rules, setRules] = useState<Rule[] | null>(null)
+  const [channels, setChannels] = useState<Channel[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [muteUntil, setMuteUntil] = useState(0)
   const [stateFilter, setStateFilter] = useState<StateFilter>("all")
   const [search, setSearch] = useState("")
+  const [ruleDialog, setRuleDialog] = useState<Rule | "new" | null>(null)
+  const [channelDialog, setChannelDialog] = useState<Channel | "new" | null>(null)
+  const [confirm, setConfirm] = useState<{ kind: "rule" | "channel"; id: string; name: string } | null>(null)
+  const [busy, setBusy] = useState(false)
 
-  const firing   = alerts.filter(a => a.state === "firing").length
-  const ack      = alerts.filter(a => a.state === "ack").length
-  const resolved = alerts.filter(a => a.state === "resolved").length
+  const load = useCallback(async () => {
+    try {
+      const [ev, ru, ch, mu] = await Promise.all([
+        nodeApi.get<AlertEvent[]>("/api/alerts/history?limit=300"),
+        nodeApi.get<Rule[]>("/api/alerts/rules"),
+        nodeApi.get<Channel[]>("/api/alerts/channels"),
+        nodeApi.get<{ until: number }>("/api/alerts/mute"),
+      ])
+      setEvents(ev.data); setRules(ru.data); setChannels(ch.data); setMuteUntil(mu.data.until)
+      setError(null)
+    } catch (e) {
+      setError(errMsg(e, "Could not load alerts"))
+    }
+  }, [])
+
+  useEffect(() => {
+    load()
+    const id = setInterval(() => { if (!document.hidden) load() }, 30000)
+    return () => clearInterval(id)
+  }, [load])
 
   useEffect(() => {
     const socket = getSocket()
-    const handler = (alert: AlertT) => {
-      setAlerts(prev => [{ ...alert, time: "just now", uid: nextUid(), fresh: true }, ...prev])
-    }
-    socket.on("alert:new", handler)
-    return () => { socket.off("alert:new", handler) }
+    const upsert = (ev: AlertEvent) =>
+      setEvents(prev => {
+        if (!prev) return prev
+        return prev.some(e => e.id === ev.id) ? prev.map(e => (e.id === ev.id ? ev : e)) : [ev, ...prev]
+      })
+    socket.on("alert:new", upsert)
+    socket.on("alert:update", upsert)
+    return () => { socket.off("alert:new", upsert); socket.off("alert:update", upsert) }
   }, [])
 
-  function simulateAlert() {
-    setAlerts(prev => [{ ...MOCK_NEW_ALERT, time: "just now", uid: nextUid(), fresh: true }, ...prev])
+  const muted = muteUntil * 1000 > Date.now()
+  const list = useMemo(() => events ?? [], [events])
+  const firing = list.filter(a => a.state === "firing").length
+  const ack = list.filter(a => a.state === "ack").length
+  const resolved = list.filter(a => a.state === "resolved").length
+
+  const filtered = useMemo(() => list.filter(a => {
+    const q = search.trim().toLowerCase()
+    return (stateFilter === "all" || a.state === stateFilter) &&
+      (!q || a.rule.toLowerCase().includes(q) || a.target.toLowerCase().includes(q) || a.message.toLowerCase().includes(q))
+  }), [list, stateFilter, search])
+
+  async function act(id: number, action: "ack" | "resolve") {
+    try {
+      const ev = await nodeApi.post<AlertEvent>(`/api/alerts/history/${id}/${action}`)
+      setEvents(prev => prev && prev.map(e => (e.id === ev.id ? ev : e)))
+    } catch (e) { toast.error(errMsg(e, "Action failed")) }
   }
 
-  function setState(uid: number, state: AlertT["state"]) {
-    setAlerts(prev => prev.map(a => a.uid === uid ? { ...a, state } : a))
+  async function ackAll() {
+    try {
+      await nodeApi.post("/api/alerts/ack-all")
+      setEvents(prev => prev && prev.map(a => (a.state === "firing" ? { ...a, state: "ack" } : a)))
+      toast.success("All firing alerts acknowledged")
+    } catch (e) { toast.error(errMsg(e, "Could not acknowledge")) }
   }
 
-  function toggleRule(idx: number, enabled: boolean) {
-    setRules(prev => prev.map((r, i) => i === idx ? { ...r, enabled } : r))
+  async function toggleMute() {
+    try {
+      const r = await nodeApi.post<{ until: number }>("/api/alerts/mute", { minutes: muted ? 0 : 60 })
+      setMuteUntil(r.until)
+      toast.success(muted ? "Notifications resumed" : "Notifications muted for 1 hour")
+    } catch (e) { toast.error(errMsg(e, "Could not change mute")) }
   }
 
-  const filteredAlerts = useMemo(() => alerts.filter(a => {
-    const matchState = stateFilter === "all" || a.state === stateFilter
-    const q = search.toLowerCase()
-    const matchSearch = !q || a.title.toLowerCase().includes(q) || a.target.toLowerCase().includes(q)
-    return matchState && matchSearch
-  }), [alerts, stateFilter, search])
+  async function toggleRule(rule: Rule, enabled: boolean) {
+    setRules(prev => prev && prev.map(r => (r.id === rule.id ? { ...r, enabled } : r)))
+    try {
+      await patch(`/api/alerts/rules/${rule.id}`, { enabled })
+    } catch (e) {
+      setRules(prev => prev && prev.map(r => (r.id === rule.id ? { ...r, enabled: !enabled } : r)))
+      toast.error(errMsg(e, "Could not update rule"))
+    }
+  }
+
+  async function toggleChannel(ch: Channel, enabled: boolean) {
+    setChannels(prev => prev && prev.map(c => (c.id === ch.id ? { ...c, enabled } : c)))
+    try {
+      await patch(`/api/alerts/channels/${ch.id}`, { enabled })
+    } catch (e) {
+      setChannels(prev => prev && prev.map(c => (c.id === ch.id ? { ...c, enabled: !enabled } : c)))
+      toast.error(errMsg(e, "Could not update channel"))
+    }
+  }
+
+  async function testChannel(ch: Channel) {
+    try {
+      await nodeApi.post(`/api/alerts/channels/${ch.id}/test`)
+      toast.success(`Test sent to ${ch.name}`)
+    } catch (e) { toast.error(errMsg(e, "Test failed")) }
+  }
+
+  async function doDelete() {
+    if (!confirm) return
+    setBusy(true)
+    try {
+      await nodeApi.delete(`/api/alerts/${confirm.kind === "rule" ? "rules" : "channels"}/${confirm.id}`)
+      if (confirm.kind === "rule") setRules(prev => prev && prev.filter(r => r.id !== confirm.id))
+      else setChannels(prev => prev && prev.filter(c => c.id !== confirm.id))
+      toast.success(`${confirm.kind === "rule" ? "Rule" : "Channel"} deleted`)
+      setConfirm(null)
+    } catch (e) { toast.error(errMsg(e, "Delete failed")) } finally { setBusy(false) }
+  }
+
+  const loading = events === null && !error
+  const channelName = (id: string) => channels?.find(c => c.id === id)?.name ?? "deleted channel"
 
   return (
     <>
       <PageHeader
         icon={Siren}
         title="Alerts"
-        description={
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <Pill tone={firing > 0 ? "bad" : "outline"} dot={firing > 0}>{firing} firing</Pill>
-            <Pill tone={ack > 0 ? "warn" : "outline"} dot={ack > 0}>{ack} ack</Pill>
-            <Pill tone="ok" dot>{resolved} resolved</Pill>
-            <span className="tabular-nums">{rules.length} rules configured</span>
-          </span>
-        }
+        description="Rules that watch the host, containers and deployments, and where to send the result."
         actions={
           <>
-            {process.env.NODE_ENV !== "production" && (
-              <Button variant="outline" onClick={simulateAlert}>Simulate alert</Button>
-            )}
-            <Button
-              variant="outline"
-              onClick={() => setAlerts(prev => prev.map(a => a.state === "firing" ? { ...a, state: "ack" } : a))}
-            >
-              <BellOff className="size-4" /> Mute all
+            <Button variant="outline" onClick={toggleMute}>
+              <BellOff className="size-4" /> {muted ? "Unmute notifications" : "Mute 1h"}
+            </Button>
+            <Button variant="outline" onClick={ackAll} disabled={firing === 0}>
+              <Check className="size-4" /> Acknowledge all
             </Button>
           </>
         }
       >
         <Segmented<Tab>
           aria-label="Alerts view"
-          value={activeTab}
-          onChange={setActiveTab}
+          value={tab}
+          onChange={setTab}
           size="default"
           options={[
-            { value: "history", label: "History" },
+            { value: "history", label: "History", count: firing || undefined },
             { value: "rules", label: "Rules" },
             { value: "channels", label: "Channels" },
           ]}
@@ -146,71 +255,78 @@ export default function AlertsPage() {
       </PageHeader>
 
       <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard icon={Flame} label="Firing" value={firing} tone="bad" sub="active alerts" />
-          <StatCard icon={Eye} label="Acknowledged" value={ack} tone="warn" sub="under review" />
-          <StatCard icon={CheckCircle2} label="Resolved" value={resolved} tone="ok" sub="cleared alerts" />
-          <StatCard icon={BellRing} label="Rules enabled" value={rules.filter(r => r.enabled).length} tone="acc" sub={`of ${rules.length}`} />
-        </div>
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertTitle>Could not load alerts</AlertTitle>
+            <AlertDescription className="flex flex-wrap items-center gap-2">
+              {error} <Button size="xs" variant="outline" onClick={load}>Retry</Button>
+            </AlertDescription>
+          </Alert>
+        )}
+        {muted && (
+          <Alert>
+            <BellOff />
+            <AlertTitle>Notifications are muted</AlertTitle>
+            <AlertDescription>Alerts are still recorded; nothing is sent until {new Date(muteUntil * 1000).toLocaleTimeString()}.</AlertDescription>
+          </Alert>
+        )}
 
-        {activeTab === "history" && (
+        {loading ? (
+          <Skeleton className="h-[112px] rounded-xl" />
+        ) : events && (
+          <SummaryStrip
+            items={[
+              { label: "Firing", icon: Flame, value: firing, meta: "active alerts", tone: firing ? "bad" : undefined },
+              { label: "Acknowledged", icon: Eye, value: ack, meta: "under review", tone: ack ? "warn" : undefined },
+              { label: "Resolved", icon: CheckCircle2, value: resolved, meta: "cleared alerts" },
+              { label: "Rules enabled", icon: BellRing, value: rules?.filter(r => r.enabled).length ?? 0, unit: `of ${rules?.length ?? 0}`, meta: `${channels?.filter(c => c.enabled).length ?? 0} channels active` },
+            ]}
+          />
+        )}
+
+        {tab === "history" && (
           <>
             <div className="flex flex-wrap items-center gap-2">
-              <SearchInput
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search alerts…"
-                aria-label="Search alerts"
-              />
+              <SearchInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Search alerts…" aria-label="Search alerts" />
               <Segmented<StateFilter>
                 aria-label="Filter by state"
                 value={stateFilter}
                 onChange={setStateFilter}
                 options={[
-                  { value: "all", label: "All" },
-                  { value: "firing", label: "Firing" },
-                  { value: "ack", label: "Ack" },
-                  { value: "resolved", label: "Resolved" },
+                  { value: "all", label: "All" }, { value: "firing", label: "Firing" },
+                  { value: "ack", label: "Ack" }, { value: "resolved", label: "Resolved" },
                 ]}
               />
             </div>
 
-            {filteredAlerts.length === 0 ? (
-              <EmptyState icon={Bell} title="No alerts match your filter" description="Try a different search or state." />
+            {loading ? (
+              <Card className="gap-0 divide-y p-0">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="m-3 h-10" />)}</Card>
+            ) : filtered.length === 0 ? (
+              <EmptyState
+                icon={Bell}
+                title={list.length === 0 ? "No alerts yet" : "No alerts match your filter"}
+                description={list.length === 0
+                  ? (rules?.length ? "Nothing has triggered. Alerts appear here the moment a rule fires." : "Create a rule to start watching your server.")
+                  : "Try a different search or state."}
+                action={list.length === 0 && !rules?.length ? <Button onClick={() => { setTab("rules"); setRuleDialog("new") }}><Plus className="size-4" /> New rule</Button> : undefined}
+              />
             ) : (
               <Card className="gap-0 divide-y overflow-hidden p-0">
-                {filteredAlerts.map(alert => (
-                  <div
-                    key={alert.uid}
-                    className={cn(
-                      "flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-muted/40",
-                      alert.fresh && "motion-safe:animate-in fade-in-0 slide-in-from-top-2 duration-300",
-                    )}
-                  >
-                    <SevIcon sev={alert.sev} />
-                    <div className="min-w-0 flex-1 basis-48">
-                      <p className="truncate text-sm font-medium">{alert.title}</p>
-                      <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
-                        {alert.target}{alert.rule && ` · ${alert.rule}`}
+                {filtered.map(alert => (
+                  <div key={alert.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-muted/40">
+                    <SevIcon severity={alert.severity} />
+                    <div className="min-w-0 flex-1 basis-56">
+                      <p className="truncate text-sm font-medium">
+                        {alert.rule}{alert.target && alert.target !== "host" && <span className="font-normal text-muted-foreground"> — {alert.target}</span>}
                       </p>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground" title={alert.message}>{alert.message}</p>
                     </div>
-                    <span className="text-xs text-muted-foreground">{alert.time}</span>
+                    <span className="text-xs text-muted-foreground" title={new Date(alert.firedAt).toLocaleString()}>{ago(alert.firedAt)}</span>
                     <StatePill state={alert.state} />
                     <div className="flex items-center gap-1">
-                      <Button
-                        variant="outline"
-                        size="xs"
-                        disabled={alert.state !== "firing"}
-                        onClick={() => setState(alert.uid, "ack")}
-                      >
-                        Ack
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="xs"
-                        disabled={alert.state === "resolved"}
-                        onClick={() => setState(alert.uid, "resolved")}
-                      >
+                      <Button variant="outline" size="xs" disabled={alert.state !== "firing"} onClick={() => act(alert.id, "ack")}>Ack</Button>
+                      <Button variant="outline" size="xs" disabled={alert.state === "resolved"} onClick={() => act(alert.id, "resolve")}>
                         <Check className="size-3" /> Resolve
                       </Button>
                     </div>
@@ -221,80 +337,386 @@ export default function AlertsPage() {
           </>
         )}
 
-        {activeTab === "rules" && (
-          <Card className="overflow-x-auto p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-16">On</TableHead>
-                  <TableHead>Rule</TableHead>
-                  <TableHead>Expression</TableHead>
-                  <TableHead>Severity</TableHead>
-                  <TableHead>Channels</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rules.map((rule, i) => (
-                  <TableRow key={rule.name}>
-                    <TableCell>
-                      <Switch
-                        checked={rule.enabled}
-                        onCheckedChange={v => toggleRule(i, v)}
-                        aria-label={`Enable rule ${rule.name}`}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">{rule.name}</TableCell>
-                    <TableCell>
-                      <code className="rounded bg-muted px-2 py-0.5 font-mono text-xs">{rule.expr}</code>
-                    </TableCell>
-                    <TableCell>
-                      <Pill tone={rule.sev === "bad" ? "bad" : rule.sev === "warn" ? "warn" : "info"}>
-                        {rule.sev === "bad" ? "Critical" : rule.sev === "warn" ? "Warning" : "Info"}
-                      </Pill>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center gap-1">
-                        {rule.channels.map(ch => <Pill key={ch} tone="outline">{ch}</Pill>)}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
+        {tab === "rules" && (
+          <>
+            <div className="flex justify-end">
+              <Button onClick={() => setRuleDialog("new")}><Plus className="size-4" /> New rule</Button>
+            </div>
+            {rules === null ? (
+              <Skeleton className="h-40 rounded-xl" />
+            ) : rules.length === 0 ? (
+              <EmptyState
+                icon={BellRing} title="No rules yet"
+                description="Rules watch CPU, memory, disk, containers and deployments, and raise an alert when something is wrong."
+                action={<Button onClick={() => setRuleDialog("new")}><Plus className="size-4" /> New rule</Button>}
+              />
+            ) : (
+              <Card className="overflow-x-auto p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-16">On</TableHead>
+                      <TableHead>Rule</TableHead>
+                      <TableHead>Condition</TableHead>
+                      <TableHead>Severity</TableHead>
+                      <TableHead>Notifies</TableHead>
+                      <TableHead className="w-24"><span className="sr-only">Actions</span></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rules.map(rule => (
+                      <TableRow key={rule.id}>
+                        <TableCell><Switch checked={rule.enabled} onCheckedChange={v => toggleRule(rule, v)} aria-label={`Enable rule ${rule.name}`} /></TableCell>
+                        <TableCell className="font-medium">{rule.name}</TableCell>
+                        <TableCell><code className="rounded bg-muted px-2 py-0.5 font-mono text-xs">{ruleExpr(rule)}</code></TableCell>
+                        <TableCell><Pill tone={SEV[rule.severity]?.tone ?? "info"}>{SEV[rule.severity]?.label ?? rule.severity}</Pill></TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap items-center gap-1">
+                            {rule.channelIds.length === 0
+                              ? <Pill tone="outline">all channels</Pill>
+                              : rule.channelIds.map(id => <Pill key={id} tone="outline">{channelName(id)}</Pill>)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon-sm" aria-label={`Edit ${rule.name}`} onClick={() => setRuleDialog(rule)}><Pencil className="size-4" /></Button>
+                            <Button variant="ghost" size="icon-sm" aria-label={`Delete ${rule.name}`} onClick={() => setConfirm({ kind: "rule", id: rule.id, name: rule.name })}><Trash2 className="size-4 text-danger" /></Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+            )}
+          </>
         )}
 
-        {activeTab === "channels" && (
+        {tab === "channels" && (
           <>
-            <Alert>
-              <Info className="size-4" />
-              <AlertDescription>Sample data — notification channels are not configurable yet.</AlertDescription>
-            </Alert>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {CHANNEL_CARDS.map(ch => {
-                const Icon = ch.icon
-                return (
-                  <Card key={ch.id}>
-                    <CardContent className="space-y-3">
-                      <div className="flex items-start justify-between">
-                        <span className="grid size-9 place-items-center rounded-lg bg-[color-mix(in_srgb,var(--hue)_14%,transparent)] text-[var(--hue)]">
-                          <Icon className="size-[18px]" />
-                        </span>
-                        <Pill tone="ok" dot>Connected</Pill>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{ch.name}</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">{ch.desc}</p>
-                      </div>
-                      <p className="border-t pt-2 text-xs text-muted-foreground tabular-nums">{ch.routes} routes</p>
-                    </CardContent>
-                  </Card>
-                )
-              })}
+            <div className="flex justify-end">
+              <Button onClick={() => setChannelDialog("new")}><Plus className="size-4" /> Add channel</Button>
             </div>
+            {channels === null ? (
+              <Skeleton className="h-40 rounded-xl" />
+            ) : channels.length === 0 ? (
+              <EmptyState
+                icon={Send} title="No notification channels"
+                description="Add Slack, Discord, Telegram, email or a webhook so alerts reach you when you are not looking at the panel."
+                action={<Button onClick={() => setChannelDialog("new")}><Plus className="size-4" /> Add channel</Button>}
+              />
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {channels.map(ch => {
+                  const meta = CHANNEL_META[ch.type] ?? CHANNEL_META.webhook
+                  return (
+                    <Card key={ch.id}>
+                      <CardContent className="space-y-3">
+                        <div className="flex items-start justify-between">
+                          <span className="grid size-9 place-items-center rounded-lg bg-[color-mix(in_srgb,var(--hue)_14%,transparent)] text-[var(--hue)]">
+                            <meta.icon className="size-[18px]" />
+                          </span>
+                          <Switch checked={ch.enabled} onCheckedChange={v => toggleChannel(ch, v)} aria-label={`Enable channel ${ch.name}`} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{ch.name}</p>
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground">{meta.label}{ch.summary && ` · ${ch.summary}`}</p>
+                        </div>
+                        <div className="flex gap-1 border-t pt-2">
+                          <Button variant="outline" size="xs" onClick={() => testChannel(ch)}><Send className="size-3" /> Test</Button>
+                          <Button variant="ghost" size="xs" onClick={() => setChannelDialog(ch)}><Pencil className="size-3" /> Edit</Button>
+                          <Button variant="ghost" size="xs" className="ml-auto text-danger" onClick={() => setConfirm({ kind: "channel", id: ch.id, name: ch.name })}><Trash2 className="size-3" /> Delete</Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )}
           </>
         )}
       </PageBody>
+
+      <RuleDialog
+        value={ruleDialog} channels={channels ?? []}
+        onClose={() => setRuleDialog(null)}
+        onSaved={r => { setRules(prev => { const p = prev ?? []; return p.some(x => x.id === r.id) ? p.map(x => (x.id === r.id ? r : x)) : [r, ...p] }); setRuleDialog(null) }}
+      />
+      <ChannelDialog
+        value={channelDialog}
+        onClose={() => setChannelDialog(null)}
+        onSaved={c => { setChannels(prev => { const p = prev ?? []; return p.some(x => x.id === c.id) ? p.map(x => (x.id === c.id ? c : x)) : [c, ...p] }); setChannelDialog(null) }}
+      />
+      <ConfirmDialog
+        open={!!confirm} onOpenChange={o => { if (!o) setConfirm(null) }}
+        title={`Delete ${confirm?.kind ?? ""}?`} items={confirm ? [{ primary: confirm.name }] : undefined}
+        note="This cannot be undone." confirmLabel="Delete" loading={busy} onConfirm={doDelete}
+      />
     </>
+  )
+}
+
+/** PATCH helper (lib/api exposes get/post/delete only). */
+async function patch(path: string, body: unknown) {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_GO_API ?? ""}${path}`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    if (res.status === 401 && window.location.pathname !== "/login") window.location.href = "/login"
+    const b = await res.json().catch(() => ({})) as { error?: string }
+    const err = new Error(b.error ?? `${res.status} request failed`)
+    ;(err as ApiError).status = res.status
+    throw err
+  }
+  return res.json()
+}
+
+async function sendJSON<T>(method: "POST" | "PATCH", path: string, body: unknown): Promise<T> {
+  if (method === "POST") return nodeApi.post<T>(path, body)
+  return patch(path, body) as Promise<T>
+}
+
+function Field({ id, label, children, hint }: { id: string; label: string; children: React.ReactNode; hint?: string }) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      {children}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  )
+}
+
+function RuleDialog({ value, channels, onClose, onSaved }: {
+  value: Rule | "new" | null; channels: Channel[]; onClose: () => void; onSaved: (r: Rule) => void
+}) {
+  const editing = value && value !== "new" ? value : null
+  const [form, setForm] = useState<Rule>(blankRule())
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (value) { setForm(value === "new" ? blankRule() : { ...value }); setErr(null) }
+  }, [value])
+
+  const metric = metricOf(form.metric)
+  const set = <K extends keyof Rule>(k: K, v: Rule[K]) => setForm(f => ({ ...f, [k]: v }))
+
+  async function save() {
+    setSaving(true); setErr(null)
+    try {
+      const body = {
+        name: form.name, metric: form.metric, operator: form.operator, threshold: Number(form.threshold),
+        duration: Number(form.duration), severity: form.severity, target: form.target, channelIds: form.channelIds,
+        cooldown: Number(form.cooldown), enabled: form.enabled,
+      }
+      const saved = editing
+        ? await sendJSON<Rule>("PATCH", `/api/alerts/rules/${editing.id}`, body)
+        : await sendJSON<Rule>("POST", "/api/alerts/rules", body)
+      toast.success(editing ? "Rule updated" : "Rule created")
+      onSaved(saved)
+    } catch (e) { setErr(errMsg(e, "Could not save rule")) } finally { setSaving(false) }
+  }
+
+  return (
+    <Dialog open={!!value} onOpenChange={o => { if (!o) onClose() }}>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{editing ? "Edit rule" : "New alert rule"}</DialogTitle>
+          <DialogDescription>{metric?.hint}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <Field id="r-name" label="Name">
+            <Input id="r-name" value={form.name} onChange={e => set("name", e.target.value)} placeholder="High CPU" autoFocus />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field id="r-metric" label="Watch">
+              <select id="r-metric" className={selectCls} value={form.metric} onChange={e => set("metric", e.target.value)}>
+                {METRICS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </Field>
+            <Field id="r-sev" label="Severity">
+              <select id="r-sev" className={selectCls} value={form.severity} onChange={e => set("severity", e.target.value as Rule["severity"])}>
+                <option value="critical">Critical</option><option value="warning">Warning</option><option value="info">Info</option>
+              </select>
+            </Field>
+          </div>
+          {metric?.percent ? (
+            <div className="grid grid-cols-3 gap-3">
+              <Field id="r-op" label="When">
+                <select id="r-op" className={selectCls} value={form.operator} onChange={e => set("operator", e.target.value)}>
+                  <option value=">">above</option><option value=">=">at least</option><option value="<">below</option><option value="<=">at most</option>
+                </select>
+              </Field>
+              <Field id="r-th" label="Threshold (%)">
+                <Input id="r-th" type="number" min={0} max={100} value={form.threshold} onChange={e => set("threshold", Number(e.target.value))} />
+              </Field>
+              <Field id="r-dur" label="For (seconds)">
+                <Input id="r-dur" type="number" min={0} value={form.duration} onChange={e => set("duration", Number(e.target.value))} />
+              </Field>
+            </div>
+          ) : (
+            <Field id="r-target" label={form.metric === "deploy.failed" ? "Project (blank = any)" : "Container name (blank = any)"}>
+              <Input id="r-target" value={form.target === "*" ? "" : form.target} onChange={e => set("target", e.target.value)} className="font-mono" />
+            </Field>
+          )}
+          <Field id="r-cool" label="Cooldown (seconds)" hint="After an alert resolves, wait this long before it can fire again. Prevents flapping.">
+            <Input id="r-cool" type="number" min={0} value={form.cooldown} onChange={e => set("cooldown", Number(e.target.value))} />
+          </Field>
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">Notify</legend>
+            {channels.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No channels yet. Add one in the Channels tab; until then alerts only appear here.</p>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">Leave all unchecked to notify every enabled channel.</p>
+                {channels.map(c => (
+                  <label key={c.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox" className="size-4 accent-[var(--primary)]"
+                      checked={form.channelIds.includes(c.id)}
+                      onChange={e => set("channelIds", e.target.checked ? [...form.channelIds, c.id] : form.channelIds.filter(x => x !== c.id))}
+                    />
+                    {c.name} <span className="text-xs text-muted-foreground">{CHANNEL_META[c.type]?.label}</span>
+                  </label>
+                ))}
+              </>
+            )}
+          </fieldset>
+          {err && <Alert variant="destructive"><AlertDescription>{err}</AlertDescription></Alert>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={save} disabled={saving || !form.name.trim()}>
+            {saving && <Loader2 className="size-4 animate-spin" />} {editing ? "Save" : "Create rule"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function blankRule(): Rule {
+  return { id: "", name: "", metric: "host.cpu", operator: ">", threshold: 90, duration: 60, severity: "warning", target: "", channelIds: [], cooldown: 300, enabled: true }
+}
+
+type FieldSpec = { key: string; label: string; secret?: boolean; placeholder?: string; type?: string; optional?: boolean; hint?: string }
+const CHANNEL_FIELDS: Record<ChannelType, FieldSpec[]> = {
+  webhook: [
+    { key: "url", label: "URL", placeholder: "https://example.com/hooks/pulsenode" },
+    { key: "secret", label: "Signing secret", secret: true, optional: true, hint: "If set, requests carry X-PulseNode-Signature: sha256=HMAC of the body." },
+  ],
+  slack: [{ key: "webhookUrl", label: "Incoming webhook URL", secret: true, placeholder: "https://hooks.slack.com/services/…" }],
+  discord: [{ key: "webhookUrl", label: "Webhook URL", secret: true, placeholder: "https://discord.com/api/webhooks/…" }],
+  telegram: [
+    { key: "botToken", label: "Bot token", secret: true, placeholder: "123456:ABC…", hint: "Create a bot with @BotFather." },
+    { key: "chatId", label: "Chat ID", placeholder: "-1001234567890 or @channelname" },
+  ],
+  smtp: [
+    { key: "host", label: "SMTP host", placeholder: "smtp.example.com" },
+    { key: "port", label: "Port", placeholder: "587", type: "number" },
+    { key: "username", label: "Username", optional: true },
+    { key: "password", label: "Password", secret: true, optional: true },
+    { key: "from", label: "From", placeholder: "PulseNode <alerts@example.com>" },
+    { key: "to", label: "To", placeholder: "you@example.com, team@example.com" },
+  ],
+}
+
+function ChannelDialog({ value, onClose, onSaved }: {
+  value: Channel | "new" | null; onClose: () => void; onSaved: (c: Channel) => void
+}) {
+  const editing = value && value !== "new" ? value : null
+  const [type, setType] = useState<ChannelType>("slack")
+  const [name, setName] = useState("")
+  const [cfg, setCfg] = useState<Record<string, string>>({})
+  const [security, setSecurity] = useState("starttls")
+  const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!value) return
+    setErr(null)
+    if (value === "new") { setType("slack"); setName(""); setCfg({}); setSecurity("starttls") }
+    else {
+      setType(value.type); setName(value.name); setSecurity(value.config.security || "starttls")
+      setCfg(Object.fromEntries(Object.entries(value.config).filter(([k]) => !k.endsWith("Set"))))
+    }
+  }, [value])
+
+  const fields = CHANNEL_FIELDS[type]
+  const body = () => ({ name, type, config: { ...cfg, ...(type === "smtp" ? { security } : {}) } })
+
+  async function save() {
+    setSaving(true); setErr(null)
+    try {
+      const saved = editing
+        ? await sendJSON<Channel>("PATCH", `/api/alerts/channels/${editing.id}`, body())
+        : await sendJSON<Channel>("POST", "/api/alerts/channels", body())
+      toast.success(editing ? "Channel updated" : "Channel added")
+      onSaved(saved)
+    } catch (e) { setErr(errMsg(e, "Could not save channel")) } finally { setSaving(false) }
+  }
+
+  async function test() {
+    setTesting(true); setErr(null)
+    try {
+      await nodeApi.post("/api/alerts/channels/test", { ...body(), id: editing?.id })
+      toast.success("Test notification sent")
+    } catch (e) { setErr(errMsg(e, "Test failed")) } finally { setTesting(false) }
+  }
+
+  return (
+    <Dialog open={!!value} onOpenChange={o => { if (!o) onClose() }}>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{editing ? "Edit channel" : "Add notification channel"}</DialogTitle>
+          <DialogDescription>{CHANNEL_META[type].desc}. Secrets are encrypted at rest and never shown again.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          {!editing && (
+            <Field id="c-type" label="Type">
+              <select id="c-type" className={selectCls} value={type} onChange={e => { setType(e.target.value as ChannelType); setCfg({}); setErr(null) }}>
+                {(Object.keys(CHANNEL_META) as ChannelType[]).map(t => <option key={t} value={t}>{CHANNEL_META[t].label}</option>)}
+              </select>
+            </Field>
+          )}
+          <Field id="c-name" label="Name">
+            <Input id="c-name" value={name} onChange={e => setName(e.target.value)} placeholder={`${CHANNEL_META[type].label} alerts`} />
+          </Field>
+          {fields.map(f => {
+            const stored = !!editing && f.secret && editing.config[`${f.key}Set`] === "true"
+            return (
+              <Field key={f.key} id={`c-${f.key}`} label={f.label} hint={f.hint}>
+                <Input
+                  id={`c-${f.key}`} type={f.secret ? "password" : f.type ?? "text"} autoComplete="off"
+                  value={cfg[f.key] ?? ""} onChange={e => setCfg(c => ({ ...c, [f.key]: e.target.value }))}
+                  placeholder={stored ? "•••••••• (saved — leave blank to keep)" : f.placeholder}
+                  className={f.type === "number" ? undefined : "font-mono text-xs"}
+                />
+              </Field>
+            )
+          })}
+          {type === "smtp" && (
+            <Field id="c-sec" label="Encryption">
+              <select id="c-sec" className={selectCls} value={security} onChange={e => setSecurity(e.target.value)}>
+                <option value="starttls">STARTTLS (port 587)</option><option value="tls">TLS (port 465)</option><option value="none">None (not recommended)</option>
+              </select>
+            </Field>
+          )}
+          {err && <Alert variant="destructive"><AlertDescription>{err}</AlertDescription></Alert>}
+        </div>
+        <DialogFooter className="sm:justify-between">
+          <Button variant="outline" onClick={test} disabled={testing || saving}>
+            {testing ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />} Send test
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button onClick={save} disabled={saving || !name.trim()}>
+              {saving && <Loader2 className="size-4 animate-spin" />} {editing ? "Save" : "Add channel"}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

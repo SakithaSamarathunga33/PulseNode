@@ -220,7 +220,7 @@ export default function DatabasesPage() {
                   placeholder="Search name, engine or host"
                   className="pr-8 pl-8"
                 />
-                <kbd className="pointer-events-none absolute right-2 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border bg-muted px-1 font-mono text-[10px] text-muted-foreground">/</kbd>
+                <kbd className="pointer-events-none absolute right-2 hidden sm:inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border bg-muted px-1 font-mono text-[11px] text-muted-foreground">/</kbd>
               </label>
               <Segmented
                 aria-label="Filter by state"

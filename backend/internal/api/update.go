@@ -2,7 +2,9 @@ package api
 
 import (
 	"bufio"
+	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -34,6 +36,12 @@ func (s *Server) updateStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) systemUpdate(w http.ResponseWriter, r *http.Request) {
+	// The update recreates this very container; a deploy running now would be
+	// killed mid-build and half-swapped. Make the operator wait for it.
+	if s.queue != nil && s.queue.Busy() {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "a deployment is running — wait for it to finish before updating"})
+		return
+	}
 	globalUpdate.mu.Lock()
 	if globalUpdate.running {
 		globalUpdate.mu.Unlock()
@@ -47,14 +55,27 @@ func (s *Server) systemUpdate(w http.ResponseWriter, r *http.Request) {
 	globalUpdate.startedAt = &now
 	globalUpdate.mu.Unlock()
 
-	go runUpdate()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				updateFail(fmt.Sprintf("update crashed: %v", r))
+			}
+		}()
+		runUpdate()
+	}()
 
 	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true})
 }
 
+// maxUpdateLogLines bounds the in-memory log; the oldest lines are dropped.
+const maxUpdateLogLines = 2000
+
 func updateLog(line string) {
 	globalUpdate.mu.Lock()
 	globalUpdate.log = append(globalUpdate.log, line)
+	if n := len(globalUpdate.log); n > maxUpdateLogLines {
+		globalUpdate.log = append([]string(nil), globalUpdate.log[n-maxUpdateLogLines:]...)
+	}
 	globalUpdate.mu.Unlock()
 }
 
@@ -100,8 +121,13 @@ func streamCmd(name string, args ...string) error {
 	return streamCmdEnv(nil, name, args...)
 }
 
+// updateCmdTimeout bounds each update subprocess (git pull, compose pull/build).
+const updateCmdTimeout = 15 * time.Minute
+
 func streamCmdEnv(extra []string, name string, args ...string) error {
-	cmd := exec.Command(name, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), updateCmdTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Env = append(os.Environ(), extra...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -112,10 +138,20 @@ func streamCmdEnv(extra []string, name string, args ...string) error {
 		return err
 	}
 	scanner := bufio.NewScanner(stdout)
+	// Compose progress output can contain very long lines; the default 64KB
+	// token limit would end the scan and leave the child blocked on a full pipe.
+	scanner.Buffer(make([]byte, 64<<10), 1<<20)
 	for scanner.Scan() {
 		updateLog(scanner.Text())
 	}
-	return cmd.Wait()
+	// If the scan stopped early (oversized line), keep draining so the child can
+	// finish, but without logging it.
+	_, _ = io.Copy(io.Discard, stdout)
+	err = cmd.Wait()
+	if ctx.Err() == context.DeadlineExceeded {
+		return fmt.Errorf("%s timed out after %s", name, updateCmdTimeout)
+	}
+	return err
 }
 
 // resolveCompose returns the binary and prefix args for running compose commands.

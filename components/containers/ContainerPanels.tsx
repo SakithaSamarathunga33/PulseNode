@@ -1,5 +1,6 @@
 "use client"
 
+import { useTimeouts } from "@/lib/use-timeouts"
 import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { FileText, Pause, Play, RefreshCw, Terminal, Trash2, Loader2, CornerDownLeft, ArrowUp } from "lucide-react"
 import { toast } from "sonner"
@@ -36,7 +37,7 @@ function PanelFooter({ children }: { children: React.ReactNode }) {
 }
 
 const Kbd = ({ children }: { children: React.ReactNode }) => (
-  <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border bg-muted px-1 font-mono text-[10px] text-foreground/80">{children}</kbd>
+  <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border bg-muted px-1 font-mono text-[11px] text-foreground/80">{children}</kbd>
 )
 
 /** Body of the Logs drawer: polls `docker logs` every 5s; filter, pause, clear and level colouring are client-side. */
@@ -154,6 +155,7 @@ type TermLine = { type: "cmd" | "out" | "err" | "sys"; text: string }
 
 /** Body of the Shell drawer (one-shot `docker exec` per command, with ↑/↓ history). */
 export function TerminalPanel({ container }: { container: Container }) {
+  const later = useTimeouts()
   const [lines, setLines]   = useState<TermLine[]>([
     { type: "sys", text: `Connected to ${container.name}. Type a command below.` },
   ])
@@ -180,7 +182,7 @@ export function TerminalPanel({ container }: { container: Container }) {
       setLines(prev => [...prev, { type: "err", text: `[error] ${msg}` }])
     } finally {
       setRunning(false)
-      setTimeout(() => inputRef.current?.focus(), 50)
+      later(() => inputRef.current?.focus(), 50)
     }
   }
 

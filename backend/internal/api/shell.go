@@ -2,11 +2,15 @@ package api
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
@@ -32,11 +36,42 @@ func originAllowed(origin string, allowed []string) bool {
 	return false
 }
 
+const (
+	shellReadLimit   = 64 << 10 // largest single paste/keystroke frame accepted from the browser
+	shellWriteWait   = 10 * time.Second
+	shellPongWait    = 60 * time.Second
+	shellPingEvery   = 30 * time.Second
+	shellIdleTimeout = 30 * time.Minute // no keystrokes for this long → session is closed
+)
+
+// shellActor names the session owner for the audit log (same cookie lookup the
+// audit middleware uses; WebSocket upgrades are GETs, which it does not record).
+func (s *Server) shellActor(r *http.Request) string {
+	if c, err := r.Cookie(sessionCookieName); err == nil {
+		if claims, ok := s.auth.ParseToken(c.Value); ok {
+			if sub, _ := claims["sub"].(string); sub != "" {
+				return sub
+			}
+		}
+	}
+	return "anonymous"
+}
+
 // containerShell upgrades to WebSocket then proxies a TTY shell inside the container
 // via Docker exec hijacking. The PTY is allocated by Docker inside the container —
 // no CGO/creack/pty needed on the host.
+//
+// Lifecycle: one goroutine reads the browser, one writes the browser (the only
+// data writer — gorilla allows a single), and a pinger sends control frames
+// (safe concurrently). When any of them ends, or the session is idle too long,
+// both connections are closed; closing the exec's TTY hangs up the shell inside
+// the container so the process does not outlive the browser tab.
 func (s *Server) containerShell(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	if s.docker == nil {
+		http.Error(w, "docker unavailable", http.StatusServiceUnavailable)
+		return
+	}
 
 	wsUpgrader := websocket.Upgrader{
 		ReadBufferSize:  4096,
@@ -67,16 +102,35 @@ func (s *Server) containerShell(w http.ResponseWriter, r *http.Request) {
 	}
 	defer dockerConn.Close()
 
-	ctx := r.Context()
-	done := make(chan struct{}, 2)
+	// Container shells are the most sensitive thing the panel exposes and the
+	// upgrade is a GET (not covered by the audit middleware), so log them here.
+	actor, started := s.shellActor(r), time.Now()
+	resource := "/api/docker/containers/" + id + "/shell"
+	s.db.InsertAuditLog(actor, "SHELL open", resource, clientIP(r), http.StatusSwitchingProtocols)
+	defer func() {
+		s.db.InsertAuditLog(actor, "SHELL close ("+time.Since(started).Round(time.Second).String()+")", resource, clientIP(r), http.StatusOK)
+	}()
 
-	// Docker → WebSocket (container output → browser)
+	ws.SetReadLimit(shellReadLimit)
+	_ = ws.SetReadDeadline(time.Now().Add(shellPongWait))
+	ws.SetPongHandler(func(string) error { return ws.SetReadDeadline(time.Now().Add(shellPongWait)) })
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	var lastInput atomic.Int64
+	lastInput.Store(time.Now().UnixNano())
+	var wg sync.WaitGroup
+
+	// Docker → WebSocket (container output → browser). The only data writer.
+	wg.Add(1)
 	go func() {
-		defer func() { done <- struct{}{} }()
+		defer wg.Done()
+		defer cancel()
 		buf := make([]byte, 4096)
 		for {
 			n, err := dockerConn.Read(buf)
 			if n > 0 {
+				_ = ws.SetWriteDeadline(time.Now().Add(shellWriteWait))
 				if err2 := ws.WriteMessage(websocket.BinaryMessage, buf[:n]); err2 != nil {
 					return
 				}
@@ -88,23 +142,53 @@ func (s *Server) containerShell(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// WebSocket → Docker (browser keystrokes → container stdin)
+	wg.Add(1)
 	go func() {
-		defer func() { done <- struct{}{} }()
+		defer wg.Done()
+		defer cancel()
 		for {
 			_, msg, err := ws.ReadMessage()
 			if err != nil {
 				return
 			}
+			lastInput.Store(time.Now().UnixNano())
 			if _, err := dockerConn.Write(msg); err != nil {
 				return
 			}
 		}
 	}()
 
-	select {
-	case <-ctx.Done():
-	case <-done:
-	}
+	// Keepalive + idle timeout. WriteControl may run alongside the data writer.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		t := time.NewTicker(shellPingEvery)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if time.Since(time.Unix(0, lastInput.Load())) > shellIdleTimeout {
+					_ = ws.WriteControl(websocket.CloseMessage,
+						websocket.FormatCloseMessage(websocket.CloseGoingAway, "idle timeout"), time.Now().Add(shellWriteWait))
+					cancel()
+					return
+				}
+				if err := ws.WriteControl(websocket.PingMessage, nil, time.Now().Add(shellWriteWait)); err != nil {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+
+	<-ctx.Done()
+	// Closing both ends unblocks the reader goroutines; the Docker side hangs up
+	// the exec's TTY, which ends the shell inside the container.
+	_ = dockerConn.Close()
+	_ = ws.Close()
+	wg.Wait()
 }
 
 // hijackDockerExec dials the Docker socket directly and performs an HTTP upgrade

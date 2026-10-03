@@ -13,26 +13,30 @@ import (
 // pid: host, a bind of / or the socket) or can read the panel's own secrets
 // (a build context, env_file or secret file pointing at /workspace/.env.local).
 // checkComposePolicy rejects those before `docker compose up`.
-func (cfg Config) checkComposePolicy(ctx context.Context, dir string) error {
-	out, err := runOutput(ctx, dir, "docker", "compose", "-f", "docker-compose.yml",
+//
+// project is the fixed compose project name (see composeProject) passed with -p:
+// the repo's own top-level `name:` must never choose it, or a repo could name
+// itself after the panel (or another app) and take over its services and volumes.
+func (cfg Config) checkComposePolicy(ctx context.Context, dir, file, project string) error {
+	out, err := runOutput(ctx, dir, "docker", "compose", "-p", project, "-f", file,
 		"config", "--format", "json", "--no-env-resolution")
 	if err != nil {
-		return fmt.Errorf("docker-compose.yml could not be parsed: %w", err)
+		return fmt.Errorf("%s could not be parsed: %w", file, err)
 	}
-	problems := composeViolations([]byte(out), dir)
+	problems := composeViolations([]byte(out), dir, project)
 
 	// Some compose versions (e.g. v2.36) drop env_file from the output above,
 	// so read the paths again uninterpolated; any path still containing "$"
 	// (like ${X:-/workspace/.env.local}) is rejected rather than guessed at.
-	raw, err := runOutput(ctx, dir, "docker", "compose", "-f", "docker-compose.yml",
+	raw, err := runOutput(ctx, dir, "docker", "compose", "-p", project, "-f", file,
 		"config", "--format", "json", "--no-env-resolution", "--no-interpolate")
 	if err != nil {
-		return fmt.Errorf("docker-compose.yml could not be parsed: %w", err)
+		return fmt.Errorf("%s could not be parsed: %w", file, err)
 	}
 	problems = append(problems, envFileViolations([]byte(raw), dir)...)
 
 	if len(problems) > 0 {
-		return fmt.Errorf("docker-compose.yml uses settings PulseNode does not allow:\n  - %s",
+		return fmt.Errorf("%s uses settings PulseNode does not allow:\n  - %s", file,
 			strings.Join(problems, "\n  - "))
 	}
 	return nil
@@ -66,6 +70,11 @@ type composeFile struct {
 		External   bool              `json:"external"`
 		DriverOpts map[string]string `json:"driver_opts"`
 	} `json:"volumes"`
+	Networks map[string]struct {
+		Name     string `json:"name"`
+		External bool   `json:"external"`
+		Driver   string `json:"driver"`
+	} `json:"networks"`
 	Secrets map[string]struct {
 		File string `json:"file"`
 	} `json:"secrets"`
@@ -75,19 +84,24 @@ type composeFile struct {
 }
 
 type composeService struct {
-	Privileged  bool              `json:"privileged"`
-	Pid         string            `json:"pid"`
-	Cgroup      string            `json:"cgroup"`
-	Ipc         string            `json:"ipc"`
-	Uts         string            `json:"uts"`
-	UsernsMode  string            `json:"userns_mode"`
-	NetworkMode string            `json:"network_mode"`
-	CapAdd      []string          `json:"cap_add"`
-	Devices     []json.RawMessage `json:"devices"`
-	SecurityOpt []string          `json:"security_opt"`
-	VolumesFrom []string          `json:"volumes_from"`
-	Labels      map[string]string `json:"labels"`
-	Volumes     []struct {
+	Privileged   bool              `json:"privileged"`
+	Pid          string            `json:"pid"`
+	Cgroup       string            `json:"cgroup"`
+	Ipc          string            `json:"ipc"`
+	Uts          string            `json:"uts"`
+	UsernsMode   string            `json:"userns_mode"`
+	NetworkMode  string            `json:"network_mode"`
+	CapAdd       []string          `json:"cap_add"`
+	Devices      []json.RawMessage `json:"devices"`
+	SecurityOpt  []string          `json:"security_opt"`
+	CgroupParent string            `json:"cgroup_parent"`
+	Ports        json.RawMessage   `json:"ports"`
+	Sysctls      json.RawMessage   `json:"sysctls"`
+	Ulimits      json.RawMessage   `json:"ulimits"`
+	ExtraHosts   json.RawMessage   `json:"extra_hosts"`
+	VolumesFrom  []string          `json:"volumes_from"`
+	Labels       map[string]string `json:"labels"`
+	Volumes      []struct {
 		Type   string `json:"type"`
 		Source string `json:"source"`
 	} `json:"volumes"`
@@ -98,12 +112,22 @@ type composeService struct {
 		Context            string            `json:"context"`
 		Dockerfile         string            `json:"dockerfile"`
 		AdditionalContexts map[string]string `json:"additional_contexts"`
+		Network            string            `json:"network"`
+		Privileged         bool              `json:"privileged"`
+		ExtraHosts         json.RawMessage   `json:"extra_hosts"`
 	} `json:"build"`
 }
 
+// present reports whether a JSON value carries anything (not absent, null, {} or []).
+func present(raw json.RawMessage) bool {
+	s := strings.TrimSpace(string(raw))
+	return s != "" && s != "null" && s != "{}" && s != "[]"
+}
+
 // composeViolations returns a human-readable list of disallowed settings in the
-// JSON output of `docker compose config`. dir is the cloned repo root.
-func composeViolations(raw []byte, dir string) []string {
+// JSON output of `docker compose config`. dir is the cloned repo root and
+// project the compose project name forced with -p.
+func composeViolations(raw []byte, dir, project string) []string {
 	var cf composeFile
 	if err := json.Unmarshal(raw, &cf); err != nil {
 		return []string{"unreadable compose config: " + err.Error()}
@@ -111,6 +135,9 @@ func composeViolations(raw []byte, dir string) []string {
 	var out []string
 	add := func(format string, a ...any) { out = append(out, fmt.Sprintf(format, a...)) }
 
+	if project != "" && cf.Name != "" && cf.Name != project {
+		add("compose project name must be %s, not %s", project, cf.Name)
+	}
 	for name, s := range cf.Services {
 		if s.Privileged {
 			add("%s: privileged: true", name)
@@ -125,6 +152,23 @@ func composeViolations(raw []byte, dir string) []string {
 		}
 		if s.NetworkMode == "host" || strings.HasPrefix(s.NetworkMode, "container:") {
 			add("%s: network_mode: %s", name, s.NetworkMode)
+		}
+		// Publishing host ports would squat on the host (80/443/8080 …) or expose
+		// internals directly; traffic reaches the app through Traefik instead.
+		if present(s.Ports) {
+			add("%s: ports — publishing host ports is not allowed (PulseNode routes traffic through Traefik; remove ports or use expose)", name)
+		}
+		if present(s.Sysctls) {
+			add("%s: sysctls", name)
+		}
+		if present(s.Ulimits) {
+			add("%s: ulimits", name)
+		}
+		if present(s.ExtraHosts) {
+			add("%s: extra_hosts", name)
+		}
+		if s.CgroupParent != "" {
+			add("%s: cgroup_parent: %s", name, s.CgroupParent)
 		}
 		if len(s.CapAdd) > 0 {
 			add("%s: cap_add: %s", name, strings.Join(s.CapAdd, ", "))
@@ -171,6 +215,15 @@ func composeViolations(raw []byte, dir string) []string {
 			}
 		}
 		if b := s.Build; b != nil {
+			if b.Privileged {
+				add("%s: build.privileged: true", name)
+			}
+			if b.Network != "" && b.Network != "default" && b.Network != "none" {
+				add("%s: build.network: %s", name, b.Network)
+			}
+			if present(b.ExtraHosts) {
+				add("%s: build.extra_hosts", name)
+			}
 			if !isRemoteContext(b.Context) && !resolvedWithin(dir, b.Context) {
 				add("%s: build context outside the repository: %s", name, b.Context)
 			}
@@ -187,8 +240,19 @@ func composeViolations(raw []byte, dir string) []string {
 		}
 		// Only volumes owned by this compose project: an external or explicitly
 		// named volume could be PulseNode's own (keys, database, backups).
-		if v.External || (cf.Name != "" && !strings.HasPrefix(v.Name, cf.Name+"_")) {
+		if v.External || (project != "" && !strings.HasPrefix(v.Name, project+"_")) {
 			add("volume %s: external or explicitly named volumes are not allowed (%s)", name, v.Name)
+		}
+	}
+	// Only networks owned by this project. The Traefik network is attached by the
+	// overlay PulseNode writes, never by the repo, so no external network is
+	// needed — and one could reach the panel or other apps' databases.
+	for name, n := range cf.Networks {
+		if n.External || (project != "" && !strings.HasPrefix(n.Name, project+"_")) {
+			add("network %s: external or explicitly named networks are not allowed (%s)", name, n.Name)
+		}
+		if n.Driver != "" && n.Driver != "bridge" {
+			add("network %s: driver %s", name, n.Driver)
 		}
 	}
 	for name, s := range cf.Secrets {

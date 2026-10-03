@@ -1,5 +1,6 @@
 "use client"
 
+import { API_BASE } from "@/lib/api"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import {
@@ -14,7 +15,7 @@ import { EmptyState } from "@/components/pn/EmptyState"
 import { Pill } from "@/components/dashboard/Pill"
 import { cn } from "@/lib/utils"
 
-const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
+const GO_API = API_BASE
 
 type Project = {
   ID: string

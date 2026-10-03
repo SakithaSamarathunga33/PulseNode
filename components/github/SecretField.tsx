@@ -1,5 +1,6 @@
 "use client"
 
+import { useTimeouts } from "@/lib/use-timeouts"
 import { useState } from "react"
 import { Check, Copy, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -13,6 +14,7 @@ export function CopyField({
 }: { id: string; label: string; value: string; secret?: boolean }) {
   const [shown, setShown] = useState(false)
   const [copied, setCopied] = useState(false)
+  const later = useTimeouts()
   const display = !value ? "—" : secret && !shown ? "•".repeat(24) : value
 
   const copy = async () => {
@@ -20,7 +22,7 @@ export function CopyField({
     if (await copyText(value)) {
       setCopied(true)
       toast.success(`${label} copied`)
-      setTimeout(() => setCopied(false), 1600)
+      later(() => setCopied(false), 1600)
     }
   }
 

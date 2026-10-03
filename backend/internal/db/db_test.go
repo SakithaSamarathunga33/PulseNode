@@ -1,8 +1,11 @@
 package db
 
 import (
+	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func newTestDB(t *testing.T) *DB {
@@ -144,5 +147,153 @@ func TestDeploymentImageTagRoundTrip(t *testing.T) {
 	got, _ = d.GetDeploymentByID("dep_2")
 	if got.ImageTag != "pn-app:abc1234" || got.Trigger != "rollback" {
 		t.Fatalf("rollback deployment = %+v", got)
+	}
+}
+
+func TestPragmasApplied(t *testing.T) {
+	d := newTestDB(t)
+	var mode string
+	if err := d.QueryRow(`PRAGMA journal_mode`).Scan(&mode); err != nil || mode != "wal" {
+		t.Fatalf("journal_mode = %q, %v; want wal", mode, err)
+	}
+	var fk int
+	if err := d.QueryRow(`PRAGMA foreign_keys`).Scan(&fk); err != nil || fk != 1 {
+		t.Fatalf("foreign_keys = %d, %v; want 1", fk, err)
+	}
+	var busy int
+	if err := d.QueryRow(`PRAGMA busy_timeout`).Scan(&busy); err != nil || busy != 5000 {
+		t.Fatalf("busy_timeout = %d, %v; want 5000", busy, err)
+	}
+}
+
+// Every list function must serialise to [] (never null) when empty, because the
+// React client calls .length/.map on the result.
+func TestEmptyListsMarshalAsArray(t *testing.T) {
+	d := newTestDB(t)
+	cases := map[string]func() (any, error){
+		"projects":     func() (any, error) { return d.ListProjects() },
+		"deployments":  func() (any, error) { return d.ListDeployments("x") },
+		"queued":       func() (any, error) { return d.GetQueuedDeployments() },
+		"logs":         func() (any, error) { return d.GetLogs("x") },
+		"managed":      func() (any, error) { return d.ListManagedDatabases() },
+		"connected":    func() (any, error) { return d.ListConnectedDatabases() },
+		"alertRules":   func() (any, error) { return d.ListAlertRules() },
+		"alertHistory": func() (any, error) { return d.ListAlertHistory(10) },
+		"channels":     func() (any, error) { return d.ListNotificationChannels() },
+		"domains":      func() (any, error) { return d.ListDomains() },
+		"installs":     func() (any, error) { return d.ListAppInstallations() },
+		"heartbeats":   func() (any, error) { return d.ListHeartbeatsSince(time.Now().Add(-time.Hour)) },
+	}
+	for name, fn := range cases {
+		v, err := fn()
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		b, _ := json.Marshal(v)
+		if string(b) != "[]" {
+			t.Errorf("%s marshals to %s, want []", name, b)
+		}
+	}
+}
+
+func TestClaimProjectForDeploy(t *testing.T) {
+	d := newTestDB(t)
+	p := &Project{ID: "p1", Name: "n", RepoURL: "https://github.com/a/b", Branch: "main", BuildMethod: "auto", Port: 3000, Domain: "a.example", Status: "running", EnvVars: "{}"}
+	if err := d.CreateProject(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.UpdateProjectStatus("p1", "running", "cont1"); err != nil {
+		t.Fatal(err)
+	}
+	prev, ok, err := d.ClaimProjectForDeploy("p1")
+	if err != nil || !ok || prev != "running" {
+		t.Fatalf("first claim: prev=%q ok=%v err=%v", prev, ok, err)
+	}
+	if _, ok, _ := d.ClaimProjectForDeploy("p1"); ok {
+		t.Fatal("second claim must fail while building")
+	}
+	got, _ := d.GetProject("p1")
+	if got.Status != "building" || got.ContainerID != "cont1" {
+		t.Fatalf("claim must keep container_id: %+v", got)
+	}
+	if _, ok, _ := d.ClaimProjectForDeploy("missing"); ok {
+		t.Fatal("claiming a missing project must not succeed")
+	}
+}
+
+func TestResetStuckProjects(t *testing.T) {
+	d := newTestDB(t)
+	mk := func(id, status, cid string) {
+		p := &Project{ID: id, Name: id, RepoURL: "https://github.com/a/b", Branch: "main", BuildMethod: "auto", Port: 3000, Domain: id + ".example", Status: status, EnvVars: "{}"}
+		if err := d.CreateProject(p); err != nil {
+			t.Fatal(err)
+		}
+		if cid != "" {
+			_ = d.UpdateProjectStatus(id, status, cid)
+		}
+	}
+	mk("live", "building", "c1")
+	mk("dead", "building", "")
+	mk("busy", "building", "c2")
+	_ = d.CreateDeployment(&Deployment{ID: "d1", ProjectID: "busy", Status: "queued", Trigger: "manual"})
+	n, err := d.ResetStuckProjects()
+	if err != nil || n != 2 {
+		t.Fatalf("reset = %d, %v; want 2", n, err)
+	}
+	for id, want := range map[string]string{"live": "running", "dead": "failed", "busy": "building"} {
+		p, _ := d.GetProject(id)
+		if p.Status != want {
+			t.Errorf("%s status = %s, want %s", id, p.Status, want)
+		}
+	}
+}
+
+func TestLogWriterBatchesAndFlushesOnClose(t *testing.T) {
+	d := newTestDB(t)
+	w := d.NewLogWriter("dep1")
+	for i := 0; i < 250; i++ { // crosses the 100-line threshold twice
+		w.Add("stdout", fmt.Sprintf("line %d", i))
+	}
+	w.Close()
+	logs, err := d.GetLogs("dep1")
+	if err != nil || len(logs) != 250 {
+		t.Fatalf("got %d lines, err %v; want 250", len(logs), err)
+	}
+	if logs[0]["line"] != "line 0" || logs[249]["line"] != "line 249" {
+		t.Fatalf("order not preserved: %q … %q", logs[0]["line"], logs[249]["line"])
+	}
+	w.Close() // idempotent
+}
+
+func TestDeleteProjectRemovesDeploymentsAndLogs(t *testing.T) {
+	d := newTestDB(t)
+	p := &Project{ID: "p1", Name: "n", RepoURL: "https://github.com/a/b", Branch: "main", BuildMethod: "auto", Port: 3000, Domain: "a.example", Status: "idle", EnvVars: "{}"}
+	_ = d.CreateProject(p)
+	_ = d.CreateDeployment(&Deployment{ID: "d1", ProjectID: "p1", Status: "success", Trigger: "manual"})
+	_ = d.AppendLog("d1", "stdout", "hi")
+	if err := d.DeleteProject("p1"); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	_ = d.QueryRow(`SELECT (SELECT COUNT(*) FROM deployments) + (SELECT COUNT(*) FROM deployment_logs) + (SELECT COUNT(*) FROM projects)`).Scan(&n)
+	if n != 0 {
+		t.Fatalf("%d rows left after delete", n)
+	}
+}
+
+func TestPruneOld(t *testing.T) {
+	d := newTestDB(t)
+	_, _ = d.Exec(`INSERT INTO deployment_logs (deployment_id, stream, line, ts) VALUES ('d','stdout','old', datetime('now','-40 days')), ('d','stdout','new', datetime('now'))`)
+	_, _ = d.Exec(`INSERT INTO audit_log (action, created_at) VALUES ('old', datetime('now','-100 days')), ('new', datetime('now'))`)
+	_, _ = d.Exec(`INSERT INTO alert_history (rule_id,rule_name,metric,value,severity,fired_at) VALUES ('r','r','cpu',1,'warning', datetime('now','-100 days')), ('r','r','cpu',1,'warning', datetime('now'))`)
+	if err := d.PruneOld(30*24*time.Hour, 90*24*time.Hour, 90*24*time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	for _, tbl := range []string{"deployment_logs", "audit_log", "alert_history"} {
+		var n int
+		_ = d.QueryRow(`SELECT COUNT(*) FROM ` + tbl).Scan(&n)
+		if n != 1 {
+			t.Errorf("%s has %d rows after prune, want 1", tbl, n)
+		}
 	}
 }

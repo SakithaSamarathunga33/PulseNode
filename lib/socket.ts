@@ -8,6 +8,7 @@ const REALTIME_EVENTS = [
   "container:stats",
   "deploy:log",
   "alert:new",
+  "alert:update",
   "alert:count",
 ]
 
@@ -54,8 +55,6 @@ class BrowserRealtime {
     this.channel.addEventListener("message", event => {
       const msg = event.data
       if (msg?.type === "realtime:status") {
-        if (msg.data === "connected") console.log("[sse] shared worker connected")
-        if (msg.data === "disconnected") console.log("[sse] shared worker disconnected")
         return
       }
       if (msg?.type) this.emit(msg.type, msg.data)
@@ -70,11 +69,9 @@ class BrowserRealtime {
     this.source = new EventSource(this.url)
     this.source.addEventListener("open", () => {
       this.reconnects = 0
-      console.log("[sse] connected")
     })
 
     this.source.addEventListener("error", () => {
-      console.log("[sse] disconnected")
       this.source?.close()
       this.source = null
       this.scheduleReconnect()

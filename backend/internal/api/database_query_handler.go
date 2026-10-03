@@ -306,6 +306,11 @@ func (s *Server) databaseQuery(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, qResult)
 }
 
+// isDestructiveQuery is a UX nicety, NOT a security control: a substring match
+// that asks the user to confirm before an obviously destructive statement. It is
+// trivially bypassed (DROP\ttable, a comment or newline after the keyword, other
+// engines' syntax) and must never be relied on to stop a query — the query
+// endpoint runs with the database's own credentials, behind the admin login.
 func isDestructiveQuery(query string) bool {
 	upper := strings.ToUpper(strings.TrimSpace(query))
 	for _, kw := range []string{"DROP ", "TRUNCATE ", "DELETE ", "UPDATE "} {

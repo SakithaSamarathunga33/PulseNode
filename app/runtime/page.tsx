@@ -282,7 +282,32 @@ export default function RuntimePage() {
                     description="Containers that are running will show their CPU and memory here."
                   />
                 ) : (
-                  <div className="overflow-x-auto">
+                  <>
+                  <ul className="divide-y sm:hidden">
+                    {sorted.map(c => (
+                      <li key={c.id} className="space-y-2.5 px-4 py-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{c.name}</p>
+                            <p className="truncate font-mono text-[11px] text-muted-foreground" title={c.image}>{c.image}</p>
+                          </div>
+                          <Pill tone="ok" dot>running</Pill>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs"><span className="text-muted-foreground">CPU</span>
+                            <span className={cn("font-medium tabular-nums", TEXT_TONE[usageTone(c.cpu)])}>{c.cpu.toFixed(1)}%</span></div>
+                          <ProgressBar value={c.cpu} tone={usageTone(c.cpu)} />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs"><span className="text-muted-foreground">Memory</span>
+                            <span className="tabular-nums"><span className={cn("font-medium", TEXT_TONE[usageTone(c.ramPct)])}>{fmtMb(c.ramMb)}</span>
+                              {c.ramLimitMb > 0 && <span className="text-muted-foreground"> / {fmtMb(c.ramLimitMb)}</span>}</span></div>
+                          <ProgressBar value={c.ramPct} tone={usageTone(c.ramPct)} />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="hidden overflow-x-auto sm:block">
                     <Table className="min-w-[760px]">
                       <TableHeader>
                         <TableRow>
@@ -326,6 +351,7 @@ export default function RuntimePage() {
                       </TableBody>
                     </Table>
                   </div>
+                  </>
                 )}
               </Card>
             </section>

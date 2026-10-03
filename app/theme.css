@@ -83,8 +83,10 @@
   --db-clickhouse: #fbcd1c; --db-mongo: #47a248; --db-other: #6d5cff;
   --eco-go: #00add8; --eco-npm: #cb3837; --eco-deb: #a81d33; --eco-other: #6d5cff;
 
-  /* rgb triplets for the legacy `rgb(var(--x) / a)` Tailwind colours */
-
+  /* ── Terminal surfaces: dark in BOTH themes (logs, shell, query editor) ── */
+  --t-bg: #0d1117; --t-bar: #161b22; --t-border: #30363d; --t-hover: #21262d;
+  --t-fg: #e6edf3; --t-muted: #8b949e; --t-dim: #7d8590;
+  --t-err: #ff7b72; --t-sys: #d2a8ff; --t-ok: #7ee787; --t-warn: #e3b341;
 }
 
 :root[data-theme="dark"] {

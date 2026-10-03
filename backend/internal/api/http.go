@@ -2,12 +2,17 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
+
+var errInvalidEnvValue = errors.New("value must be a single line without control characters")
+var envKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`)
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -24,8 +29,16 @@ func decodeJSON(r *http.Request, dst any) error {
 	return json.NewDecoder(r.Body).Decode(dst)
 }
 
-// upsertEnvLocal writes or replaces KEY=VALUE in .env.local.
+// upsertEnvLocal writes or replaces KEY=VALUE in .env.local. A newline in the
+// value would inject further KEY=VALUE lines (e.g. PULSENODE_COMPOSE_BIN, which
+// the self-updater executes), so control characters are rejected.
 func upsertEnvLocal(key, value string) error {
+	if !envKeyRe.MatchString(key) {
+		return fmt.Errorf("invalid env key %q", key)
+	}
+	if strings.ContainsAny(value, "\r\n\x00") {
+		return errInvalidEnvValue
+	}
 	envFile := filepath.Join(workspaceDir(), ".env.local")
 	existing := ""
 	if data, err := os.ReadFile(envFile); err == nil {

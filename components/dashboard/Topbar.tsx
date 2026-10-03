@@ -1,5 +1,6 @@
 "use client"
 
+import { API_BASE, nodeApi } from "@/lib/api"
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -18,7 +19,7 @@ import { ThemeSwitcher } from "@/components/ThemeSwitcher"
 import { useCommandMenu } from "@/components/CommandMenu"
 import { routeInfo } from "@/lib/nav"
 
-const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
+const GO_API = API_BASE
 
 export function Topbar() {
   const pathname = usePathname()
@@ -30,13 +31,11 @@ export function Topbar() {
 
   // The sign-out menu is only shown when login protection is configured.
   useEffect(() => {
-    fetch(`${GO_API}/api/auth/status`, { cache: "no-store" })
-      .then(r => r.json() as Promise<{ enabled?: boolean; username?: string }>)
-      .then(d => { setAuthEnabled(!!d.enabled); setUsername(d.username ?? "") })
+    nodeApi.get<{ enabled?: boolean; username?: string }>("/api/auth/status")
+      .then(({ data: d }) => { setAuthEnabled(!!d.enabled); setUsername(d.username ?? "") })
       .catch(() => {})
-    fetch(`${GO_API}/api/host`, { cache: "no-store" })
-      .then(r => (r.ok ? r.json() : null))
-      .then((d: { name?: string } | null) => { if (d?.name) setHostName(d.name) })
+    nodeApi.get<{ name?: string }>("/api/host")
+      .then(({ data: d }) => { if (d?.name) setHostName(d.name) })
       .catch(() => {})
   }, [])
 

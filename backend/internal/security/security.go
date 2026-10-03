@@ -1,19 +1,49 @@
 package security
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
+const (
+	StatusDone        = "done"
+	StatusFailed      = "failed"
+	StatusUnavailable = "unavailable"
+
+	scanTimeout = 5 * time.Minute
+	maxKept     = 50
+)
+
+// ErrUnavailable is returned when the scanner binary is not installed. Callers
+// surface it as status "unavailable" — scan numbers are never made up.
+var ErrUnavailable = errors.New("scanner not installed")
+
+// ErrInvalidRef is returned for an image reference that is empty or not a valid ref.
+var ErrInvalidRef = errors.New("invalid image reference")
+
+// imageRef is deliberately strict: it must start with an alphanumeric (so it can
+// never be parsed as a CLI flag) and only contain characters valid in an image
+// reference.
+var imageRef = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/:@+-]{0,254}$`)
+
+// Runner executes a command and returns stdout plus the tail of stderr.
+type Runner func(ctx context.Context, name string, args ...string) (stdout []byte, stderrTail string, err error)
+
 type Service struct {
-	dir string
+	dir      string
+	mu       sync.Mutex
+	lookPath func(string) (string, error)
+	run      Runner
 }
 
 func New() *Service {
@@ -22,119 +52,296 @@ func New() *Service {
 		dir = "/var/lib/pulsenode"
 	}
 	_ = os.MkdirAll(dir, 0o755)
-	return &Service{dir: dir}
+	return &Service{dir: dir, lookPath: exec.LookPath, run: execRunner}
+}
+
+func execRunner(ctx context.Context, name string, args ...string) ([]byte, string, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	tail := strings.TrimSpace(stderr.String())
+	if len(tail) > 600 {
+		tail = "…" + tail[len(tail)-600:]
+	}
+	return stdout.Bytes(), tail, err
+}
+
+// Status reports which scanner binaries are installed.
+func (s *Service) Status() map[string]any {
+	_, trivyErr := s.lookPath("trivy")
+	_, syftErr := s.lookPath("syft")
+	return map[string]any{"trivy": trivyErr == nil, "syft": syftErr == nil}
 }
 
 func (s *Service) Scans() []map[string]any {
-	return s.readList("scans.json", mockScans())
+	return s.readList("scans.json")
 }
 
 func (s *Service) SBOMs() []map[string]any {
-	return s.readList("sboms.json", mockSBOMs())
+	return s.readList("sboms.json")
 }
 
+// Scan runs Trivy against an image. If Trivy is not installed it returns a result
+// with status "unavailable" (and a message) rather than inventing counts; that
+// result is not persisted to the history.
 func (s *Service) Scan(ctx context.Context, target string) (map[string]any, error) {
+	target = strings.TrimSpace(target)
+	if !imageRef.MatchString(target) {
+		return nil, ErrInvalidRef
+	}
 	start := time.Now()
 	result := map[string]any{
-		"id":       fmt.Sprintf("scan_%05x", time.Now().Unix()%100000),
+		"id":       fmt.Sprintf("scan_%x", start.UnixNano()%0xfffffff),
 		"image":    target,
 		"scanner":  "Trivy",
 		"started":  start.Format("Jan 2, 3:04 PM"),
+		"ts":       start.Unix(),
 		"duration": "0s",
-		"status":   "done",
-		"crit":     0,
-		"high":     0,
-		"med":      0,
-		"low":      0,
+		"status":   StatusDone,
+		"crit":     0, "high": 0, "med": 0, "low": 0,
+	}
+	if _, err := s.lookPath("trivy"); err != nil {
+		result["status"] = StatusUnavailable
+		result["message"] = "Trivy is not installed in this PulseNode image. Update PulseNode to get the built-in scanner."
+		return result, nil
 	}
 
-	if _, err := exec.LookPath("trivy"); err == nil {
-		ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-		defer cancel()
-		out, err := exec.CommandContext(ctx, "trivy", "image", "--format", "json", "--quiet", target).Output()
-		result["duration"] = fmt.Sprintf("%.1fs", time.Since(start).Seconds())
-		if err != nil {
-			result["status"] = "failed"
-		} else {
-			var payload struct {
-				Results []struct {
-					Vulnerabilities []struct {
-						Severity string `json:"Severity"`
-					} `json:"Vulnerabilities"`
-				} `json:"Results"`
-			}
-			_ = json.Unmarshal(out, &payload)
-			for _, res := range payload.Results {
-				for _, vuln := range res.Vulnerabilities {
-					switch strings.ToLower(vuln.Severity) {
-					case "critical":
-						result["crit"] = result["crit"].(int) + 1
-					case "high":
-						result["high"] = result["high"].(int) + 1
-					case "medium":
-						result["med"] = result["med"].(int) + 1
-					case "low":
-						result["low"] = result["low"].(int) + 1
-					}
-				}
-			}
+	ctx, cancel := context.WithTimeout(ctx, scanTimeout)
+	defer cancel()
+	out, stderr, err := s.run(ctx, "trivy", "image", "--format", "json", "--quiet", "--scanners", "vuln", target)
+	result["duration"] = fmt.Sprintf("%.1fs", time.Since(start).Seconds())
+	if err != nil {
+		result["status"] = StatusFailed
+		msg := stderr
+		if msg == "" {
+			msg = err.Error()
 		}
+		result["message"] = msg
 	} else {
-		result["duration"] = fmt.Sprintf("%ds", rand.Intn(35)+10)
-		result["crit"] = rand.Intn(3)
-		result["high"] = rand.Intn(6)
-		result["med"] = rand.Intn(8) + 1
-		result["low"] = rand.Intn(14) + 2
+		counts, perr := ParseTrivy(out)
+		if perr != nil {
+			result["status"] = StatusFailed
+			result["message"] = "could not parse Trivy output: " + perr.Error()
+		} else {
+			result["crit"], result["high"], result["med"], result["low"] = counts[0], counts[1], counts[2], counts[3]
+		}
 	}
 	s.prepend("scans.json", result)
 	return result, nil
 }
 
+// ParseTrivy counts vulnerabilities by severity (crit, high, med, low) from
+// `trivy image --format json` output.
+func ParseTrivy(out []byte) ([4]int, error) {
+	var counts [4]int
+	var payload struct {
+		Results []struct {
+			Vulnerabilities []struct {
+				Severity string `json:"Severity"`
+			} `json:"Vulnerabilities"`
+		} `json:"Results"`
+	}
+	if err := json.Unmarshal(out, &payload); err != nil {
+		return counts, err
+	}
+	for _, res := range payload.Results {
+		for _, v := range res.Vulnerabilities {
+			switch strings.ToLower(v.Severity) {
+			case "critical":
+				counts[0]++
+			case "high":
+				counts[1]++
+			case "medium":
+				counts[2]++
+			case "low":
+				counts[3]++
+			}
+		}
+	}
+	return counts, nil
+}
+
+// SBOM generates a software bill of materials with Syft. Without Syft it returns
+// status "unavailable"; nothing is fabricated or persisted.
 func (s *Service) SBOM(ctx context.Context, target string, format string) (map[string]any, error) {
-	if format == "" {
-		format = "spdx-json"
+	target = strings.TrimSpace(target)
+	if !imageRef.MatchString(target) {
+		return nil, ErrInvalidRef
 	}
-	result := map[string]any{
-		"image":     target,
-		"format":    "SPDX 2.3",
-		"packages":  rand.Intn(350) + 50,
-		"generated": time.Now().Format("Jan 2, 3:04 PM"),
-		"licenses":  rand.Intn(15) + 5,
-		"ecosystem": map[string]int{"go": 0, "npm": 0, "deb": 0, "other": rand.Intn(30) + 5},
-	}
+	syftFormat := "spdx-json"
 	if strings.Contains(format, "cyclone") {
-		result["format"] = "CycloneDX 1.5"
+		syftFormat = "cyclonedx-json"
 	}
+	result := map[string]any{"image": target, "status": StatusDone, "generated": time.Now().Format("Jan 2, 3:04 PM"), "ts": time.Now().Unix()}
+	if _, err := s.lookPath("syft"); err != nil {
+		result["status"] = StatusUnavailable
+		result["message"] = "Syft is not installed in this PulseNode image. Update PulseNode to get the built-in SBOM generator."
+		return result, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, scanTimeout)
+	defer cancel()
+	out, stderr, err := s.run(ctx, "syft", target, "-o", syftFormat, "-q")
+	if err != nil {
+		msg := stderr
+		if msg == "" {
+			msg = err.Error()
+		}
+		return nil, fmt.Errorf("syft failed: %s", msg)
+	}
+	var sum Summary
+	if syftFormat == "spdx-json" {
+		sum, err = ParseSPDX(out)
+	} else {
+		sum, err = ParseCycloneDX(out)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("could not parse Syft output: %w", err)
+	}
+	result["format"] = sum.Format
+	result["packages"] = sum.Packages
+	result["licenses"] = sum.Licenses
+	result["ecosystem"] = sum.Ecosystem
 	s.prepend("sboms.json", result)
 	return result, nil
 }
 
-func (s *Service) readList(name string, fallback []map[string]any) []map[string]any {
+// Summary is the part of an SBOM the UI shows.
+type Summary struct {
+	Format    string
+	Packages  int
+	Licenses  int
+	Ecosystem map[string]int
+}
+
+func ecoOf(purl string) string {
+	switch {
+	case strings.HasPrefix(purl, "pkg:golang/"):
+		return "go"
+	case strings.HasPrefix(purl, "pkg:npm/"):
+		return "npm"
+	case strings.HasPrefix(purl, "pkg:deb/"):
+		return "deb"
+	}
+	return "other"
+}
+
+func newSummary(format string) Summary {
+	return Summary{Format: format, Ecosystem: map[string]int{"go": 0, "npm": 0, "deb": 0, "other": 0}}
+}
+
+func ParseSPDX(out []byte) (Summary, error) {
+	var doc struct {
+		SPDXVersion string `json:"spdxVersion"`
+		Packages    []struct {
+			SPDXID           string `json:"SPDXID"`
+			LicenseConcluded string `json:"licenseConcluded"`
+			LicenseDeclared  string `json:"licenseDeclared"`
+			ExternalRefs     []struct {
+				Type    string `json:"referenceType"`
+				Locator string `json:"referenceLocator"`
+			} `json:"externalRefs"`
+		} `json:"packages"`
+	}
+	if err := json.Unmarshal(out, &doc); err != nil {
+		return Summary{}, err
+	}
+	if doc.SPDXVersion == "" {
+		return Summary{}, errors.New("not an SPDX document")
+	}
+	sum := newSummary(strings.Replace(doc.SPDXVersion, "SPDX-", "SPDX ", 1))
+	licenses := map[string]bool{}
+	for _, p := range doc.Packages {
+		if strings.HasPrefix(p.SPDXID, "SPDXRef-DocumentRoot") {
+			continue // the scanned image itself, not a package inside it
+		}
+		sum.Packages++
+		purl := ""
+		for _, r := range p.ExternalRefs {
+			if r.Type == "purl" {
+				purl = r.Locator
+				break
+			}
+		}
+		sum.Ecosystem[ecoOf(purl)]++
+		lic := p.LicenseConcluded
+		if lic == "" || lic == "NOASSERTION" || lic == "NONE" {
+			lic = p.LicenseDeclared
+		}
+		if lic != "" && lic != "NOASSERTION" && lic != "NONE" {
+			licenses[lic] = true
+		}
+	}
+	sum.Licenses = len(licenses)
+	return sum, nil
+}
+
+func ParseCycloneDX(out []byte) (Summary, error) {
+	var doc struct {
+		BOMFormat   string `json:"bomFormat"`
+		SpecVersion string `json:"specVersion"`
+		Components  []struct {
+			PURL     string `json:"purl"`
+			Licenses []struct {
+				License struct {
+					ID   string `json:"id"`
+					Name string `json:"name"`
+				} `json:"license"`
+				Expression string `json:"expression"`
+			} `json:"licenses"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(out, &doc); err != nil {
+		return Summary{}, err
+	}
+	if doc.BOMFormat != "CycloneDX" {
+		return Summary{}, errors.New("not a CycloneDX document")
+	}
+	sum := newSummary("CycloneDX " + doc.SpecVersion)
+	licenses := map[string]bool{}
+	for _, c := range doc.Components {
+		sum.Packages++
+		sum.Ecosystem[ecoOf(c.PURL)]++
+		for _, l := range c.Licenses {
+			for _, v := range []string{l.License.ID, l.License.Name, l.Expression} {
+				if v != "" {
+					licenses[v] = true
+					break
+				}
+			}
+		}
+	}
+	sum.Licenses = len(licenses)
+	return sum, nil
+}
+
+func (s *Service) readList(name string) []map[string]any {
+	items := []map[string]any{}
 	data, err := os.ReadFile(filepath.Join(s.dir, name))
 	if err != nil {
-		return fallback
+		return items
 	}
-	var items []map[string]any
-	if json.Unmarshal(data, &items) != nil {
-		return fallback
+	if json.Unmarshal(data, &items) != nil || items == nil {
+		return []map[string]any{}
 	}
 	return items
 }
 
 func (s *Service) prepend(name string, item map[string]any) {
-	items := s.readList(name, []map[string]any{})
-	items = append([]map[string]any{item}, items...)
-	if len(items) > 50 {
-		items = items[:50]
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	items := append([]map[string]any{item}, s.readList(name)...)
+	if len(items) > maxKept {
+		items = items[:maxKept]
 	}
-	data, _ := json.MarshalIndent(items, "", "  ")
-	_ = os.WriteFile(filepath.Join(s.dir, name), data, 0o644)
-}
-
-func mockScans() []map[string]any {
-	return []map[string]any{{"id": "scan_mock", "image": "nginx:alpine", "scanner": "Trivy", "started": "May 19, 10:00 AM", "duration": "18s", "status": "done", "crit": 0, "high": 1, "med": 4, "low": 9}}
-}
-
-func mockSBOMs() []map[string]any {
-	return []map[string]any{{"image": "nginx:alpine", "format": "SPDX 2.3", "packages": 63, "generated": "May 19, 10:00 AM", "licenses": 8, "ecosystem": map[string]int{"go": 0, "npm": 0, "deb": 41, "other": 22}}}
+	data, err := json.MarshalIndent(items, "", "  ")
+	if err != nil {
+		return
+	}
+	tmp := filepath.Join(s.dir, name+".tmp")
+	if os.WriteFile(tmp, data, 0o644) == nil {
+		_ = os.Rename(tmp, filepath.Join(s.dir, name))
+	}
 }

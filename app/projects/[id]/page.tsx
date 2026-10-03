@@ -1,5 +1,6 @@
 "use client"
 
+import { API_BASE, nodeApi } from "@/lib/api"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
@@ -30,7 +31,7 @@ import { Pill } from "@/components/dashboard/Pill"
 import { FormField, ChoiceGroup, BUILD_METHODS } from "@/components/projects/forms"
 import { cn } from "@/lib/utils"
 
-const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
+const GO_API = API_BASE
 
 type Project = {
   ID: string; Name: string; RepoURL: string; Branch: string
@@ -102,8 +103,8 @@ function ExternalProjectView({ project }: { project: Project }) {
   const fetchLogs = useCallback(async () => {
     setLoadingLogs(true)
     try {
-      const r = await fetch(`${GO_API}/api/docker/logs/${containerID}?tail=300`)
-      if (r.ok) setLogs((await r.json()).logs ?? "")
+      const { data } = await nodeApi.get<{ logs?: string }>(`/api/docker/logs/${containerID}?tail=300`)
+      setLogs(data.logs ?? "")
     } catch { /* ignore */ }
     finally { setLoadingLogs(false) }
   }, [containerID])
@@ -243,15 +244,15 @@ export default function ProjectDetailPage() {
   const loadLogs = useCallback(async (depID: string) => {
     setLogs([])
     try {
-      const r = await fetch(`${GO_API}/api/projects/${id}/deployments/${depID}/logs`)
-      if (r.ok) setLogs(await r.json())
+      const { data } = await nodeApi.get<LogLine[]>(`/api/projects/${id}/deployments/${depID}/logs`)
+      setLogs(data)
     } catch { /* ignore */ }
   }, [id])
 
   const fetchWebhook = useCallback(async () => {
     try {
-      const r = await fetch(`${GO_API}/api/projects/${id}/webhook`)
-      if (r.ok) setWebhook(await r.json())
+      const { data } = await nodeApi.get<WebhookStatus>(`/api/projects/${id}/webhook`)
+      setWebhook(data)
     } catch { /* ignore */ }
   }, [id])
 
@@ -292,11 +293,12 @@ export default function ProjectDetailPage() {
       setMonorepo(false)
     } else {
       setMonorepo(null)
-      fetch(`${GO_API}/api/github/detect-layout?repo=${encodeURIComponent(project.RepoURL)}&branch=${encodeURIComponent(project.Branch)}`)
-        .then(r => r.ok ? r.json() : null)
-        .then(d => setMonorepo(Boolean(d?.monorepo)))
+      nodeApi.get<{ monorepo?: boolean }>(`/api/github/detect-layout?repo=${encodeURIComponent(project.RepoURL)}&branch=${encodeURIComponent(project.Branch)}`)
+        .then(({ data }) => setMonorepo(Boolean(data?.monorepo)))
         .catch(() => setMonorepo(false))
     }
+  // Probe the repo layout once per project; later edits to branch/base dir are re-probed on save,
+  // and keying on the whole `project` object would refire on every status poll.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.ID])
 

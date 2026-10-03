@@ -21,12 +21,10 @@ async function throwApiError(res: Response, label: string): Promise<never> {
   throw err
 }
 
-async function fetchJSON<T>(url: string, init?: RequestInit): Promise<{ data: T; mock: boolean }> {
+async function fetchJSON<T>(url: string, init?: RequestInit): Promise<{ data: T }> {
   const res = await fetch(url, { cache: "no-store", ...init })
   if (!res.ok) await throwApiError(res, url)
-  const data = await res.json() as T
-  const mock = res.headers.get("X-Data-Source") === "mock"
-  return { data, mock }
+  return { data: await res.json() as T }
 }
 
 async function mutateJSON<T>(path: string, body: unknown, method: "POST" | "DELETE"): Promise<T> {
@@ -46,6 +44,6 @@ const goApi = {
   delete: <T>(path: string): Promise<T> => mutateJSON<T>(path, undefined, "DELETE"),
 }
 
-// Kept for backward compatibility — both point to Go now
 export const nodeApi = goApi
+// Alias still imported by the scan-history and sbom-history pages.
 export const pythonApi = goApi

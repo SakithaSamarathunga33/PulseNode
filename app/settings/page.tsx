@@ -11,10 +11,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { API_BASE, nodeApi } from "@/lib/api"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 
-const GO_API = process.env.NEXT_PUBLIC_GO_API ?? ""
+const GO_API = API_BASE
 
 interface VersionInfo {
   current: string
@@ -84,23 +85,23 @@ export default function SettingsPage() {
   const fetchVersion = useCallback(async () => {
     setChecking(true)
     try {
-      const res = await fetch(`${GO_API}/api/system/version`)
-      if (res.ok) setVersion(await res.json())
+      const { data } = await nodeApi.get<VersionInfo>("/api/system/version")
+      setVersion(data)
     } catch { /* ignore */ }
     finally { setChecking(false) }
   }, [])
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch(`${GO_API}/api/system/update/status`)
-      if (res.ok) setStatus(await res.json())
+      const { data } = await nodeApi.get<UpdateStatus>("/api/system/update/status")
+      setStatus(data)
     } catch { /* go-api temporarily offline during update */ }
   }, [])
 
   const fetchAuthStatus = useCallback(async () => {
     try {
-      const res = await fetch(`${GO_API}/api/auth/status`, { cache: "no-store" })
-      if (res.ok) setAuthStatus(await res.json() as AuthStatus)
+      const { data } = await nodeApi.get<AuthStatus>("/api/auth/status")
+      setAuthStatus(data)
     } catch { /* ignore */ }
   }, [])
 
@@ -109,8 +110,16 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!updating) return
-    const timer = setInterval(fetchStatus, 1500)
-    return () => clearInterval(timer)
+    // Self-scheduling (not setInterval) so a slow or restarting backend never
+    // stacks overlapping requests or lets an older response overwrite a newer one.
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const tick = async () => {
+      await fetchStatus()
+      if (!cancelled) timer = setTimeout(tick, 1500)
+    }
+    timer = setTimeout(tick, 1500)
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [updating, fetchStatus])
 
   // Auto-scroll log to bottom whenever new lines arrive
@@ -143,6 +152,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!updating) return
     let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
     let sawOutage = false // backend went unreachable at least once → it is restarting
     const startedProbingAt = Date.now()
     const MAX_WAIT = 8 * 60 * 1000 // hard cap — source builds on small VPSes can be slow
@@ -169,10 +179,10 @@ export default function SettingsPage() {
         setReconnecting(true) // backend unreachable → container is restarting
       }
       if (Date.now() - startedProbingAt > MAX_WAIT) { window.location.reload(); return }
-      if (!cancelled) setTimeout(probe, 2500)
+      if (!cancelled) timer = setTimeout(probe, 2500)
     }
-    const t = setTimeout(probe, 5000) // brief grace before the first probe
-    return () => { cancelled = true; clearTimeout(t) }
+    timer = setTimeout(probe, 5000) // brief grace before the first probe
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [updating, HEALTH_URL])
 
   async function handleUpdate() {

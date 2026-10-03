@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { AlertTriangle, Box, Boxes, Database, Rocket, Server } from "lucide-react"
-import { COOLIFY_PROJECTS as MOCK_PROJECTS, COOLIFY_DEPLOYMENTS as MOCK_DEPLOYMENTS } from "@/lib/mock-data"
 import { nodeApi } from "@/lib/api"
 import type { CoolifyProject, CoolifyDeployment } from "@/lib/types"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
@@ -62,8 +61,8 @@ const Code = ({ children }: { children: React.ReactNode }) => (
 )
 
 export default function CoolifyPage() {
-  const [projects,     setProjects]     = useState<CoolifyProject[]>(MOCK_PROJECTS)
-  const [deployments,  setDeployments]  = useState<CoolifyDeployment[]>(MOCK_DEPLOYMENTS)
+  const [projects,     setProjects]     = useState<CoolifyProject[]>([])
+  const [deployments,  setDeployments]  = useState<CoolifyDeployment[]>([])
   const [live, setLive] = useState({ projects: false, deployments: false })
   const [settled, setSettled] = useState(false)
 
@@ -77,7 +76,7 @@ export default function CoolifyPage() {
     Promise.all([p, d]).finally(() => setSettled(true))
   }, [])
 
-  const isSample = settled && !(live.projects && live.deployments)
+  const loadFailed = settled && !(live.projects && live.deployments)
 
   const totalApps = projects.reduce((s, p) => s + p.apps.length, 0)
   const totalDbs  = projects.reduce((s, p) => s + p.databases.length, 0)
@@ -93,12 +92,12 @@ export default function CoolifyPage() {
         description="Self-hosted deployment platform, detected from Docker labels."
       />
       <PageBody>
-        {isSample && (
-          <Alert>
+        {loadFailed && (
+          <Alert variant="destructive">
             <AlertTriangle />
-            <AlertTitle>Showing sample data</AlertTitle>
+            <AlertTitle>Could not load Coolify data</AlertTitle>
             <AlertDescription>
-              The Coolify API did not respond, so the figures and tables below are placeholder examples, not your server.
+              The Coolify API did not respond{!live.projects && !live.deployments ? "" : " for part of the data"}, so the figures below may be incomplete.
             </AlertDescription>
           </Alert>
         )}

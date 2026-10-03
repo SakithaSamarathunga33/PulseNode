@@ -11,6 +11,12 @@ services:
   caddy:
     environment:
       # Traefik forwards the real client IP; trust it (see Caddyfile).
+      # `private_ranges` also covers apps deployed on the shared Traefik network,
+      # which can then spoof X-Forwarded-For (rate-limit key, audit-log IP). Login
+      # is additionally locked per account (10 failures / 15 min) so spoofing the IP
+      # does not help guessing passwords. To close the IP spoofing too, set
+      # CADDY_TRUSTED_PROXIES in .env.local to Traefik's own address, e.g.
+      #   docker inspect <traefik> -f '{{(index .NetworkSettings.Networks "vps-monitor_proxy").IPAddress}}'
       CADDY_TRUSTED_PROXIES: ${CADDY_TRUSTED_PROXIES:-private_ranges}
     networks:
       - default

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -69,6 +70,9 @@ func (s *Server) validSession(token string, u *db.User) (int64, bool) {
 	if authTime <= 0 || time.Now().Unix()-int64(authTime) > sessionMaxAge {
 		return 0, false
 	}
+	if revokedSessions.isRevoked(int64(authTime)) {
+		return 0, false
+	}
 	return int64(authTime), true
 }
 
@@ -125,18 +129,53 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "login not configured"})
 		return
 	}
+	if tooManyAttempts(w, body.Username) {
+		return
+	}
 	// Always run bcrypt so a wrong username takes as long as a wrong password.
 	pwOK := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(body.Password)) == nil
 	if user.Username != body.Username || !pwOK {
+		loginGuard.fail(body.Username)
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
 		return
 	}
+	loginGuard.reset(body.Username)
 	s.issueSession(w, r, user, time.Now().Unix())
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
+// tooManyAttempts answers 429 and returns true while key is locked out.
+func tooManyAttempts(w http.ResponseWriter, key string) bool {
+	wait, locked := loginGuard.locked(key)
+	if !locked {
+		return false
+	}
+	mins := int(wait/time.Minute) + 1
+	w.Header().Set("Retry-After", strconv.Itoa(int(wait/time.Second)+1))
+	writeJSON(w, http.StatusTooManyRequests, map[string]string{
+		"error": "Too many failed attempts — try again in " + strconv.Itoa(mins) + " min",
+	})
+	return true
+}
+
 // POST /api/auth/logout
+// Revokes the session server-side (not just the cookie), so a copied token stops
+// working immediately instead of living out its 30-minute / 12-hour lifetime.
 func (s *Server) authLogout(w http.ResponseWriter, r *http.Request) {
+	tokens := []string{}
+	if c, err := r.Cookie(sessionCookieName); err == nil {
+		tokens = append(tokens, c.Value)
+	}
+	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+		tokens = append(tokens, strings.TrimPrefix(h, "Bearer "))
+	}
+	for _, t := range tokens {
+		if claims, ok := s.auth.ParseToken(t); ok {
+			if at, _ := claims["auth_time"].(float64); at > 0 {
+				revokedSessions.revoke(int64(at))
+			}
+		}
+	}
 	setSessionCookie(w, r, "", -1)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
@@ -169,15 +208,25 @@ func (s *Server) authSetup(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "db error"})
 		return
 	}
+	guardKey := "setup-token"
+	if existing != nil {
+		guardKey = "setup:" + existing.Username
+	}
+	if tooManyAttempts(w, guardKey) {
+		return
+	}
 	if existing != nil {
 		if bcrypt.CompareHashAndPassword([]byte(existing.PasswordHash), []byte(body.CurrentPassword)) != nil {
+			loginGuard.fail(guardKey)
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Current password is incorrect"})
 			return
 		}
 	} else if !s.insecureNoAuth && !s.checkSetupToken(body.SetupToken) {
+		loginGuard.fail(guardKey)
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid setup token"})
 		return
 	}
+	loginGuard.reset(guardKey)
 	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), 12)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to hash password"})

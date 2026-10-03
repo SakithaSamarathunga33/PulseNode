@@ -2,15 +2,19 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"pulsenode/backend/internal/alerts"
 	"pulsenode/backend/internal/api"
 	"pulsenode/backend/internal/db"
 	"pulsenode/backend/internal/docker"
@@ -20,6 +24,15 @@ import (
 )
 
 func main() {
+	// run() returns instead of calling log.Fatal so its deferred cleanup (DB
+	// close, WAL checkpoint) always executes.
+	if err := run(); err != nil {
+		log.Error().Err(err).Msg("fatal")
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	if os.Getenv("LOG_FORMAT") != "json" {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "15:04:05"})
@@ -38,15 +51,20 @@ func main() {
 	}
 
 	if generated, err := db.EnsureEncryptionKey(env("PULSENODE_DATA_DIR", "/var/lib/pulsenode")); err != nil {
-		log.Fatal().Err(err).Msg("no encryption key: set AES_KEY or make PULSENODE_DATA_DIR writable")
+		return fmt.Errorf("no encryption key: set AES_KEY or make PULSENODE_DATA_DIR writable: %w", err)
 	} else if generated {
 		log.Warn().Msg("AES_KEY not set — using a generated key stored in PULSENODE_DATA_DIR/aes-key")
 	}
 
 	database, err := db.Open(env("DATABASE_PATH", "/data/pulsenode.db"))
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to open database")
+		return fmt.Errorf("failed to open database: %w", err)
 	}
+	defer func() {
+		if err := database.Close(); err != nil {
+			log.Warn().Err(err).Msg("database close")
+		}
+	}()
 
 	collector := proc.NewCollector(60, 3*time.Second)
 	events := hub.New()
@@ -75,30 +93,83 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	go collector.Start(ctx)
-	go streamSystemMetrics(ctx, collector, events)
-	go streamContainerStats(ctx, dockerClient, events)
-	go jobQueue.StartPoller(ctx, pollInterval())
-	go recordContainerHeartbeats(ctx, dockerClient, database)
+	// Background loops all stop on ctx; shutdown waits for them before the DB closes.
+	var bg sync.WaitGroup
+	spawn := func(f func()) {
+		bg.Add(1)
+		go func() { defer bg.Done(); f() }()
+	}
+	spawn(func() { collector.Start(ctx) })
+	spawn(func() { streamSystemMetrics(ctx, collector, events) })
+	spawn(func() { streamContainerStats(ctx, dockerClient, events) })
+	spawn(func() { jobQueue.StartPoller(ctx, pollInterval()) })
+	spawn(func() { recordContainerHeartbeats(ctx, dockerClient, database) })
+	spawn(func() {
+		alerts.Start(ctx, alerts.Deps{
+			Store: database,
+			Hub:   events,
+			Host: func() (alerts.HostSample, bool) {
+				s := collector.Live()
+				return alerts.HostSample{CPU: s.CPU, Memory: s.RAM, Disk: s.Disk}, len(collector.History()) > 0
+			},
+			Containers: func(ctx context.Context) ([]alerts.ContainerState, error) {
+				if dockerClient == nil {
+					return nil, nil
+				}
+				cs, err := dockerClient.Containers(ctx)
+				out := make([]alerts.ContainerState, 0, len(cs))
+				for _, c := range cs {
+					out = append(out, alerts.ContainerState{Name: c.Name, State: c.State})
+				}
+				return out, err
+			},
+		})
+	})
+	spawn(func() { pruneDaily(ctx, database) })
 
 	httpServer := &http.Server{
 		Addr:              ":" + port,
 		Handler:           server.Routes(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+	// Shutdown does not end SSE/websocket connections by itself; closing the hub
+	// does, so it doesn't sit out the full timeout on open dashboards.
+	httpServer.RegisterOnShutdown(events.Close)
 
+	serveErr := make(chan error, 1)
 	go func() {
 		log.Info().Str("addr", "http://localhost:"+port).Msg("PulseNode listening")
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal().Err(err).Msg("server error")
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serveErr <- err
 		}
+		close(serveErr)
 	}()
 
-	<-ctx.Done()
+	var runErr error
+	select {
+	case <-ctx.Done():
+	case err := <-serveErr:
+		if err != nil {
+			runErr = fmt.Errorf("server error: %w", err)
+		}
+		stop()
+	}
+
 	log.Info().Msg("shutting down…")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = httpServer.Shutdown(shutdownCtx)
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		log.Warn().Err(err).Msg("http shutdown")
+	}
+	// Let running deployments finish (new ones are refused); past the deadline
+	// they are cancelled and recovered on the next boot.
+	queueCtx, queueCancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer queueCancel()
+	if err := jobQueue.Close(queueCtx); err != nil {
+		log.Warn().Err(err).Msg("deploy queue did not drain in time; running builds were cancelled")
+	}
+	bg.Wait()
+	return runErr
 }
 
 func streamSystemMetrics(ctx context.Context, collector *proc.Collector, events *hub.Hub) {
@@ -122,7 +193,9 @@ func streamContainerStats(ctx context.Context, dockerClient *docker.Client, even
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if dockerClient == nil {
+			// Collecting costs one Docker stats call per container, so skip it
+			// while no dashboard is connected.
+			if dockerClient == nil || events.Subscribers() == 0 {
 				continue
 			}
 			stats, err := dockerClient.ContainerStats(ctx)
@@ -184,4 +257,37 @@ func pollInterval() time.Duration {
 		}
 	}
 	return 60 * time.Second
+}
+
+// Retention for append-only tables (heartbeats have their own, shorter window).
+const (
+	deployLogRetention = 30 * 24 * time.Hour
+	auditRetention     = 180 * 24 * time.Hour
+	alertRetention     = 90 * 24 * time.Hour
+)
+
+// pruneDaily trims deployment logs, the audit log and alert history so they
+// can't grow without bound. Runs once at start-up, then every 24h.
+func pruneDaily(ctx context.Context, database *db.DB) {
+	prune := func() {
+		if err := database.PruneOld(deployLogRetention, auditRetention, alertRetention); err != nil {
+			log.Warn().Err(err).Msg("retention prune failed")
+		}
+	}
+	select {
+	case <-time.After(time.Minute): // let start-up settle first
+		prune()
+	case <-ctx.Done():
+		return
+	}
+	t := time.NewTicker(24 * time.Hour)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			prune()
+		}
+	}
 }

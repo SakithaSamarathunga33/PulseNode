@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -88,7 +89,7 @@ type Hook struct {
 
 func (c *Client) listHooks(owner, repo string) ([]Hook, error) {
 	var hooks []Hook
-	err := c.get(fmt.Sprintf("/repos/%s/%s/hooks?per_page=100", owner, repo), &hooks)
+	err := c.get(fmt.Sprintf("%s/hooks?per_page=100", repoPath(owner, repo)), &hooks)
 	return hooks, err
 }
 
@@ -129,7 +130,7 @@ func (c *Client) EnsureWebhook(owner, repo, hookURL, secret string) (created boo
 			"insecure_ssl": "0",
 		},
 	}
-	if err := c.post(fmt.Sprintf("/repos/%s/%s/hooks", owner, repo), body); err != nil {
+	if err := c.post(fmt.Sprintf("%s/hooks", repoPath(owner, repo)), body); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -185,7 +186,7 @@ func (c *Client) ListRepos() ([]Repo, error) {
 
 func (c *Client) ListBranches(owner, repo string) ([]string, error) {
 	var raw []struct{ Name string `json:"name"` }
-	if err := c.get(fmt.Sprintf("/repos/%s/%s/branches?per_page=100", owner, repo), &raw); err != nil {
+	if err := c.get(fmt.Sprintf("%s/branches?per_page=100", repoPath(owner, repo)), &raw); err != nil {
 		return nil, err
 	}
 	branches := make([]string, len(raw))
@@ -204,7 +205,7 @@ type Content struct {
 // ListContents lists the entries at path (use "" for the repo root) on ref
 // (a branch, tag, or SHA; "" for the default branch).
 func (c *Client) ListContents(owner, repo, path, ref string) ([]Content, error) {
-	p := fmt.Sprintf("/repos/%s/%s/contents", owner, repo)
+	p := fmt.Sprintf("%s/contents", repoPath(owner, repo))
 	if path != "" {
 		p += "/" + path
 	}
@@ -228,7 +229,7 @@ func (c *Client) GetBranchHead(owner, repo, branch string) (sha, msg string, err
 			} `json:"commit"`
 		} `json:"commit"`
 	}
-	path := fmt.Sprintf("/repos/%s/%s/branches/%s", owner, repo, url.PathEscape(branch))
+	path := fmt.Sprintf("%s/branches/%s", repoPath(owner, repo), url.PathEscape(branch))
 	if err = c.get(path, &raw); err != nil {
 		return "", "", err
 	}
@@ -252,10 +253,33 @@ func ParseOwnerRepo(repoURL string) (owner, repo string, ok bool) {
 		return "", "", false
 	}
 	parts := strings.Split(s, "/")
-	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+	if len(parts) < 2 || !ValidOwnerRepo(parts[0], parts[1]) {
 		return "", "", false
 	}
 	return parts[0], parts[1], true
+}
+
+// ownerRepoRe is what GitHub allows in an owner or repo name. Anything else
+// (/, ?, #, %, ..) could redirect an authenticated API call to another endpoint.
+var ownerRepoRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+
+// ValidOwnerRepo reports whether owner and repo are safe to put in an API path.
+func ValidOwnerRepo(owner, repo string) bool {
+	for _, v := range []string{owner, repo} {
+		if v == "." || v == ".." || !ownerRepoRe.MatchString(v) {
+			return false
+		}
+	}
+	return true
+}
+
+// repoPath is "/repos/<owner>/<repo>" for validated names. Invalid ones map to a
+// path that cannot exist, so the request 404s instead of reaching another endpoint.
+func repoPath(owner, repo string) string {
+	if !ValidOwnerRepo(owner, repo) {
+		return "/repos/_invalid_/_invalid_"
+	}
+	return "/repos/" + owner + "/" + repo
 }
 
 // ── OAuth ─────────────────────────────────────────────────────────────────────
@@ -354,7 +378,7 @@ func (c *Client) ListOpenPullRequests(owner, repo string) ([]PullRequest, error)
 		} `json:"user"`
 		HTMLURL string `json:"html_url"`
 	}
-	if err := c.get(fmt.Sprintf("/repos/%s/%s/pulls?state=open", owner, repo), &raw); err != nil {
+	if err := c.get(fmt.Sprintf("%s/pulls?state=open", repoPath(owner, repo)), &raw); err != nil {
 		return nil, err
 	}
 	prs := make([]PullRequest, len(raw))
@@ -382,7 +406,7 @@ func (c *Client) ListOpenIssues(owner, repo string) ([]Issue, error) {
 		HTMLURL     string          `json:"html_url"`
 		PullRequest json.RawMessage `json:"pull_request,omitempty"`
 	}
-	if err := c.get(fmt.Sprintf("/repos/%s/%s/issues?state=open", owner, repo), &raw); err != nil {
+	if err := c.get(fmt.Sprintf("%s/issues?state=open", repoPath(owner, repo)), &raw); err != nil {
 		return nil, err
 	}
 	issues := make([]Issue, 0, len(raw))
@@ -404,7 +428,7 @@ func (c *Client) ListOpenIssues(owner, repo string) ([]Issue, error) {
 // GetLatestCommit returns the most recent commit on a repo's default branch,
 // or nil if the repo has no commits yet (GitHub returns 409 for an empty repo).
 func (c *Client) GetLatestCommit(owner, repo string) (*Commit, error) {
-	resp, err := c.doGet(fmt.Sprintf("/repos/%s/%s/commits?per_page=1", owner, repo))
+	resp, err := c.doGet(fmt.Sprintf("%s/commits?per_page=1", repoPath(owner, repo)))
 	if err != nil {
 		return nil, err
 	}
@@ -443,7 +467,7 @@ func (c *Client) GetLatestWorkflowRun(owner, repo string) (*WorkflowRun, error) 
 			Conclusion string `json:"conclusion"`
 		} `json:"workflow_runs"`
 	}
-	if err := c.get(fmt.Sprintf("/repos/%s/%s/actions/runs?per_page=1", owner, repo), &raw); err != nil {
+	if err := c.get(fmt.Sprintf("%s/actions/runs?per_page=1", repoPath(owner, repo)), &raw); err != nil {
 		return nil, err
 	}
 	if len(raw.WorkflowRuns) == 0 {
@@ -521,7 +545,7 @@ func (c *Client) ListRecentCommits(owner, repo string, limit int) ([]CommitDetai
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
-	resp, err := c.doGet(fmt.Sprintf("/repos/%s/%s/commits?per_page=%d", owner, repo, limit))
+	resp, err := c.doGet(fmt.Sprintf("%s/commits?per_page=%d", repoPath(owner, repo), limit))
 	if err != nil {
 		return nil, err
 	}
@@ -530,7 +554,7 @@ func (c *Client) ListRecentCommits(owner, repo string, limit int) ([]CommitDetai
 		return []CommitDetail{}, nil
 	}
 	if resp.StatusCode >= 300 {
-		return nil, statusError(resp, fmt.Sprintf("/repos/%s/%s/commits", owner, repo))
+		return nil, statusError(resp, fmt.Sprintf("%s/commits", repoPath(owner, repo)))
 	}
 	var raw []struct {
 		SHA    string `json:"sha"`
@@ -577,13 +601,13 @@ func (c *Client) GetTree(owner, repo, ref string) ([]TreeEntry, error) {
 	if ref == "" {
 		ref = "HEAD"
 	}
-	resp, err := c.doGet(fmt.Sprintf("/repos/%s/%s/git/trees/%s?recursive=1", owner, repo, url.PathEscape(ref)))
+	resp, err := c.doGet(fmt.Sprintf("%s/git/trees/%s?recursive=1", repoPath(owner, repo), url.PathEscape(ref)))
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return nil, statusError(resp, fmt.Sprintf("/repos/%s/%s/git/trees/%s", owner, repo, ref))
+		return nil, statusError(resp, fmt.Sprintf("%s/git/trees/%s", repoPath(owner, repo), ref))
 	}
 	var raw struct {
 		Tree []TreeEntry `json:"tree"`
@@ -601,7 +625,7 @@ func (c *Client) GetTree(owner, repo, ref string) ([]TreeEntry, error) {
 // come back with Encoding "too_large" and no content (GitHub omits inline
 // content for them too); non-UTF-8 content comes back as "binary".
 func (c *Client) GetFile(owner, repo, path, ref string) (*FileContent, error) {
-	p := fmt.Sprintf("/repos/%s/%s/contents/%s", owner, repo, escapeRepoPath(path))
+	p := fmt.Sprintf("%s/contents/%s", repoPath(owner, repo), escapeRepoPath(path))
 	if ref != "" {
 		p += "?ref=" + url.QueryEscape(ref)
 	}
@@ -658,7 +682,7 @@ func (c *Client) UpdateFile(owner, repo, path, branch, message, content, sha str
 		return nil, err
 	}
 	req, err := http.NewRequest(http.MethodPut,
-		apiBase+fmt.Sprintf("/repos/%s/%s/contents/%s", owner, repo, escapeRepoPath(path)),
+		apiBase+fmt.Sprintf("%s/contents/%s", repoPath(owner, repo), escapeRepoPath(path)),
 		bytes.NewReader(data))
 	if err != nil {
 		return nil, err
@@ -678,7 +702,7 @@ func (c *Client) UpdateFile(owner, repo, path, branch, message, content, sha str
 		return nil, e
 	}
 	if resp.StatusCode >= 300 {
-		return nil, statusError(resp, fmt.Sprintf("/repos/%s/%s/contents/%s", owner, repo, path))
+		return nil, statusError(resp, fmt.Sprintf("%s/contents/%s", repoPath(owner, repo), path))
 	}
 	var raw struct {
 		Content struct {

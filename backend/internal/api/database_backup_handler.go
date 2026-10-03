@@ -169,28 +169,22 @@ func (s *Server) runBackup(job *backupJob, containerName string, mdb *dbpkg.Mana
 		execErr = s.docker.ExecStreamEnv(ctx, containerName, []string{"PGPASSWORD=" + mdb.Password}, cmd, pw)
 
 	case "mysql":
-		cmd := []string{"mysqldump", "-u" + mdb.Username, "-p" + mdb.Password, dbName}
+		cmd := []string{"mysqldump", "-u" + mdb.Username, dbName}
 		if table != "" {
 			cmd = append(cmd, table)
 		}
-		execErr = s.docker.ExecStreamEnv(ctx, containerName, nil, cmd, pw)
+		execErr = s.docker.ExecStreamEnv(ctx, containerName, mysqlAuthEnv(mdb.Password), cmd, pw)
 
 	case "mongodb":
-		cmd := []string{"mongodump", "--archive", "--db", dbName}
+		args := []string{"--archive", "--db", dbName}
 		if table != "" {
-			cmd = append(cmd, "--collection", table)
+			args = append(args, "--collection", table)
 		}
-		if mdb.Username != "" {
-			cmd = append(cmd, "--username", mdb.Username, "--password", mdb.Password, "--authenticationDatabase", "admin")
-		}
-		execErr = s.docker.ExecStreamEnv(ctx, containerName, nil, cmd, pw)
+		cmd, env := mongoToolCmd("mongodump", args, mdb.Username, mdb.Password)
+		execErr = s.docker.ExecStreamEnv(ctx, containerName, env, cmd, pw)
 
 	case "redis":
-		redisCLI := []string{"redis-cli"}
-		if mdb.Password != "" {
-			redisCLI = append(redisCLI, "-a", mdb.Password, "--no-auth-warning")
-		}
-		_, _ = s.docker.ExecSlice(ctx, containerName, append(redisCLI, "SAVE"))
+		_, _ = s.docker.ExecSliceEnv(ctx, containerName, redisAuthEnv(mdb.Password), []string{"redis-cli", "SAVE"})
 		execErr = s.docker.ExecStreamEnv(ctx, containerName, nil, []string{"cat", "/data/dump.rdb"}, pw)
 	}
 
@@ -376,11 +370,8 @@ func (s *Server) restoreDatabase(w http.ResponseWriter, r *http.Request) {
 		output, execErr = s.docker.ExecSliceEnv(ctx, containerName, []string{"MYSQL_PWD=" + mdb.Password}, cmd)
 
 	case "mongodb":
-		cmd := []string{"mongorestore", "--archive=" + remotePath, "--db", database}
-		if mdb.Username != "" {
-			cmd = append(cmd, "--username", mdb.Username, "--password", mdb.Password, "--authenticationDatabase", "admin")
-		}
-		output, execErr = s.docker.ExecSlice(ctx, containerName, cmd)
+		cmd, env := mongoToolCmd("mongorestore", []string{"--archive=" + remotePath, "--db", database}, mdb.Username, mdb.Password)
+		output, execErr = s.docker.ExecSliceEnv(ctx, containerName, env, cmd)
 	}
 
 	// Clean up temp file in container (best-effort)

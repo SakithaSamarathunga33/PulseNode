@@ -1,5 +1,6 @@
 "use client"
 
+import { useTimeouts } from "@/lib/use-timeouts"
 import {
   Children,
   createContext,
@@ -180,7 +181,7 @@ export const TypingAnimation = ({
 // build logs). It owns auto-scroll: it follows new output until the user
 // scrolls up, then shows a "Latest" button to resume.
 //
-// The surface is dark in BOTH themes, using local terminal tokens (--t-*) that
+// The surface is dark in BOTH themes, using terminal tokens (--t-*, see app/theme.css) that
 // children can use too, e.g. `text-[var(--t-err)]`.
 interface TerminalWindowProps {
   children: React.ReactNode
@@ -202,6 +203,7 @@ export const TerminalWindow = ({
   const [following, setFollowing] = useState(true)
   const [wrap, setWrap] = useState(true)
   const [copied, setCopied] = useState(false)
+  const later = useTimeouts()
 
   const setRefs = useCallback((el: HTMLDivElement | null) => {
     innerRef.current = el
@@ -238,7 +240,7 @@ export const TerminalWindow = ({
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      later(() => setCopied(false), 1500)
     } catch { /* clipboard unavailable */ }
   }
 
@@ -249,8 +251,6 @@ export const TerminalWindow = ({
     <div
       className={cn(
         "relative flex flex-col overflow-hidden rounded-xl border border-[var(--t-border)] bg-[var(--t-bg)] text-[var(--t-fg)]",
-        "[--t-bg:#0d1117] [--t-bar:#161b22] [--t-border:#30363d] [--t-hover:#21262d]",
-        "[--t-fg:#e6edf3] [--t-muted:#8b949e] [--t-dim:#7d8590] [--t-err:#ff7b72] [--t-sys:#d2a8ff] [--t-ok:#7ee787] [--t-warn:#e3b341]",
         className
       )}
     >
@@ -365,9 +365,9 @@ export const Terminal = ({
     >
       <div className="border-border flex flex-col gap-y-2 border-b p-4">
         <div className="flex flex-row gap-x-2">
-          <div className="h-2 w-2 rounded-full bg-red-500" />
-          <div className="h-2 w-2 rounded-full bg-yellow-500" />
-          <div className="h-2 w-2 rounded-full bg-green-500" />
+          <div className="h-2 w-2 rounded-full bg-danger" />
+          <div className="h-2 w-2 rounded-full bg-warning" />
+          <div className="h-2 w-2 rounded-full bg-success" />
         </div>
       </div>
       <pre className="p-4">

@@ -1,5 +1,6 @@
 "use client"
 
+import { useTimeouts } from "@/lib/use-timeouts"
 import { useEffect, useState } from "react"
 import { Check, ChevronRight, Copy, PlugZap, Table2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -19,6 +20,7 @@ function ConnectionStringPanel({ dbName, database }: { dbName: string; database?
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [copyFailed, setCopyFailed] = useState(false)
+  const later = useTimeouts()
 
   useEffect(() => {
     let cancelled = false
@@ -44,10 +46,10 @@ function ConnectionStringPanel({ dbName, database }: { dbName: string; database?
     if (ok) {
       setCopied(true)
       setCopyFailed(false)
-      setTimeout(() => setCopied(false), 1600)
+      later(() => setCopied(false), 1600)
     } else {
       setCopyFailed(true)
-      setTimeout(() => setCopyFailed(false), 2600)
+      later(() => setCopyFailed(false), 2600)
     }
   }
 
