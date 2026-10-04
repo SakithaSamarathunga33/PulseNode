@@ -5,16 +5,17 @@
   <img src="docs/images/logo-light.png" alt="PulseNode" width="420">
 </picture>
 
-**Open-source VPS control panel — monitor your server, manage Docker, deploy GitHub projects, and secure containers from one dashboard.**
+**Open-source VPS control panel — monitor your server, manage Docker, deploy GitHub projects with automatic HTTPS, back up everything, and secure containers from one dashboard.**
 
 [![Release](https://img.shields.io/github/v/release/SakithaSamarathunga33/PulseNode?color=2563eb&label=release)](https://github.com/SakithaSamarathunga33/PulseNode/releases/latest)
 [![Build](https://github.com/SakithaSamarathunga33/PulseNode/actions/workflows/release.yml/badge.svg)](https://github.com/SakithaSamarathunga33/PulseNode/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/backend-Go-00ADD8?logo=go&logoColor=white)](backend/)
-[![Next.js](https://img.shields.io/badge/frontend-Next.js%2014-black?logo=next.js)](app/)
+[![Next.js](https://img.shields.io/badge/frontend-Next.js%2015-black?logo=next.js)](app/)
+[![Images](https://img.shields.io/badge/images-amd64%20%7C%20arm64-2496ED?logo=docker&logoColor=white)](https://github.com/SakithaSamarathunga33?tab=packages&repo_name=PulseNode)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Install](#one-command-install) · [Features](#features) · [Why PulseNode?](#why-pulsenode) · [Configuration](#configuration) · [Roadmap](#roadmap) · [Contributing](#contributing)
+[Install](#one-command-install) · [Features](#features) · [Architecture](#how-it-works) · [Deploying projects](#deploying-projects) · [Configuration](#configuration) · [Roadmap](#roadmap) · [Contributing](#contributing)
 
 ![PulseNode dashboard](docs/images/pulsenode-dashboard.png)
 
@@ -33,7 +34,7 @@ The script:
 2. Clones the repo into `~/pulsenode` (or `/opt/pulsenode` when run as root)
 3. Detects your server's public IP — one prompt to confirm
 4. **Asks you to create an admin login** so your dashboard isn't left open to the internet
-5. Writes the config, pulls pre-built images (or builds from source), starts everything behind Caddy on port 80
+5. Writes the config, pulls the pre-built images for your CPU (amd64 or arm64) — or builds from source — and starts everything behind Caddy
 6. Polls until services are ready, then prints your clickable dashboard URL
 
 When it finishes you'll see:
@@ -44,7 +45,7 @@ When it finishes you'll see:
   Open in browser  →  http://YOUR_IP/
 ```
 
-**Re-running the same command updates an existing install** (git pull + rebuild, your login and data are kept).
+**Re-running the same command updates an existing install** (your login and data are kept).
 
 ### Requirements
 
@@ -53,40 +54,53 @@ When it finishes you'll see:
 | Docker | 24+ |
 | Docker Compose plugin (v2) | 2.20+ |
 | git | any |
-| Linux VPS | Any distro with Docker |
-| Open port | 80 (or 443 for HTTPS) |
+| Linux VPS | Any distro with Docker, amd64 or arm64 |
+| RAM | 2 GB+ recommended (vulnerability scans are memory hungry) |
+| Open ports | 80 for the dashboard; 80 + 443 free if you deploy projects (see [Deploying projects](#deploying-projects)) |
 
 ---
 
 ## Features
 
-- ⚡ **One-command install** — from empty VPS to live dashboard in minutes, updates the same way
-- 📊 **Live system metrics** — CPU, RAM, disk I/O, and network streamed over WebSocket/SSE, read straight from `/proc`
-- 🐳 **Full Docker management** — containers, images, networks, logs, stats, and an in-browser shell
-- 🚀 **Deploy from GitHub** — connect a repo and deploy on push: Dockerfile, Docker Compose, Nixpacks auto-builds, and `frontend/` + `backend/` monorepos
-- 🔄 **Zero-downtime deploys with rollback** — new containers are health-checked before old ones are removed; one click rolls back to any previous build
-- 🗄️ **Database management** — spin up and manage PostgreSQL, MySQL, MongoDB, and Redis, or connect existing databases
-- 💾 **Scheduled backups** — encrypted backups of the panel itself and your managed databases to a local folder or any S3-compatible bucket, with retention, failure alerts and a one-command offline recovery ([docs/backups.md](docs/backups.md))
-- 🛡️ **Container security scanning** — Trivy vulnerability scans and Syft SBOMs, per container
-- 🔔 **Alerts** — threshold rules on CPU, RAM, and disk with notification channels
-- 🌐 **Automatic HTTPS** — Caddy terminates TLS with Let's Encrypt; per-project custom domains
-- 🔐 **Login protection** — bcrypt-hashed admin account, httpOnly JWT sessions, full-dashboard auth gate
-- 📈 **Process explorer** — live host process list with real per-process CPU and memory
+**Monitor**
+- 📊 **Live system metrics** — CPU, RAM, disk I/O and network streamed over WebSocket/SSE, read straight from `/proc`
+- ⏱️ **Runtime & uptime** — per-container CPU/RAM and 24h / 3d / 7d up-down history
+- 📈 **Process explorer** — live host processes with per-process CPU/memory, suspend/kill, and suspicious-process detection (miners, `/tmp` binaries, piped base64…)
+- 🔔 **Alerts** — rules for CPU, memory, disk, container down and failed deploys, sent to **Slack, Discord, Telegram, email or a signed webhook**
+
+**Resources**
+- 🐳 **Full Docker management** — containers, images, networks, logs, stats and an in-browser shell
+- 🗄️ **Databases** — provision PostgreSQL, MySQL, MongoDB and Redis (bound to `127.0.0.1`), browse tables, run queries, view metrics, or connect existing databases
+- 💾 **Scheduled backups** — hourly/daily/weekly backups of your databases and of the panel itself (settings + keys), encrypted, to a local folder or any S3-compatible bucket (AWS S3, Backblaze B2, Cloudflare R2, MinIO), with retention, failure alerts and offline recovery — see [docs/backups.md](docs/backups.md)
+
+**Deploy**
+- 🚀 **Deploy from GitHub** — Dockerfile, Docker Compose, Nixpacks auto-builds, and `frontend/` + `backend/` monorepos on one domain
+- ⚡ **Push-to-deploy** — the GitHub webhook is installed for you; a branch poller is the fallback
+- 🔄 **Zero-downtime deploys with rollback** — new containers are health-checked before the old ones are removed; one click rolls back to any previous build
+- 🌐 **Automatic HTTPS for your apps** — uses your existing Traefik, or starts its own with Let's Encrypt; a built-in check tells you whether your wildcard DNS record is right
+- 🌍 **Domains** — DNS checker that understands Cloudflare-proxied records, plus an overview of every hostname in use
+
+**Security**
+- 🛡️ **Vulnerability scanning** — Trivy scans and Syft SBOMs for your images (real results only — "unavailable" when a scanner isn't installed)
+- 🔐 **Hardened by default** — mandatory login with lockout, revocable sessions, audit log, encrypted secrets, and every deployed app runs with dropped capabilities, memory/process limits and rotated logs
+- 🧱 **Compose sandbox** — a repo's `docker-compose.yml` is checked against an allow-list, so a pushed commit can't take over the host or the panel
+- ♻️ **Safe self-update** — one click from Settings: database snapshot first, pinned release, health check afterwards, automatic rollback if the new version doesn't come up
 
 ---
 
 ## Why PulseNode?
 
-Running a single VPS usually means juggling three or four tools — one for metrics, one for Docker, one for deployments. PulseNode is one dashboard for the whole box.
+Running a single VPS usually means juggling three or four tools — one for metrics, one for Docker, one for deployments, one for backups. PulseNode is one dashboard for the whole box.
 
 | | PulseNode | Portainer | Netdata | Coolify |
 |---|:---:|:---:|:---:|:---:|
 | Live host metrics (CPU/RAM/disk/net) | ✅ | ❌ | ✅ | ➖ basic |
 | Docker containers / images / networks | ✅ | ✅ | ➖ view only | ➖ |
 | Git push-to-deploy with rollback | ✅ | ➖ stacks | ❌ | ✅ |
+| Automatic HTTPS for deployed apps | ✅ | ❌ | ❌ | ✅ |
 | Container vulnerability scanning + SBOMs | ✅ | ❌ | ❌ | ❌ |
-| Database provisioning & management | ✅ | ❌ | ❌ | ✅ |
-| Alerts on host resources | ✅ | ❌ | ✅ | ❌ |
+| Database provisioning & scheduled backups | ✅ | ❌ | ❌ | ✅ |
+| Alerts to Slack / Discord / Telegram / email | ✅ | ❌ | ✅ | ✅ |
 | Single-command install | ✅ | ➖ | ✅ | ✅ |
 
 PulseNode doesn't try to manage a fleet of a hundred nodes — it's built to be *the* dashboard for the one or two servers you actually run.
@@ -95,23 +109,50 @@ PulseNode doesn't try to manage a fleet of a hundred nodes — it's built to be 
 
 ## How it works
 
+![PulseNode system architecture — users and internet services on the left, the VPS with Traefik, the PulseNode panel (Caddy, Next.js web, Go API, SQLite), Docker Engine, deployed apps and managed databases in the middle, and the CI/release pipeline along the bottom](docs/PulseNode%20VPS%20Architecture%20Infographic.png)
+
+**The panel** is a small Docker Compose stack:
+
 ```
 Browser
   │
   ▼
-Caddy :80 (or :443 with auto-TLS)
-  ├─ /go/*     ──▶  Go API  :4002   (Docker, processes, metrics, auth, databases, projects)
-  ├─ /events   ──▶  Go API  :4002   (Server-Sent Events — live metrics)
-  ├─ /ws       ──▶  Go API  :4002   (WebSocket — live metrics)
-  ├─ /health   ──▶  Go API  :4002   (health check endpoint)
-  └─ /*        ──▶  Next.js :3000   (dashboard UI)
+Caddy  (port 80, or 443 with auto-TLS — the panel's only public entry point)
+  ├─ /go/*     ──▶  go-api :4002   REST API (Docker, metrics, auth, projects, databases, backups…)
+  ├─ /ws       ──▶  go-api :4002   WebSocket — live metrics and alerts
+  ├─ /events   ──▶  go-api :4002   Server-Sent Events
+  ├─ /health   ──▶  go-api :4002   health check
+  └─ /*        ──▶  web    :3000   Next.js dashboard
 ```
 
-The Go API mounts `/var/run/docker.sock` and runs in the host PID namespace (`pid: host`) to read real host CPU, RAM, disk I/O, and network stats from `/proc`.
+- **go-api** (Go) talks to Docker through `/var/run/docker.sock` and runs in the host PID namespace to read real CPU, RAM, disk and network stats from `/proc`. It also runs the deploy queue and builder, the alert evaluator, the vulnerability scanner, the backup scheduler and the proxy manager.
+- **Data** lives in one SQLite database (WAL mode) — projects, deployments and logs, alerts, audit log, backup history and the admin account. Secrets in it (env vars, tokens, database passwords) are AES-GCM encrypted; the keys live in a separate data volume.
+- **Your deployed apps** are separate containers routed by **Traefik** with automatic HTTPS — see [Deploying projects](#deploying-projects).
+- **Releases** are built by GitHub Actions: tests and checks → amd64 + arm64 images → published to GHCR → Trivy report → tagged release. The in-app updater only installs a release whose images are already published.
 
-All data is persisted in a single SQLite database (`pulsenode.db`) — credentials, alert rules, audit logs, deployed projects, and the admin account.
+---
 
-All internal services bind on the Docker-internal network only — Caddy is the sole public entry point.
+## Deploying projects
+
+Connect GitHub on the **GitHub** page (OAuth app or a personal access token with `repo` scope), then **Projects → New project**: pick a repo and branch, set a domain and port, add environment variables, deploy. PulseNode auto-detects Docker Compose → Dockerfile → Nixpacks, and splits `frontend/` + `backend/` repos into two services on one domain (backend under `/api`).
+
+### Routing and HTTPS (built-in proxy)
+
+Deployed apps are routed by Traefik. PulseNode picks what to use in this order:
+
+1. `TRAEFIK_NETWORK` from `.env.local`, if set.
+2. A Traefik container that is already running on the server (used untouched).
+3. Otherwise PulseNode **starts its own Traefik** (`pulsenode-traefik`, `traefik:v3.6`) on ports 80 and 443 with automatic Let's Encrypt certificates. The first deploy does this for you; the **Domain** page shows its status and lets you set the Let's Encrypt e-mail, enable or disable it.
+
+Things to know:
+
+- **Ports 80 and 443 must be free.** If something else holds them (a default nginx or Apache install is the usual culprit), the deploy stops with `ports 80/443 are in use`. PulseNode never stops other services — free the ports yourself, e.g. `sudo systemctl disable --now nginx`.
+- **DNS:** add one wildcard record, `*.example.com` → your server IP (proxied through Cloudflare is fine). PulseNode doesn't edit your DNS; it checks the record and shows the status on the Domain and project pages and in the deploy log. A wildcard covers one level: `app.example.com` yes, `a.b.example.com` no.
+- **Opt out:** set `PULSENODE_MANAGED_PROXY=false` or press Disable on the Domain page.
+
+### Limits for deployed apps
+
+Every app runs with all Linux capabilities dropped except a small allow-list, `no-new-privileges`, a 1 GB memory limit, a 1024-process limit and rotated logs (10 MB × 3). Tune in `.env.local` with `PULSENODE_APP_MEMORY`, `PULSENODE_APP_PIDS`, `PULSENODE_APP_CPUS` (`0` or `unlimited` switches one off). A compose service's own `mem_limit`, `deploy.resources.limits`, `cap_drop` or `logging` wins.
 
 ---
 
@@ -123,7 +164,7 @@ cd ~/pulsenode
 ./deploy.sh
 ```
 
-`deploy.sh` prompts for your IP/domain, and optional HTTPS, writes `.env.local`, then runs `docker compose up -d --build`.
+`deploy.sh` prompts for your IP/domain and optional HTTPS, writes `.env.local`, then runs `docker compose up -d --build`.
 
 Or configure manually:
 
@@ -157,13 +198,25 @@ AES_KEY=<auto-generated>
 MASTER_ENCRYPTION_KEY=<auto-generated>
 ```
 
+Optional knobs:
+
+| Variable | Default | What it does |
+|---|---|---|
+| `PULSENODE_MANAGED_PROXY` | `true` | Start the built-in Traefik when none exists |
+| `PULSENODE_APP_MEMORY` / `_PIDS` / `_CPUS` | `1g` / `1024` / off | Limits for deployed apps |
+| `PULSENODE_DB_MEMORY` / `_PIDS` | per engine / `4096` | Limits for managed databases |
+| `PULSENODE_API_MEMORY` | `768M` | Memory limit of the go-api container (scans need room) |
+| `PULSENODE_ALERTS_ALLOW_PRIVATE` | `false` | Allow alert webhooks to private/LAN addresses |
+| `PULSENODE_ALERTS_ALLOW_ANY_WEBHOOK_HOST` | `false` | Allow Slack/Discord-type channels on other hosts (e.g. Mattermost) |
+| `PULSENODE_BACKUPS_ALLOW_PRIVATE` | `false` | Allow S3 endpoints on private addresses (e.g. MinIO on your LAN) |
+| `PULSENODE_BACKUPS_EXTRA_DIRS` | — | Extra host folders allowed as local backup destinations |
+| `PULSENODE_WEBHOOK_LEGACY_SECRET` | `true` | Keep accepting the old shared GitHub webhook secret |
+
 ---
 
 ## Login / Security
 
-PulseNode can control Docker, host processes, databases, and deployments — **always protect it with a login when the dashboard is reachable from the internet.**
-
-Login is **always required**. The installer creates the admin account for you. Until an admin account exists, the dashboard and API stay locked — nobody who finds your server can use it.
+PulseNode controls Docker, host processes, databases and deployments, so **login is always required**. The installer creates the admin account for you; until one exists, the dashboard and API stay locked.
 
 If you deployed manually (or the installer couldn't create the account):
 
@@ -172,37 +225,25 @@ If you deployed manually (or the installer couldn't create the account):
 3. Paste the token, choose a username and password (minimum 8 characters)
 
 Good to know:
-- Passwords are stored bcrypt-hashed; sessions are httpOnly JWT cookies
-- Sessions last **30 minutes of inactivity** and refresh automatically while you're active
-- Change your password in **Settings → Security**
-- Running PulseNode only on a private network/VPN and really want no login? Set `PULSENODE_INSECURE_NO_AUTH=true` in `.env.local`. Anyone who can reach the dashboard then controls your server.
+- Passwords are bcrypt-hashed; sessions are httpOnly JWT cookies that refresh while you're active (30 minutes idle, 12 hours max). Logging out or changing your password revokes the session, even across restarts.
+- Repeated failed logins slow down guessing per account and per IP, without locking you out of your own account.
+- Sensitive actions and reads (credentials, backup downloads, shell sessions, logins) are recorded in the audit log.
+- Change your password in **Settings → Security**.
+- Running PulseNode only on a private network/VPN and really want no login? Set `PULSENODE_INSECURE_NO_AUTH=true`. Anyone who can reach the dashboard then controls your server.
 
-Found a vulnerability? Please report it privately — see [SECURITY.md](SECURITY.md).
-
----
-
-## Optional integrations
-
-### GitHub
-
-Connect a GitHub account from **Settings → GitHub** to deploy projects directly from your repositories. Two methods are supported:
-
-- **OAuth App** — set up a GitHub OAuth App and enter the Client ID and Secret in the GitHub settings page. Best for teams.
-- **Personal Access Token (PAT)** — paste a token with `repo` scope. Best for personal installs.
+See [SECURITY.md](SECURITY.md) for the full model and a hardening checklist. Found a vulnerability? Please report it privately there.
 
 ---
 
-## HTTPS / custom domain
+## HTTPS / custom domain for the dashboard
 
-Run `deploy.sh`, answer **y** to the HTTPS question, and enter your domain. Caddy handles TLS automatically via Let's Encrypt — no extra tools required.
+Run `deploy.sh`, answer **y** to the HTTPS question, and enter your domain. Caddy handles TLS automatically via Let's Encrypt.
 
-Requirements: domain DNS must already point to the VPS, and port 443 must be open.
+Requirements: the domain's DNS must already point to the VPS, and port 443 must be open.
 
----
+## Behind an existing Traefik proxy
 
-## Behind an existing Traefik proxy (e.g. Coolify)
-
-If your VPS already runs Traefik, use the overlay:
+If your VPS already runs Traefik, put the dashboard behind it with the overlay:
 
 ```bash
 # Add to your .env.local:
@@ -216,64 +257,47 @@ docker compose \
   up -d --build
 ```
 
-The overlay attaches Caddy to the Traefik network and adds the correct router labels. Caddy still handles internal routing; Traefik only terminates TLS externally.
+The overlay attaches Caddy to the Traefik network and adds the router labels; Caddy keeps the internal routing and trusts forwarded client IPs only from Traefik itself. If your Traefik container isn't named `traefik`, run `scripts/trust-traefik.sh` once. Deployed projects will use the same Traefik.
 
 ---
 
-## Routing for deployed projects (built-in proxy)
-
-Projects you deploy are routed by Traefik. PulseNode picks what to use in this order:
-
-1. `TRAEFIK_NETWORK` from `.env.local`, if set.
-2. A Traefik container that is already running on the server (used untouched).
-3. Otherwise PulseNode **starts its own Traefik** (`pulsenode-traefik`, image `traefik:v3.6`) on ports 80 and 443 with automatic Let's Encrypt HTTPS, attached to a `pulsenode-proxy` Docker network. The first deploy does this for you; you can also use the proxy status card on the Domain page (`GET /api/proxy/status`, `POST /api/proxy/enable`, `POST /api/proxy/disable`, `PATCH /api/proxy/settings`).
-
-Things to know:
-
-- **Ports 80 and 443 must be free.** If something else (nginx, Apache, another container) holds them, the deploy fails with `ports 80/443 are in use — free them or use the Traefik overlay`. PulseNode never stops or removes other containers.
-- **DNS:** add one wildcard record, `*.example.com` → your server IP, at your DNS provider (proxying through Cloudflare is fine). PulseNode does not touch your DNS; it only checks the record (`GET /api/domains/wildcard?domain=app.example.com`) and writes a `DNS:` line to the deploy log. A wildcard covers one label, so `app.example.com` is covered by `*.example.com` but `a.b.example.com` is not.
-- **Let's Encrypt e-mail** (optional) is set with the proxy settings; certificates are kept in the `pulsenode-traefik-acme` volume, which survives disabling the proxy.
-- **Opt out:** set `PULSENODE_MANAGED_PROXY=false` in `.env.local`, or press Disable. Without a Traefik, deploys then fail with the old `TRAEFIK_NETWORK is not configured` error.
-- The built-in proxy has no dashboard or API. See [SECURITY.md](SECURITY.md) for its Docker socket access.
-
----
-
-## Architecture
+## Project structure
 
 ```
 pulsenode/
-├─ app/                   Next.js 14 app router pages
-│   ├─ containers/        Docker container list and shell access
-│   ├─ stats/             CPU, RAM, disk I/O, network charts (live)
-│   ├─ processes/         System process list
-│   ├─ databases/         Managed and connected database management
-│   ├─ networks/          Docker network topology
-│   ├─ images/            Docker image list
-│   ├─ alerts/            Alert rules and notification channels
-│   ├─ projects/          Deploy projects from GitHub
-│   ├─ github/            GitHub account connection and OAuth settings
-│   ├─ settings/          System settings, updates, and login security
-│   └─ login/             Login page (shown when auth is enabled)
-├─ backend/               Go API (Chi router, gorilla/websocket)
-│   ├─ internal/api/      HTTP handlers — containers, metrics, auth, databases, projects
-│   ├─ internal/auth/     JWT signing and validation (HMAC-SHA256)
-│   ├─ internal/proc/     /proc reader — CPU, RAM, disk, network, processes
-│   ├─ internal/docker/   Docker SDK client — containers, images, networks, exec
-│   ├─ internal/db/       SQLite store — credentials, alerts, audit log, users
-│   ├─ internal/caddy/    Caddy Admin API client (route management)
-│   ├─ internal/builder/  Build pipeline — Dockerfile, Nixpacks, Compose, monorepo
-│   ├─ internal/queue/    Async deploy job queue
-│   └─ internal/security/ Container security scanning (Trivy / Syft)
-├─ components/            Sidebar, stat cards, charts, UI primitives
-├─ lib/                   API clients, socket, types
-├─ middleware.ts           Next.js edge middleware — auth gate (cookie check)
-├─ Caddyfile              Reverse proxy routing rules
-├─ docker-compose.yml             Base service definitions
-├─ docker-compose.standalone.yml  Exposes ports 80/443 (used by install/deploy)
-├─ docker-compose.traefik.yml     Traefik labels overlay (optional)
-├─ Dockerfile             Multi-stage: Next.js build only
-├─ install.sh             One-command installer (curl | bash)
-└─ deploy.sh              Interactive deploy script
+├─ app/                       Next.js 15 app router pages
+│   ├─ containers/            Dashboard — host health + container table, logs, shell
+│   ├─ runtime/  stats/       Per-container usage, uptime history, host charts
+│   ├─ processes/             Host processes + suspicious-activity detection
+│   ├─ images/  networks/     Docker images and networks
+│   ├─ databases/  backups/   Managed databases and scheduled backups
+│   ├─ projects/  github/     Deploy from GitHub, connect an account
+│   ├─ domain/                DNS checks, wildcard status, built-in proxy
+│   ├─ alerts/                Alert history, rules, notification channels
+│   ├─ scan-history/  sbom-history/   Vulnerability scans and SBOMs
+│   ├─ settings/              Version, safe self-update, snapshots, security
+│   └─ login/                 Login and first-run setup
+├─ backend/                   Go API (chi router, gorilla/websocket)
+│   ├─ cmd/pulsenode/         Entry point + CLI (updater, restore-panel, verify-backup)
+│   └─ internal/
+│       ├─ api/               HTTP handlers, auth, audit, update, webhooks
+│       ├─ builder/           Dockerfile / Nixpacks / Compose / monorepo builds, compose policy
+│       ├─ queue/             Deploy queue (one deploy per project), branch poller
+│       ├─ proxy/             Built-in Traefik manager
+│       ├─ alerts/            Evaluator + Slack/Discord/Telegram/SMTP/webhook notifiers
+│       ├─ backups/           Scheduler, encryption, local + S3 storage
+│       ├─ security/          Trivy / Syft scanning
+│       ├─ docker/  proc/     Docker client, /proc reader
+│       ├─ hub/               WebSocket/SSE fan-out
+│       ├─ db/  auth/         SQLite store, JWT
+│       └─ github/            GitHub API client
+├─ components/  lib/          UI (shadcn/ui on Base UI), API client, nav
+├─ docs/                      Backups guide, design system, architecture image
+├─ .github/workflows/         CI + multi-arch release pipeline
+├─ Caddyfile                  Panel routing
+├─ docker-compose*.yml        Base stack + standalone / no-SSL / Traefik / GHCR overlays
+├─ install.sh  deploy.sh      One-command installer, interactive deploy
+└─ scripts/                   Caddy entrypoint, Traefik trust helper
 ```
 
 ---
@@ -282,25 +306,31 @@ pulsenode/
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 14, React 18, TypeScript, Tailwind CSS |
-| Charts | uPlot |
-| Tables | TanStack Table |
-| UI components | shadcn/ui, Radix UI |
-| Real-time | WebSocket (native) / Server-Sent Events |
-| Backend API | Go, Chi router, gorilla/websocket |
+| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS 4 |
+| UI components | shadcn/ui on Base UI, cmdk palette, sonner toasts |
+| Charts / tables | uPlot, TanStack Table |
+| Real-time | WebSocket / Server-Sent Events |
+| Backend API | Go, chi router, gorilla/websocket |
 | System metrics | Go — reads `/proc` directly |
-| Docker API | Go Docker SDK |
-| Database | SQLite (modernc.org/sqlite, WAL mode) |
-| Auth | HMAC-SHA256 JWT, httpOnly cookie, bcrypt passwords |
-| Proxy | Caddy v2 (auto-TLS) |
-| Containers | Docker, Docker Compose |
+| Database | SQLite (modernc.org/sqlite, WAL) |
+| Auth | HMAC-SHA256 JWT, httpOnly cookie, bcrypt |
+| Panel proxy | Caddy v2 (auto-TLS) |
+| App routing | Traefik v3 (yours, or PulseNode's built-in) + Let's Encrypt |
+| Builds | Docker BuildKit, Nixpacks, Docker Compose |
+| Security scanning | Trivy, Syft |
+| Backups | AES-GCM encryption, MinIO client (S3-compatible) |
+| CI / images | GitHub Actions, GHCR (amd64 + arm64) |
 
 ---
 
 ## Updating
 
+Use the built-in updater: **Settings → Update**. It snapshots the database, installs the pinned release, checks that the new version is healthy and rolls back automatically if not. Snapshots can be restored from the same page.
+
+Or from the shell:
+
 ```bash
-# If installed via install.sh — just re-run it:
+# Re-run the installer:
 curl -fsSL https://raw.githubusercontent.com/SakithaSamarathunga33/PulseNode/main/install.sh | bash
 
 # Or manually:
@@ -309,17 +339,18 @@ git pull
 docker compose -f docker-compose.yml -f docker-compose.standalone.yml up -d --build
 ```
 
-Or use the built-in updater: **Settings → Check for updates**.
-
 ---
 
 ## Roadmap
 
+- [x] Scheduled database backups (local + S3)
+- [x] Alert channels: Slack, Discord, Telegram, email, webhook
+- [x] Pre-built ARM64 images
+- [x] Automatic HTTPS for deployed projects
 - [ ] Two-factor authentication (TOTP)
+- [ ] API tokens for CI / scripts
+- [ ] Per-project HTTP health checks
 - [ ] Multi-server monitoring from one dashboard
-- [ ] Scheduled database backups
-- [ ] More alert channels (Slack, Discord, Telegram)
-- [ ] Pre-built ARM64 images
 - [ ] Metrics history retention settings
 
 Have an idea? [Open an issue](https://github.com/SakithaSamarathunga33/PulseNode/issues/new/choose) — roadmap priorities follow community demand.
@@ -328,7 +359,7 @@ Have an idea? [Open an issue](https://github.com/SakithaSamarathunga33/PulseNode
 
 ## Contributing
 
-Contributions are welcome — from typo fixes to new features. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the dev setup and PR guidelines, and check the [good first issues](https://github.com/SakithaSamarathunga33/PulseNode/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
+Contributions are welcome — from typo fixes to new features. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the dev setup, the CI checks and PR guidelines, and check the [good first issues](https://github.com/SakithaSamarathunga33/PulseNode/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
 - 🐛 [Report a bug](https://github.com/SakithaSamarathunga33/PulseNode/issues/new/choose)
 - 💡 [Request a feature](https://github.com/SakithaSamarathunga33/PulseNode/issues/new/choose)
