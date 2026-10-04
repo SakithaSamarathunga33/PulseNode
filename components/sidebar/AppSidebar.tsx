@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Cpu } from "lucide-react"
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarHeader, SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, SidebarRail,
@@ -90,19 +89,14 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="h-14 justify-center border-b border-sidebar-border">
-        <Link href="/containers" className="flex items-center gap-2.5 px-1" aria-label="PulseNode home">
-          <span className="relative grid size-8 shrink-0 place-items-center rounded-lg bg-primary/12 text-primary">
-            <Cpu className="size-4" />
-            <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-success ring-2 ring-sidebar" />
-          </span>
-          <span className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="relative block h-6 w-32 overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logodark-removebg-preview.png" alt="PulseNode" className="theme-logo-dark h-full w-full object-contain object-left" />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo-removebg-preview.png" alt="PulseNode" className="theme-logo-light h-full w-full object-contain object-left" />
-            </span>
-            <span className="text-[11px] text-muted-foreground">VPS console</span>
+        <Link href="/containers" className="flex h-full w-full items-center px-1" aria-label="PulseNode home">
+          {/* The PNGs carry transparent margins, so they are sized larger than the box and the
+              margins cropped; collapsed, only the mark at the left of the logo shows. */}
+          <span className="relative h-11 w-full overflow-hidden group-data-[collapsible=icon]:size-8">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logodark-removebg-preview.png" alt="PulseNode" className="theme-logo-dark absolute top-1/2 -left-[15px] h-[61px] max-w-none -translate-y-1/2 group-data-[collapsible=icon]:-left-[11px] group-data-[collapsible=icon]:h-[44px]" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-removebg-preview.png" alt="PulseNode" className="theme-logo-light absolute top-1/2 -left-[10px] h-[61px] max-w-none -translate-y-1/2 group-data-[collapsible=icon]:-left-[7px] group-data-[collapsible=icon]:h-[44px]" />
           </span>
         </Link>
       </SidebarHeader>
