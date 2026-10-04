@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import {
-  Play, Trash2, GitBranch, ChevronLeft, Terminal, History, Settings2, ExternalLink,
+  Play, Trash2, GitBranch, ChevronLeft, Terminal, History, ExternalLink,
   Save, Zap, RotateCcw, Webhook, Server, Square, RotateCw, Box, Loader2, AlertCircle, RefreshCw, FolderGit2,
   Clock, ScrollText, Copy, Lock, MoreHorizontal, CircleCheck, CircleX, User, TriangleAlert,
 } from "lucide-react"
@@ -73,10 +73,11 @@ function DomainLink({ domain }: { domain: string }) {
       href={`https://${domain}`}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 rounded-sm font-mono text-[var(--hue-fg)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+      title={domain}
+      className="inline-flex min-w-0 max-w-[16rem] items-center gap-1 rounded-sm font-mono text-[var(--hue-fg)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
     >
-      {domain}
-      <ExternalLink className="size-3" aria-hidden />
+      <span className="truncate">{domain}</span>
+      <ExternalLink className="size-3 shrink-0" aria-hidden />
       <span className="sr-only">(opens in a new tab)</span>
     </a>
   )
@@ -253,7 +254,7 @@ export default function ProjectDetailPage() {
   const [deployments, setDeployments]   = useState<Deployment[]>([])
   const [logs, setLogs]                 = useState<LogEntry[]>([])
   const [activeDep, setActiveDep]       = useState<string | null>(null)
-  const [tab, setTab]                   = useState<"logs" | "history" | "settings">("settings")
+  const [tab, setTab]                   = useState<"logs" | "history">("logs")
   const [loading, setLoading]           = useState(true)
   const [deploying, setDeploying]       = useState(false)
   const [rolling, setRolling]           = useState<string | null>(null)
@@ -596,20 +597,24 @@ export default function ProjectDetailPage() {
   ]
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <Tabs
-        value={tab}
-        onValueChange={v => setTab(v as typeof tab)}
-        className="h-full min-h-0 gap-0"
-      >
+    <div className="flex min-h-0 flex-col xl:h-full">
         <PageHeader
           icon={FolderGit2}
-          title={<span className="flex flex-wrap items-center gap-2">{project.Name}<StatusPill status={project.Status} /></span>}
+          title={
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="min-w-0 max-w-[22rem] truncate" title={project.Name}>{project.Name}</span>
+              <span className="shrink-0"><StatusPill status={project.Status} /></span>
+            </span>
+          }
           description={
-            <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
               <BackLink />
-              <span className="inline-flex items-center gap-1 font-mono text-xs"><FolderGit2 className="size-3.5" aria-hidden />{repoName}</span>
-              <span className="inline-flex items-center gap-1 font-mono text-xs"><GitBranch className="size-3.5" aria-hidden />{project.Branch}</span>
+              <span className="inline-flex min-w-0 max-w-[18rem] items-center gap-1 font-mono text-xs" title={repoName}>
+                <FolderGit2 className="size-3.5 shrink-0" aria-hidden /><span className="truncate">{repoName}</span>
+              </span>
+              <span className="inline-flex min-w-0 max-w-[10rem] items-center gap-1 font-mono text-xs" title={project.Branch}>
+                <GitBranch className="size-3.5 shrink-0" aria-hidden /><span className="truncate">{project.Branch}</span>
+              </span>
               <DomainLink domain={project.Domain} />
               <WildcardBadge domain={project.Domain} />
             </span>
@@ -647,19 +652,26 @@ export default function ProjectDetailPage() {
               </DropdownMenu>
             </>
           }
+        />
+
+        {/* Left: live logs + history. Right: settings, always visible. */}
+        <div className="grid min-h-0 flex-1 gap-4 p-4 sm:p-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] xl:overflow-hidden">
+        <section aria-label="Logs and history" className="flex min-h-[30rem] min-w-0 flex-col xl:min-h-0">
+        <Tabs
+          value={tab}
+          onValueChange={v => setTab(v as typeof tab)}
+          className="min-h-0 flex-1 gap-3"
         >
-          <TabsList className="max-w-full overflow-x-auto" aria-label="Project sections">
-            <TabsTrigger value="settings"><Settings2 className="size-4" />Settings</TabsTrigger>
+          <TabsList className="max-w-full overflow-x-auto" aria-label="Logs and history">
             <TabsTrigger value="logs">
               <Terminal className="size-4" />Logs
               {busyNow && <span className="size-1.5 rounded-full bg-success motion-safe:animate-pulse" aria-label="live" />}
             </TabsTrigger>
             <TabsTrigger value="history"><History className="size-4" />History</TabsTrigger>
           </TabsList>
-        </PageHeader>
 
         {/* Logs tab */}
-        <TabsContent value="logs" className="flex min-h-0 flex-1 flex-col gap-3 p-4 sm:p-6">
+        <TabsContent value="logs" className="flex min-h-0 flex-1 flex-col gap-3">
           {deployments.length > 0 && (
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               <Label htmlFor="dep-select" className="text-xs text-muted-foreground">Deployment</Label>
@@ -692,7 +704,7 @@ export default function ProjectDetailPage() {
 
         {/* History tab */}
         <TabsContent value="history" className="min-h-0 flex-1 overflow-auto">
-          <PageBody className="max-w-[1200px] space-y-2.5">
+          <div className="space-y-2.5">
             {deployments.length === 0 ? (
               <EmptyState icon={History} title="No deployments yet" description="Deployments appear here after the first deploy." />
             ) : deployments.map(dep => {
@@ -756,12 +768,13 @@ export default function ProjectDetailPage() {
                 </article>
               )
             })}
-          </PageBody>
+          </div>
         </TabsContent>
+        </Tabs>
+        </section>
 
-        {/* Settings tab */}
-        <TabsContent value="settings" className="min-h-0 flex-1 overflow-auto">
-          <PageBody className="max-w-[1200px] space-y-4">
+        {/* Settings: always visible on the right */}
+        <div aria-label="Project settings" className="min-w-0 space-y-4 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
             {/* Identity + webhook */}
             <Panel
               title="Project identity"
@@ -779,7 +792,7 @@ export default function ProjectDetailPage() {
                 </div>
               ) : undefined}
             >
-              <dl className="grid grid-cols-1 gap-px bg-border sm:grid-cols-2 xl:grid-cols-4">
+              <dl className="grid grid-cols-1 gap-px bg-border sm:grid-cols-2">
                 {identity.map(row => (
                   <div key={row.label} className="flex min-w-0 items-center gap-2.5 bg-card px-4.5 py-3">
                     <div className="min-w-0 flex-1">
@@ -833,7 +846,7 @@ export default function ProjectDetailPage() {
               }
             >
               <div className="space-y-5 p-4.5">
-                <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-3.5 sm:grid-cols-2">
                   <FormField label="Project name" htmlFor="ps-name">
                     <Input id="ps-name" value={form.name} onChange={e => setF("name", e.target.value)} spellCheck={false} className="h-9 font-mono text-xs" />
                   </FormField>
@@ -868,7 +881,7 @@ export default function ProjectDetailPage() {
                 </span>
               )}
             >
-              <div className={cn("grid gap-3.5 p-4.5", monorepo && "lg:grid-cols-2")}>
+              <div className={cn("grid gap-3.5 p-4.5")}>
                 <EnvEditor
                   title={monorepo ? "Frontend env" : "Environment variables"}
                   description={monorepo ? "Frontend container only" : undefined}
@@ -930,9 +943,8 @@ export default function ProjectDetailPage() {
                 Delete project
               </Button>
             </div>
-          </PageBody>
-        </TabsContent>
-      </Tabs>
+        </div>
+        </div>
 
       {confirmDelete && (
         <DeleteProjectDialog
