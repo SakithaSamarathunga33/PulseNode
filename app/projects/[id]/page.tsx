@@ -686,7 +686,7 @@ export default function ProjectDetailPage() {
               </Select>
             </div>
           )}
-          <TabsList className="ml-auto max-w-full overflow-x-auto" aria-label="Logs and history">
+          <TabsList className="ml-auto shrink-0" aria-label="Logs and history">
             <TabsTrigger value="logs">
               <Terminal className="size-4" />Logs
               {busyNow && <span className="size-1.5 rounded-full bg-success motion-safe:animate-pulse" aria-label="live" />}
