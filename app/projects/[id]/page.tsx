@@ -598,6 +598,11 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="flex min-h-0 flex-col xl:h-full">
+      <Tabs
+        value={tab}
+        onValueChange={v => setTab(v as typeof tab)}
+        className="min-h-0 flex-1 gap-0"
+      >
         <PageHeader
           icon={FolderGit2}
           title={
@@ -652,15 +657,6 @@ export default function ProjectDetailPage() {
               </DropdownMenu>
             </>
           }
-        />
-
-        {/* Left: live logs + history. Right: settings, always visible. */}
-        <div className="grid min-h-0 flex-1 gap-4 p-4 sm:p-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] xl:overflow-hidden">
-        <section aria-label="Logs and history" className="flex min-h-[30rem] min-w-0 flex-col xl:min-h-0">
-        <Tabs
-          value={tab}
-          onValueChange={v => setTab(v as typeof tab)}
-          className="min-h-0 flex-1 gap-3"
         >
           <TabsList className="max-w-full overflow-x-auto" aria-label="Logs and history">
             <TabsTrigger value="logs">
@@ -669,6 +665,11 @@ export default function ProjectDetailPage() {
             </TabsTrigger>
             <TabsTrigger value="history"><History className="size-4" />History</TabsTrigger>
           </TabsList>
+        </PageHeader>
+
+        {/* Left: live logs + history. Right: settings, always visible. */}
+        <div className="grid min-h-0 flex-1 gap-4 p-4 sm:p-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] xl:overflow-hidden">
+        <section aria-label="Logs and history" className="flex min-h-[30rem] min-w-0 flex-col xl:min-h-0">
 
         {/* Logs tab */}
         <TabsContent value="logs" className="flex min-h-0 flex-1 flex-col gap-3">
@@ -770,7 +771,6 @@ export default function ProjectDetailPage() {
             })}
           </div>
         </TabsContent>
-        </Tabs>
         </section>
 
         {/* Settings: always visible on the right */}
@@ -945,6 +945,7 @@ export default function ProjectDetailPage() {
             </div>
         </div>
         </div>
+      </Tabs>
 
       {confirmDelete && (
         <DeleteProjectDialog
