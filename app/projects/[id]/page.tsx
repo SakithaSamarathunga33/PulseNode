@@ -657,24 +657,16 @@ export default function ProjectDetailPage() {
               </DropdownMenu>
             </>
           }
-        >
-          <TabsList className="max-w-full overflow-x-auto" aria-label="Logs and history">
-            <TabsTrigger value="logs">
-              <Terminal className="size-4" />Logs
-              {busyNow && <span className="size-1.5 rounded-full bg-success motion-safe:animate-pulse" aria-label="live" />}
-            </TabsTrigger>
-            <TabsTrigger value="history"><History className="size-4" />History</TabsTrigger>
-          </TabsList>
-        </PageHeader>
+        />
 
         {/* Left: live logs + history. Right: settings, always visible. */}
         <div className="grid min-h-0 flex-1 gap-4 p-4 sm:p-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] xl:overflow-hidden">
-        <section aria-label="Logs and history" className="flex min-h-[30rem] min-w-0 flex-col xl:min-h-0">
+        <section aria-label="Logs and history" className="flex min-h-[30rem] min-w-0 flex-col gap-3 xl:min-h-0">
 
         {/* Logs tab */}
-        <TabsContent value="logs" className="flex min-h-0 flex-1 flex-col gap-3">
-          {deployments.length > 0 && (
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {tab === "logs" && deployments.length > 0 && (
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               <Label htmlFor="dep-select" className="text-xs text-muted-foreground">Deployment</Label>
               <Select
                 value={activeDep ?? ""}
@@ -694,6 +686,15 @@ export default function ProjectDetailPage() {
               </Select>
             </div>
           )}
+          <TabsList className="ml-auto max-w-full overflow-x-auto" aria-label="Logs and history">
+            <TabsTrigger value="logs">
+              <Terminal className="size-4" />Logs
+              {busyNow && <span className="size-1.5 rounded-full bg-success motion-safe:animate-pulse" aria-label="live" />}
+            </TabsTrigger>
+            <TabsTrigger value="history"><History className="size-4" />History</TabsTrigger>
+          </TabsList>
+        </div>
+        <TabsContent value="logs" className="flex min-h-0 flex-1 flex-col gap-3">
           <LogPane
             className="flex-1"
             title={`${activeDep ? activeDep.slice(0, 14) + " · " : ""}pulsenode build`}
