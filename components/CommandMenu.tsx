@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { FolderGit2, Monitor, Moon, Plus, RefreshCw, Sun } from "lucide-react"
 import {
-  CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+  Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
   CommandSeparator, CommandShortcut,
 } from "@/components/ui/command"
 import { NAV_GROUPS, SETTINGS_ITEM } from "@/lib/nav"
@@ -38,6 +38,7 @@ export function CommandMenuProvider({ children }: { children: React.ReactNode })
     <Ctx.Provider value={value}>
       {children}
       <CommandDialog open={open} onOpenChange={setOpen} title="Search" description="Jump to a page or run an action">
+        <Command>
         <CommandInput placeholder="Search pages and actions…" />
         <CommandList>
           <CommandEmpty>Nothing found.</CommandEmpty>
@@ -76,6 +77,7 @@ export function CommandMenuProvider({ children }: { children: React.ReactNode })
             <CommandItem disabled><FolderGit2 /> Press <CommandShortcut>Ctrl B</CommandShortcut> to collapse the sidebar</CommandItem>
           </CommandGroup>
         </CommandList>
+        </Command>
       </CommandDialog>
     </Ctx.Provider>
   )

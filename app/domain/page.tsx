@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn, copyText } from "@/lib/utils"
+import { Truncate } from "@/components/pn/Truncate"
 
 const GO_API = API_BASE
 
@@ -325,7 +326,7 @@ export default function DomainPage() {
                               </span>
                             )}
                           </div>
-                          <p className="font-mono text-xs break-all text-muted-foreground" title={d.error || ips}>{d.error || ips}</p>
+                          <Truncate mono text={d.error || ips} className="text-xs text-muted-foreground" />
                         </div>
                         <StatusChip status={status} checking={busy} />
                         <div className="flex items-center gap-0.5">
@@ -485,10 +486,15 @@ export default function DomainPage() {
                         {aliases.map(alias => (
                           <TableRow key={alias} className="h-[46px]">
                             <TableCell className="pl-[18px]"><span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs font-semibold">A</span></TableCell>
-                            <TableCell>
-                              <button type="button" onClick={() => copy(alias, "Record name copied")} aria-label={`Copy record name ${alias}`} className="inline-flex items-center gap-1.5 rounded-sm font-mono text-xs hover:text-primary focus-visible:outline-2">
-                                {alias}<Copy className="size-3" />
-                              </button>
+                            <TableCell className="max-w-[20rem]">
+                              <Tooltip>
+                                <TooltipTrigger
+                                  render={<button type="button" onClick={() => copy(alias, "Record name copied")} aria-label={`Copy record name ${alias}`} className="inline-flex max-w-full items-center gap-1.5 rounded-sm font-mono text-xs hover:text-primary focus-visible:outline-2" />}
+                                >
+                                  <span className="truncate">{alias}</span><Copy className="size-3 shrink-0" />
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-sm break-all font-mono">{alias}</TooltipContent>
+                              </Tooltip>
                             </TableCell>
                             <TableCell>
                               <button type="button" onClick={() => copy(expectedIp, "IP copied")} disabled={!expectedIp} aria-label={`Copy IP ${expectedIp}`} className="inline-flex items-center gap-1.5 rounded-sm font-mono text-xs tabular-nums hover:text-primary focus-visible:outline-2 disabled:opacity-60">

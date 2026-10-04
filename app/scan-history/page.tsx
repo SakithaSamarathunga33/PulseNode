@@ -25,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Truncate } from "@/components/pn/Truncate"
 
 type ScanRow = Omit<Scan, "status"> & { status: Scan["status"] | "unavailable"; message?: string }
 
@@ -258,7 +259,7 @@ export default function ScanHistoryPage() {
                   <li className="space-y-2 rounded-xl border bg-card p-3.5 shadow-card">
                     <div className="flex items-center gap-2">
                       <Package className="size-3.5 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 flex-1 truncate font-mono text-xs" title={runningRow}>{runningRow}</span>
+                      <Truncate mono text={runningRow} className="flex-1 text-xs" />
                       <StatusPill status="running" />
                     </div>
                     <p className="text-xs text-muted-foreground">Scanning…</p>
@@ -268,7 +269,7 @@ export default function ScanHistoryPage() {
                   <li key={scan.id} className="space-y-3 rounded-xl border bg-card p-3.5 shadow-card">
                     <div className="flex items-center gap-2">
                       <Package className="size-3.5 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 flex-1 truncate font-mono text-xs" title={scan.image}>{scan.image}</span>
+                      <Truncate mono text={scan.image} className="flex-1 text-xs" />
                       <StatusPill status={scan.status} />
                     </div>
                     {total(scan) > 0
@@ -303,7 +304,7 @@ export default function ScanHistoryPage() {
                       {runningRow && (
                         <TableRow className="h-[50px]">
                           <TableCell className="font-mono text-xs text-muted-foreground">—</TableCell>
-                          <TableCell><span className="font-mono text-xs">{runningRow}</span></TableCell>
+                          <TableCell><Truncate mono text={runningRow} className="max-w-[320px] text-xs" /></TableCell>
                           <TableCell className="text-xs text-muted-foreground">Trivy</TableCell>
                           <TableCell><StatusPill status="running" /></TableCell>
                           <TableCell className="text-muted-foreground">just now</TableCell>
@@ -316,7 +317,7 @@ export default function ScanHistoryPage() {
                         <TableRow key={scan.id} className="h-[50px] cursor-pointer" onClick={() => openSheet(scan)}>
                           <TableCell className="font-mono text-xs text-muted-foreground">{scan.id}</TableCell>
                           <TableCell>
-                            <span className="block max-w-[320px] truncate font-mono text-xs" title={scan.image}>{scan.image}</span>
+                            <Truncate mono text={scan.image} className="max-w-[320px] text-xs" />
                           </TableCell>
                           <TableCell className="text-xs whitespace-nowrap text-muted-foreground">{scan.scanner}</TableCell>
                           <TableCell><StatusPill status={scan.status} /></TableCell>
@@ -325,9 +326,7 @@ export default function ScanHistoryPage() {
                           <TableCell>
                             {total(scan) > 0
                               ? <VulnBar v={{ crit: scan.crit, high: scan.high, med: scan.med, low: scan.low }} />
-                              : <span className="block max-w-[220px] truncate text-xs text-muted-foreground" title={scan.message}>
-                                  {scan.status === "done" ? "No findings" : scan.message ?? "—"}
-                                </span>}
+                              : <Truncate text={scan.status === "done" ? "No findings" : scan.message ?? ""} className="max-w-[220px] text-xs text-muted-foreground" />}
                           </TableCell>
                           <TableCell className={STICKY}>
                             <RowActions scan={scan} busy={!!scanning}
@@ -350,7 +349,7 @@ export default function ScanHistoryPage() {
             <SheetTitle>Scan report</SheetTitle>
             <SheetDescription className="space-y-0.5">
               <span className="block font-mono text-xs">{selectedScan?.id ?? "—"}</span>
-              <span className="block truncate font-mono text-xs" title={selectedScan?.image}>{selectedScan?.image}</span>
+              <Truncate mono text={selectedScan?.image ?? ""} className="text-xs" />
             </SheetDescription>
           </SheetHeader>
           {selectedScan && (

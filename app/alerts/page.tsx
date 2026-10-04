@@ -27,6 +27,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import { Truncate } from "@/components/pn/Truncate"
 
 type AlertEvent = {
   id: number; ruleId: string; rule: string; metric: string; severity: "critical" | "warning" | "info"
@@ -421,10 +422,10 @@ export default function AlertsPage() {
                         {filtered.map(alert => (
                           <TableRow key={alert.id} className={cn("h-[52px]", alert.state === "firing" && "bg-danger/5")}>
                             <TableCell><SevLabel severity={alert.severity} /></TableCell>
-                            <TableCell className="max-w-[260px]"><span className="block truncate font-medium" title={alert.rule}>{alert.rule}</span></TableCell>
-                            <TableCell className="font-mono text-xs whitespace-nowrap text-muted-foreground">{alert.target || "—"}</TableCell>
+                            <TableCell className="max-w-[260px]"><Truncate text={alert.rule} className="font-medium" /></TableCell>
+                            <TableCell className="max-w-[12rem] text-xs text-muted-foreground"><Truncate mono text={alert.target} /></TableCell>
                             <TableCell className="max-w-[300px]">
-                              <span className="block truncate text-xs text-muted-foreground" title={alert.message}>{alert.message}</span>
+                              <Truncate text={alert.message} className="text-xs text-muted-foreground" />
                             </TableCell>
                             <TableCell className="whitespace-nowrap text-muted-foreground" title={new Date(alert.firedAt).toLocaleString()}>{ago(alert.firedAt)}</TableCell>
                             <TableCell><StatePill state={alert.state} /></TableCell>
@@ -464,7 +465,7 @@ export default function AlertsPage() {
                 {rules.map(rule => (
                   <li key={rule.id} className="space-y-2.5 rounded-xl border bg-card p-3.5 shadow-card">
                     <div className="flex items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{rule.name}</span>
+                      <Truncate text={rule.name} className="flex-1 text-sm font-medium" />
                       <Pill tone={SEV[rule.severity]?.tone ?? "info"}>{SEV[rule.severity]?.label ?? rule.severity}</Pill>
                     </div>
                     <code className="block overflow-x-auto rounded bg-muted px-2 py-1 font-mono text-xs">{ruleExpr(rule)}</code>
@@ -500,13 +501,13 @@ export default function AlertsPage() {
                     {rules.map(rule => (
                       <TableRow key={rule.id}>
                         <TableCell><Switch checked={rule.enabled} onCheckedChange={v => toggleRule(rule, v)} aria-label={`Enable rule ${rule.name}`} /></TableCell>
-                        <TableCell>
-                          <span className="block font-medium">{rule.name}</span>
+                        <TableCell className="max-w-[16rem]">
+                          <Truncate text={rule.name} className="font-medium" />
                           {metricOf(rule.metric)?.percent && rule.duration > 0 && (
                             <span className="text-[11px] text-muted-foreground">for {rule.duration >= 60 ? `${Math.round(rule.duration / 60)}m` : `${rule.duration}s`}</span>
                           )}
                         </TableCell>
-                        <TableCell><code className="rounded bg-muted px-2 py-0.5 font-mono text-xs">{ruleExpr(rule)}</code></TableCell>
+                        <TableCell className="max-w-[18rem]"><Truncate mono text={ruleExpr(rule)} className="w-fit max-w-full rounded bg-muted px-2 py-0.5 text-xs" /></TableCell>
                         <TableCell><Pill tone={SEV[rule.severity]?.tone ?? "info"}>{SEV[rule.severity]?.label ?? rule.severity}</Pill></TableCell>
                         <TableCell>
                           <div className="flex flex-wrap items-center gap-1">
@@ -558,8 +559,8 @@ export default function AlertsPage() {
                           <Switch checked={ch.enabled} onCheckedChange={v => toggleChannel(ch, v)} aria-label={`Enable channel ${ch.name}`} />
                         </div>
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{ch.name}</p>
-                          <p className="mt-0.5 truncate text-xs text-muted-foreground">{meta.label}{ch.summary && ` · ${ch.summary}`}</p>
+                          <Truncate text={ch.name} className="text-sm font-medium" />
+                          <Truncate text={`${meta.label}${ch.summary ? ` · ${ch.summary}` : ""}`} className="mt-0.5 text-xs text-muted-foreground" />
                         </div>
                         <div className="flex gap-1 border-t pt-2">
                           <Button variant="outline" size="xs" onClick={() => testChannel(ch)}><Send className="size-3" /> Test</Button>

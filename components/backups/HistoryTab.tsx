@@ -10,6 +10,7 @@ import { API_BASE } from "@/lib/api"
 import { selectCls } from "./DestinationDialog"
 import { runLabel, runTone } from "./SchedulesTab"
 import { absTime, fmtSize, isPanel, relTime, targetText, toMs, type HistoryEntry, type Schedule } from "./shared"
+import { Truncate } from "@/components/pn/Truncate"
 
 type Props = {
   history: HistoryEntry[]
@@ -36,9 +37,9 @@ function Files({ h }: { h: HistoryEntry }) {
   return (
     <ul className="flex flex-col gap-0.5">
       {files.map(f => (
-        <li key={f.destinationId + f.name} className={`flex items-center gap-1.5 text-xs ${f.ok ? "text-muted-foreground" : "text-danger"}`} title={f.ok ? f.name : f.error || "Copy failed"}>
+        <li key={f.destinationId + f.name} className={`flex items-center gap-1.5 text-xs ${f.ok ? "text-muted-foreground" : "text-danger"}`}>
           {f.ok ? <CheckCircle2 className="size-3.5 shrink-0 text-success" /> : <CircleAlert className="size-3.5 shrink-0" />}
-          <span className="truncate">{f.destinationName}{f.ok ? "" : ` — ${f.error || "copy failed"}`}</span>
+          <Truncate text={`${f.destinationName}${f.ok ? "" : ` — ${f.error || "copy failed"}`}`} tip={f.ok ? f.name : undefined} />
         </li>
       ))}
     </ul>
@@ -121,15 +122,15 @@ export function HistoryTab({ history, schedules, filter, onFilter, onDelete, onR
                     {absTime(h.startedAt)}
                     <p className="text-xs text-muted-foreground">{relTime(h.startedAt)}{duration(h) ? ` · took ${duration(h)}` : ""}</p>
                   </TableCell>
-                  <TableCell className="py-3">
-                    <p className="text-sm font-medium">{h.scheduleName}</p>
-                    <p className="font-mono text-xs text-muted-foreground">{targetText(h.target, h.targetName)}</p>
+                  <TableCell className="max-w-[16rem] py-3">
+                    <Truncate text={h.scheduleName} className="text-sm font-medium" />
+                    <Truncate mono text={targetText(h.target, h.targetName)} className="text-xs text-muted-foreground" />
                   </TableCell>
                   <TableCell className="py-3">
                     <div className="flex flex-col items-start gap-1">
                       <Pill tone={runTone(h.status)} dot>{runLabel(h.status)}</Pill>
                       {h.status === "success" && <Encryption h={h} />}
-                      {h.status === "failed" && h.error && <p className="max-w-[260px] text-xs break-words text-danger">{h.error}</p>}
+                      {h.status === "failed" && h.error && <Truncate text={h.error} className="max-w-[260px] text-xs text-danger" />}
                     </div>
                   </TableCell>
                   <TableCell className="py-3 text-right font-mono text-xs tabular-nums">{fmtSize(h.sizeBytes)}</TableCell>
@@ -148,8 +149,8 @@ export function HistoryTab({ history, schedules, filter, onFilter, onDelete, onR
             <Card className="gap-3 py-4">
               <div className="flex items-start justify-between gap-3 px-4">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{h.scheduleName}</p>
-                  <p className="truncate font-mono text-xs text-muted-foreground">{targetText(h.target, h.targetName)}</p>
+                  <Truncate text={h.scheduleName} className="text-sm font-medium" />
+                  <Truncate mono text={targetText(h.target, h.targetName)} className="text-xs text-muted-foreground" />
                 </div>
                 <Pill tone={runTone(h.status)} dot>{runLabel(h.status)}</Pill>
               </div>

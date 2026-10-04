@@ -268,8 +268,8 @@ export default function ImagesPage() {
             </div>
           </div>
           {pulling && (
-            <p className="flex items-center gap-2 text-xs text-muted-foreground" role="status">
-              <Loader2 className="size-3.5 animate-spin" />Pulling {pullImage.trim()} — large images can take a minute.
+            <p className="flex items-center gap-2 text-xs break-all text-muted-foreground" role="status">
+              <Loader2 className="size-3.5 shrink-0 animate-spin" />Pulling {pullImage.trim()} — large images can take a minute.
             </p>
           )}
           {pullError && (

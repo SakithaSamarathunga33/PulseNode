@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { API_BASE, nodeApi, type ApiError } from "@/lib/api"
+import { Truncate } from "@/components/pn/Truncate"
 
 type ProxyMode = "managed" | "external" | "none"
 
@@ -172,8 +173,8 @@ export function ProxyCard() {
                 <>
                   <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
                     <div><dt className="text-xs text-muted-foreground">Ports</dt><dd className="font-mono tabular-nums">{status.httpPort} / {status.httpsPort}</dd></div>
-                    <div className="min-w-0"><dt className="text-xs text-muted-foreground">Container</dt><dd className="font-mono break-all">{status.container || "—"}</dd></div>
-                    <div className="min-w-0"><dt className="text-xs text-muted-foreground">Network</dt><dd className="font-mono break-all">{status.network || "—"}</dd></div>
+                    <div className="min-w-0"><dt className="text-xs text-muted-foreground">Container</dt><dd><Truncate mono text={status.container} /></dd></div>
+                    <div className="min-w-0"><dt className="text-xs text-muted-foreground">Network</dt><dd><Truncate mono text={status.network} /></dd></div>
                     <div><dt className="text-xs text-muted-foreground">Auto-start</dt><dd>{status.mode === "managed" ? (status.enabled ? "On" : "Off") : "—"}</dd></div>
                   </dl>
 

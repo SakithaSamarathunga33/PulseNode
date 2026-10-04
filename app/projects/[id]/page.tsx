@@ -19,6 +19,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -32,6 +33,7 @@ import { DeleteProjectDialog } from "@/components/projects/DeleteProjectDialog"
 import { LogPane, type LogEntry } from "@/components/projects/LogPane"
 import { WildcardBadge, WildcardHint } from "@/components/domain/wildcard"
 import { cn } from "@/lib/utils"
+import { Truncate } from "@/components/pn/Truncate"
 
 const GO_API = API_BASE
 
@@ -69,17 +71,23 @@ function StatusPill({ status }: { status: string }) {
 function DomainLink({ domain }: { domain: string }) {
   if (!domain) return null
   return (
-    <a
-      href={`https://${domain}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      title={domain}
-      className="inline-flex min-w-0 max-w-[16rem] items-center gap-1 rounded-sm font-mono text-[var(--hue-fg)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
-    >
-      <span className="truncate">{domain}</span>
-      <ExternalLink className="size-3 shrink-0" aria-hidden />
-      <span className="sr-only">(opens in a new tab)</span>
-    </a>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <a
+            href={`https://${domain}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-w-0 max-w-[16rem] items-center gap-1 rounded-sm font-mono text-[var(--hue-fg)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+          />
+        }
+      >
+        <span className="truncate">{domain}</span>
+        <ExternalLink className="size-3 shrink-0" aria-hidden />
+        <span className="sr-only">(opens in a new tab)</span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-sm break-all font-mono">{domain}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -182,10 +190,10 @@ function ExternalProjectView({ project }: { project: Project }) {
   }
 
   const info = [
-    { label: "Image", value: project.Image || "—" },
-    { label: "Ports", value: project.Ports || "—" },
-    { label: "Container", value: containerID || "—" },
-    { label: "Created", value: project.CreatedAt || "—" },
+    { label: "Image", value: project.Image },
+    { label: "Ports", value: project.Ports },
+    { label: "Container", value: containerID },
+    { label: "Created", value: project.CreatedAt },
   ]
 
   return (
@@ -227,9 +235,9 @@ function ExternalProjectView({ project }: { project: Project }) {
           {info.map(row => (
             <div key={row.label} className="min-w-0 bg-card px-4.5 py-3">
               <dt className="text-[11px] text-muted-foreground">{row.label}</dt>
-              <dd className="mt-0.5 flex items-center gap-1 font-mono text-xs break-all" title={row.value}>
+              <dd className="mt-0.5 flex items-center gap-1 text-xs">
                 {row.label === "Container" && <Box className="size-3 shrink-0 text-muted-foreground" aria-hidden />}
-                {row.value}
+                <Truncate mono text={row.value ?? ""} />
               </dd>
             </div>
           ))}
@@ -607,18 +615,18 @@ export default function ProjectDetailPage() {
           icon={FolderGit2}
           title={
             <span className="flex min-w-0 items-center gap-2">
-              <span className="min-w-0 max-w-[22rem] truncate" title={project.Name}>{project.Name}</span>
+              <Truncate text={project.Name} className="max-w-[22rem]" />
               <span className="shrink-0"><StatusPill status={project.Status} /></span>
             </span>
           }
           description={
             <span className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
               <BackLink />
-              <span className="inline-flex min-w-0 max-w-[18rem] items-center gap-1 font-mono text-xs" title={repoName}>
-                <FolderGit2 className="size-3.5 shrink-0" aria-hidden /><span className="truncate">{repoName}</span>
+              <span className="inline-flex min-w-0 max-w-[18rem] items-center gap-1 text-xs">
+                <FolderGit2 className="size-3.5 shrink-0" aria-hidden /><Truncate mono text={repoName} />
               </span>
-              <span className="inline-flex min-w-0 max-w-[10rem] items-center gap-1 font-mono text-xs" title={project.Branch}>
-                <GitBranch className="size-3.5 shrink-0" aria-hidden /><span className="truncate">{project.Branch}</span>
+              <span className="inline-flex min-w-0 max-w-[10rem] items-center gap-1 text-xs">
+                <GitBranch className="size-3.5 shrink-0" aria-hidden /><Truncate mono text={project.Branch} />
               </span>
               <DomainLink domain={project.Domain} />
               <WildcardBadge domain={project.Domain} />
@@ -747,7 +755,7 @@ export default function ProjectDetailPage() {
                     </div>
                     <div className="flex min-w-0 gap-2 text-[13px]">
                       {sha && <span className="shrink-0 font-mono text-xs text-primary">{sha}</span>}
-                      <span className="truncate text-muted-foreground">{dep.CommitMsg || (live ? "Deployment in progress" : "—")}</span>
+                      <Truncate text={dep.CommitMsg || (live ? "Deployment in progress" : "")} className="text-muted-foreground" />
                     </div>
                   </div>
                   <div className="col-span-2 flex flex-wrap items-center gap-2 sm:col-span-1 sm:justify-end">
@@ -798,7 +806,7 @@ export default function ProjectDetailPage() {
                   <div key={row.label} className="flex min-w-0 items-center gap-2.5 bg-card px-4.5 py-3">
                     <div className="min-w-0 flex-1">
                       <dt className="text-[11px] text-muted-foreground">{row.label}</dt>
-                      <dd className="mt-0.5 truncate font-mono text-xs" title={row.value}>{row.value}</dd>
+                      <dd className="mt-0.5 text-xs"><Truncate mono text={row.value === "—" ? "" : row.value} /></dd>
                     </div>
                     {row.value !== "—" && (
                       <Button variant="ghost" size="icon-sm" aria-label={`Copy ${row.label}`} title="Copy" onClick={() => copyText(row.value, row.label)}>

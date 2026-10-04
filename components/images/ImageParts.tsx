@@ -8,6 +8,7 @@ import {
 import { StatusDot } from "@/components/pn/StatusDot"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import { Truncate } from "@/components/pn/Truncate"
 
 /* ── Registry / image icon ───────────────────────────────────────────── */
 type DeveloperIcon = React.ComponentType<React.SVGProps<SVGSVGElement> & { size?: number }>
@@ -136,11 +137,11 @@ export function ImageTable({ rows, copied, onCopy, sort, onSort }: Common & { so
             <TableCell>
               <div className="flex items-center gap-2">
                 <RegistryIcon repo={img.repo} />
-                <span className="max-w-[260px] truncate font-mono text-xs" title={img.repo}>{img.repo}</span>
+                <Truncate mono text={img.repo} className="max-w-[260px] text-xs" />
               </div>
             </TableCell>
             <TableCell>
-              <span className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[11px] whitespace-nowrap text-muted-foreground">{img.tag}</span>
+              <Truncate mono text={img.tag} className="w-fit max-w-[10rem] rounded border bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground" />
             </TableCell>
             <TableCell>
               <CopyDigest id={img.id} copied={copied === img.id} onCopy={onCopy} label={`Copy digest of ${img.repo}:${img.tag}`} />
@@ -164,8 +165,8 @@ export function ImageCards({ rows, copied, onCopy }: Common) {
         <li key={imageKey(img, i)} className="space-y-3 rounded-xl border bg-card p-3.5 shadow-card">
           <div className="flex items-center gap-2">
             <RegistryIcon repo={img.repo} />
-            <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium" title={img.repo}>{img.repo}</span>
-            <span className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">{img.tag}</span>
+            <Truncate mono text={img.repo} className="flex-1 text-xs font-medium" />
+            <Truncate mono text={img.tag} className="max-w-[40%] rounded border bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground" />
           </div>
           <VulnCell v={img.vulns} />
           <dl className="grid grid-cols-3 gap-2 text-xs">

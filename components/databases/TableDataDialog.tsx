@@ -10,6 +10,7 @@ import { nodeApi } from "@/lib/api"
 import type { Database, DbQueryResult } from "@/lib/types"
 import { ResultTable } from "@/components/dashboard/DatabaseQueryEditor"
 import { Pill } from "@/components/dashboard/Pill"
+import { Truncate } from "@/components/pn/Truncate"
 
 // Read-only data viewer with pagination (100 rows / page)
 const PAGE_SIZE = 100
@@ -67,10 +68,10 @@ export function TableDataDialog({ db, database, table, onClose }: {
         <DialogHeader className="pr-10">
           <DialogTitle className="flex items-center gap-2">
             <Table2 className="size-4 shrink-0 text-[var(--hue,var(--primary))]" />
-            <span className="truncate font-mono">{table}</span>
+            <Truncate mono text={table} />
           </DialogTitle>
           <DialogDescription className="flex flex-wrap items-center gap-2">
-            <span className="truncate">{database ? `${database} · ` : ""}{db.name}</span>
+            <Truncate text={`${database ? `${database} · ` : ""}${db.name}`} className="max-w-full" />
             {result && (
               <Pill tone="outline" className="font-mono tabular-nums">
                 {result.rowCount} row{result.rowCount !== 1 ? "s" : ""} · {result.columns.length} col{result.columns.length !== 1 ? "s" : ""} · {result.durationMs}ms

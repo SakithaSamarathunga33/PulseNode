@@ -5,6 +5,7 @@ import type { DockerNetwork } from "@/lib/types"
 import { Pill } from "@/components/dashboard/Pill"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import { Truncate } from "@/components/pn/Truncate"
 
 export const SYSTEM_NETWORKS = new Set(["bridge", "host", "none"])
 export const isSystem = (n: DockerNetwork) => SYSTEM_NETWORKS.has(n.name)
@@ -67,16 +68,16 @@ export function NetworkTable({ rows, sort, onSort }: { rows: DockerNetwork[]; so
       <TableBody>
         {rows.map(net => (
           <TableRow key={net.name} className="h-[50px]">
-            <TableCell className="pl-4">
+            <TableCell className="max-w-[18rem] pl-4">
               <span className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-xs font-medium">{net.name}</span>
+                <Truncate mono text={net.name} className="max-w-full text-xs font-medium" />
                 <Flags net={net} />
               </span>
             </TableCell>
             <TableCell><Pill tone={driverTone(net.driver)}>{net.driver}</Pill></TableCell>
             <TableCell className="text-muted-foreground">{net.scope}</TableCell>
-            <TableCell className="font-mono text-xs text-muted-foreground">{net.subnet || "—"}</TableCell>
-            <TableCell className="font-mono text-xs text-muted-foreground">{net.gateway || "—"}</TableCell>
+            <TableCell className="max-w-[12rem] text-xs text-muted-foreground"><Truncate mono text={net.subnet} /></TableCell>
+            <TableCell className="max-w-[12rem] text-xs text-muted-foreground"><Truncate mono text={net.gateway} /></TableCell>
             <TableCell className="pr-4 text-right font-semibold tabular-nums">{net.containers}</TableCell>
           </TableRow>
         ))}
@@ -91,14 +92,14 @@ export function NetworkCards({ rows }: { rows: DockerNetwork[] }) {
       {rows.map(net => (
         <li key={net.name} className="space-y-2.5 rounded-xl border bg-card p-3.5 shadow-card">
           <div className="flex items-center gap-2">
-            <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium" title={net.name}>{net.name}</span>
+            <Truncate mono text={net.name} className="flex-1 text-xs font-medium" />
             <Pill tone={driverTone(net.driver)}>{net.driver}</Pill>
           </div>
           <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
             <div><dt className="text-muted-foreground">Scope</dt><dd>{net.scope}</dd></div>
             <div><dt className="text-muted-foreground">Containers</dt><dd className="font-semibold tabular-nums">{net.containers}</dd></div>
-            <div><dt className="text-muted-foreground">Subnet</dt><dd className="font-mono">{net.subnet || "—"}</dd></div>
-            <div><dt className="text-muted-foreground">Gateway</dt><dd className="font-mono">{net.gateway || "—"}</dd></div>
+            <div className="min-w-0"><dt className="text-muted-foreground">Subnet</dt><dd><Truncate mono text={net.subnet} /></dd></div>
+            <div className="min-w-0"><dt className="text-muted-foreground">Gateway</dt><dd><Truncate mono text={net.gateway} /></dd></div>
           </dl>
           <div className="flex flex-wrap gap-1"><Flags net={net} /></div>
         </li>

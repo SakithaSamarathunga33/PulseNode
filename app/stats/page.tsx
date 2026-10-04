@@ -18,6 +18,7 @@ import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { LiveBadge } from "@/components/pn/LiveBadge"
 import { ChartCard } from "@/components/stats/ChartCard"
 import { ClearCacheDialog } from "@/components/stats/ClearCacheDialog"
+import { Truncate } from "@/components/pn/Truncate"
 
 type PyMetrics = {
   cpu: number; ram: number; disk: number
@@ -47,7 +48,7 @@ function KV({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3 py-1.5">
       <dt className="shrink-0 text-xs text-muted-foreground">{k}</dt>
-      <dd className="min-w-0 truncate text-right font-mono text-xs tabular-nums" title={typeof v === "string" ? v : undefined}>{v}</dd>
+      <dd className="min-w-0 truncate text-right font-mono text-xs tabular-nums">{typeof v === "string" ? <Truncate text={v} /> : v}</dd>
     </div>
   )
 }

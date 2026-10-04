@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { copyText } from "@/lib/utils"
 import { toast } from "sonner"
+import { Truncate } from "@/components/pn/Truncate"
 
 /** Read-only mono value with copy (and optional reveal) buttons. */
 export function CopyField({
@@ -30,7 +31,7 @@ export function CopyField({
     <div className="min-w-0 space-y-1.5">
       <Label htmlFor={id}>{label}</Label>
       <div className="flex items-center gap-1 rounded-lg border bg-muted/40 pl-3 pr-1">
-        <code id={id} className="min-w-0 flex-1 truncate py-2 font-mono text-xs">{display}</code>
+        <code id={id} className="min-w-0 flex-1 py-2 text-xs"><Truncate mono text={value ? display : ""} /></code>
         {secret && (
           <Button type="button" variant="ghost" size="icon-sm" onClick={() => setShown(s => !s)}
             aria-label={shown ? `Hide ${label}` : `Reveal ${label}`}>

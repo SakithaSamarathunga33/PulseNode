@@ -15,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Truncate } from "@/components/pn/Truncate"
 
 const ECOSYSTEMS = [
   { key: "go", label: "Go", color: "var(--eco-go)" },
@@ -131,7 +132,7 @@ export default function SBOMHistoryPage() {
               { label: "SBOMs", icon: FileCode2, value: sboms.length, meta: "one per image" },
               { label: "Packages", icon: Package, value: totalPackages.toLocaleString(), meta: "across all images" },
               { label: "Licenses", icon: ScrollText, value: totalLicenses.toLocaleString(), meta: "summed per image" },
-              { label: "Largest image", icon: Layers, value: (largest?.packages ?? 0).toLocaleString(), unit: "packages", meta: <span className="font-mono">{largest?.image ?? "—"}</span> },
+              { label: "Largest image", icon: Layers, value: (largest?.packages ?? 0).toLocaleString(), unit: "packages", meta: <Truncate mono text={largest?.image ?? ""} /> },
             ]}
           />
         )}
@@ -167,7 +168,7 @@ export default function SBOMHistoryPage() {
             {shown.map(s => (
               <article key={s.image} className="flex flex-col overflow-hidden rounded-xl border bg-card shadow-card">
                 <div className="space-y-1 px-4 pt-3.5 pb-3">
-                  <h2 className="truncate font-mono text-[13px] font-medium" title={s.image}>{s.image}</h2>
+                  <h2 className="text-[13px] font-medium"><Truncate mono text={s.image} /></h2>
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                     <span>Generated {s.generated}</span>
                     <Pill tone="outline">{s.format}</Pill>

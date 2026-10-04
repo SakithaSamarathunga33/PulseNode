@@ -17,6 +17,7 @@ import { cn, copyText } from "@/lib/utils"
 import type { Database } from "@/lib/types"
 import { DatabaseWorkspace, type WorkspaceTab } from "./DatabaseWorkspace"
 import { engineColor, statusLabel, statusTone } from "./shared"
+import { Truncate } from "@/components/pn/Truncate"
 
 export type SortKey = "name" | "engine" | "state" | "conns" | "qps" | "slow"
 export type Sort = { key: SortKey; dir: 1 | -1 }
@@ -113,7 +114,7 @@ function EndpointButton({ db }: { db: Database }) {
         <span className="truncate">{ep}</span>
         {copied ? <Check className="size-3 shrink-0 text-success" /> : <Copy className="size-3 shrink-0" />}
       </TooltipTrigger>
-      <TooltipContent>Copy endpoint</TooltipContent>
+      <TooltipContent className="flex-col items-start gap-0.5"><span>Copy endpoint</span><span className="font-mono break-all">{ep}</span></TooltipContent>
     </Tooltip>
   )
 }
@@ -216,15 +217,13 @@ export function DatabaseTable({
                   <div className="flex items-center gap-2.5">
                     <EngineBadge db={db} />
                     <div className="flex min-w-0 flex-col">
-                      <span className="max-w-[220px] truncate font-semibold" title={db.name}>{db.name}</span>
-                      <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        {db.host}
-                      </span>
+                      <Truncate text={db.name} className="max-w-[220px] font-semibold" />
+                      <Truncate text={db.host} className="max-w-[220px] text-[11px] text-muted-foreground" />
                     </div>
                   </div>
                 </TableCell>
                 <TableCell className="whitespace-nowrap capitalize">{db.engine}</TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">{db.version || "—"}</TableCell>
+                <TableCell className="max-w-[9rem] text-xs text-muted-foreground"><Truncate mono text={db.version} /></TableCell>
                 <TableCell><Pill tone={statusTone(db.state)} dot>{statusLabel(db.state)}</Pill></TableCell>
                 <TableCell className="text-right font-mono text-xs tabular-nums">{db.size}</TableCell>
                 <TableCell><ConnCell db={db} /></TableCell>
@@ -269,8 +268,8 @@ export function DatabaseCards({ databases, connHist, expandedDb, onExpand, handl
                 <div className="flex min-w-0 items-center gap-2.5">
                   <EngineBadge db={db} />
                   <div className="flex min-w-0 flex-col">
-                    <span className="truncate text-sm font-semibold">{db.name}</span>
-                    <span className="truncate font-mono text-[11px] text-muted-foreground">{db.engine} {db.version}</span>
+                    <Truncate text={db.name} className="text-sm font-semibold" />
+                    <Truncate mono text={`${db.engine} ${db.version}`} className="text-[11px] text-muted-foreground" />
                   </div>
                 </div>
                 <Pill tone={statusTone(db.state)} dot>{statusLabel(db.state)}</Pill>

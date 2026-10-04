@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { Truncate } from "@/components/pn/Truncate"
 
 const BAR_COUNT = 50
 const RANGE_OPTIONS = ["24h", "3d", "7d"] as const
@@ -265,7 +266,7 @@ export default function RuntimePage() {
                   { label: "Running containers", icon: Box, value: containers.length, unit: allContainers.length ? `of ${allContainers.length}` : undefined, meta: allContainers.length ? `${Math.max(0, allContainers.length - upCount)} stopped or exited` : undefined },
                   { label: "Average CPU", icon: Cpu, value: avgCpu.toFixed(1), unit: "%", meta: "across running containers" },
                   { label: "Total RAM", icon: MemoryStick, value: fmtMb(totalRamMb).split(" ")[0], unit: fmtMb(totalRamMb).split(" ")[1], meta: "used by running containers" },
-                  { label: "Highest CPU", icon: Flame, value: hottest ? hottest.cpu.toFixed(1) : "—", unit: hottest ? "%" : undefined, meta: <span className="font-mono">{hottest?.name}</span>, tone: hottest && hottest.cpu >= 80 ? "bad" : hottest && hottest.cpu >= 60 ? "warn" : undefined },
+                  { label: "Highest CPU", icon: Flame, value: hottest ? hottest.cpu.toFixed(1) : "—", unit: hottest ? "%" : undefined, meta: hottest && <Truncate mono text={hottest.name} />, tone: hottest && hottest.cpu >= 80 ? "bad" : hottest && hottest.cpu >= 60 ? "warn" : undefined },
                 ]}
               />
             )}
@@ -303,8 +304,8 @@ export default function RuntimePage() {
                       <li key={c.id} className="space-y-2.5 px-4 py-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{c.name}</p>
-                            <p className="truncate font-mono text-[11px] text-muted-foreground" title={c.image}>{c.image}</p>
+                            <Truncate text={c.name} className="text-sm font-medium" />
+                            <Truncate mono text={c.image} className="text-[11px] text-muted-foreground" />
                           </div>
                           <Pill tone="ok" dot>running</Pill>
                         </div>
@@ -335,11 +336,9 @@ export default function RuntimePage() {
                       <TableBody>
                         {sorted.map(c => (
                           <TableRow key={c.id} className="h-[52px]">
-                            <TableCell>
-                              <p className="text-sm font-medium">{c.name}</p>
-                              <p className="font-mono text-[11px] text-muted-foreground" title={c.image}>
-                                {c.image.length > 36 ? c.image.slice(0, 36) + "…" : c.image}
-                              </p>
+                            <TableCell className="max-w-[16rem]">
+                              <Truncate text={c.name} className="text-sm font-medium" />
+                              <Truncate mono text={c.image} className="text-[11px] text-muted-foreground" />
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2.5">
@@ -417,8 +416,8 @@ export default function RuntimePage() {
                           <span className={cn("inline-flex", tone === "ok" ? "text-success" : tone === "warn" ? "text-warning" : "text-danger")}>
                             <StatusDot tone={tone} />
                           </span>
-                          <span className="text-sm font-medium">{c.name}</span>
-                          <span className="truncate text-xs text-muted-foreground">
+                          <Truncate text={c.name} className="text-sm font-medium" />
+                          <span className="shrink-0 text-xs text-muted-foreground">
                             {!isUp ? "Down" : downs ? `${downs} incident${downs > 1 ? "s" : ""}` : "No incidents"}
                           </span>
                           <span className="flex-1" />

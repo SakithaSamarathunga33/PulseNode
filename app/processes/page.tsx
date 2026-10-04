@@ -26,6 +26,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { detectSuspicious } from "@/components/processes/detect"
 import { ProcessConfirm, ProcessIconActions, RiskPill, procName, type DialogState, type Risk } from "@/components/processes/parts"
 import { cn } from "@/lib/utils"
+import { Truncate } from "@/components/pn/Truncate"
 
 type SortKey = "pid" | "user" | "cmd" | "state" | "cpu" | "mem" | "res"
 type Dir = "asc" | "desc"
@@ -85,7 +86,7 @@ function CommandCell({ proc, flagged, max = "max-w-[420px]" }: { proc: Process; 
           <TooltipContent>Matched a detection rule</TooltipContent>
         </Tooltip>
       )}
-      <span className={cn("truncate font-mono text-xs", max)} title={proc.cmd}>{proc.cmd}</span>
+      <Truncate mono text={proc.cmd} className={cn("text-xs", max)} />
       {proc.type === "pm2" && (
         <span className="shrink-0 rounded bg-primary/12 px-1.5 py-px text-[11px] font-semibold text-primary">pm2 · {procName(proc)}</span>
       )}

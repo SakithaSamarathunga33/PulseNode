@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { API_BASE, nodeApi } from "@/lib/api"
 import { Label } from "@/components/ui/label"
+import { Truncate } from "@/components/pn/Truncate"
 
 const GO_API = API_BASE
 
@@ -356,13 +357,15 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-2 gap-px bg-border">
                     <div className="bg-card px-[18px] py-3.5">
                       <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Installed</p>
-                      <p className="mt-1 font-mono text-xl font-semibold tabular-nums">{version ? `v${version.current}` : "—"}</p>
+                      <Truncate mono text={version ? `v${version.current}` : ""} className="mt-1 text-xl font-semibold tabular-nums" />
                     </div>
                     <div className="bg-card px-[18px] py-3.5">
                       <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Latest</p>
-                      <p className={`mt-1 font-mono text-xl font-semibold tabular-nums ${version?.hasUpdate ? "text-warning" : version?.latest ? "text-success" : ""}`}>
-                        {version?.latest ? `v${version.latest}` : checking ? "…" : "—"}
-                      </p>
+                      {version?.latest ? (
+                        <Truncate mono text={`v${version.latest}`} className={`mt-1 text-xl font-semibold tabular-nums ${version.hasUpdate ? "text-warning" : "text-success"}`} />
+                      ) : (
+                        <p className="mt-1 font-mono text-xl font-semibold tabular-nums">{checking ? "…" : "—"}</p>
+                      )}
                     </div>
                   </div>
 
@@ -530,7 +533,7 @@ export default function SettingsPage() {
                     <li key={sn.name} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-[18px] py-2.5">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium">{new Date(sn.createdAt).toLocaleString()}</p>
-                        <p className="truncate font-mono text-xs text-muted-foreground">{sn.name} · {fmtBytes(sn.size)}</p>
+                        <Truncate mono text={`${sn.name} · ${fmtBytes(sn.size)}`} className="text-xs text-muted-foreground" />
                       </div>
                       <Button variant="outline" size="sm" onClick={() => setRestoreTarget(sn)} disabled={restoring}>
                         <RotateCcw /> Restore…

@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils"
 import { ImageIcon } from "./ImageIcon"
 import { StatusDot, type StatusShape } from "@/components/pn/StatusDot"
+import { Truncate } from "@/components/pn/Truncate"
 import { shortId, splitImage, toneFor, TONE_BG } from "./utils"
 
 export type SortKey = "name" | "image" | "state" | "cpu" | "ram"
@@ -182,18 +183,24 @@ export function ContainerTable({
               </TableCell>
               <TableCell>
                 <div className="flex flex-col">
-                  <span className="max-w-[200px] truncate font-medium" title={c.name}>{c.name}</span>
+                  <Truncate text={c.name} className="max-w-[200px] font-medium" />
                   <span className="font-mono text-[11px] text-muted-foreground">{shortId(c.id)}</span>
                 </div>
               </TableCell>
               <TableCell className="max-w-[300px]">
                 <div className="flex min-w-0 items-center gap-1.5">
                   <ImageIcon image={c.image} />
-                  <span className="truncate font-mono text-xs text-muted-foreground" title={c.image}>{repo}</span>
+                  <Truncate mono text={repo} tip={c.image} className="text-xs text-muted-foreground" />
                   <span className="shrink-0 rounded border bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">{tag}</span>
                 </div>
               </TableCell>
-              <TableCell className="font-mono text-xs whitespace-nowrap text-muted-foreground">{c.ports || "—"}</TableCell>
+              <TableCell className="max-w-[11rem] text-xs text-muted-foreground">
+                <Truncate
+                  mono
+                  text={c.ports}
+                  tip={<span className="block space-y-0.5">{c.ports.split(/,\s*/).map(p => <span key={p} className="block">{p}</span>)}</span>}
+                />
+              </TableCell>
               <TableCell className="border-l"><StatePill state={c.state} busy={isBusy(busy, c.id)} /></TableCell>
               <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">{c.uptime}</TableCell>
               <TableCell className="whitespace-nowrap text-muted-foreground">{c.created}</TableCell>
@@ -223,7 +230,7 @@ export function ContainerCards({
             <div className="flex items-start justify-between gap-2.5">
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="text-sm font-semibold">{c.name}</span>
-                <span className="truncate font-mono text-[11px] text-muted-foreground">{repo}:{tag}</span>
+                <Truncate mono text={`${repo}:${tag}`} tip={c.image} className="text-[11px] text-muted-foreground" />
               </div>
               <StatePill state={c.state} busy={working} />
             </div>

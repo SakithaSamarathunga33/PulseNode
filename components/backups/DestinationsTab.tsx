@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { Destination } from "./shared"
+import { Truncate } from "@/components/pn/Truncate"
 
 type Props = {
   destinations: Destination[]
@@ -74,9 +75,9 @@ export function DestinationsTab({ destinations, testingId, onNew, onEdit, onDele
             <TableBody>
               {destinations.map(d => (
                 <TableRow key={d.id} className="h-[52px]">
-                  <TableCell className="text-sm font-medium">{d.name}</TableCell>
+                  <TableCell className="max-w-[14rem] text-sm font-medium"><Truncate text={d.name} /></TableCell>
                   <TableCell><TypePill d={d} /></TableCell>
-                  <TableCell className="max-w-[280px] truncate font-mono text-xs text-muted-foreground" title={where(d)}>{where(d)}</TableCell>
+                  <TableCell className="max-w-[280px] text-xs text-muted-foreground"><Truncate mono text={where(d)} /></TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {d.type === "s3" ? (d.secretSet ? <span className="font-mono text-xs">{d.accessKeyHint || "saved"} · secret saved</span> : <span className="text-warning">not set</span>) : "—"}
                   </TableCell>
@@ -95,8 +96,8 @@ export function DestinationsTab({ destinations, testingId, onNew, onEdit, onDele
             <Card className="gap-3 py-4">
               <div className="flex items-start justify-between gap-3 px-4">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{d.name}</p>
-                  <p className="truncate font-mono text-xs text-muted-foreground">{where(d)}</p>
+                  <Truncate text={d.name} className="text-sm font-medium" />
+                  <Truncate mono text={where(d)} className="text-xs text-muted-foreground" />
                 </div>
                 <Switch checked={d.enabled} onCheckedChange={v => onToggle(d, v)} aria-label={`Enable destination ${d.name}`} />
               </div>

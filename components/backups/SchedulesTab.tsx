@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { absTime, frequencyText, isPanel, relTime, targetText, type Destination, type Schedule } from "./shared"
+import { Truncate } from "@/components/pn/Truncate"
 
 export function runTone(status?: string | null): "ok" | "bad" | "info" | "outline" {
   return status === "success" ? "ok" : status === "failed" ? "bad" : status === "running" ? "info" : "outline"
@@ -92,15 +93,15 @@ export function SchedulesTab({ schedules, destinations, runningIds, onNew, onEdi
                 const running = runningIds.has(s.id)
                 return (
                   <TableRow key={s.id} className="h-[54px]">
-                    <TableCell>
-                      <p className="text-sm font-medium">{s.name}</p>
+                    <TableCell className="max-w-[14rem]">
+                      <Truncate text={s.name} className="text-sm font-medium" />
                       <p className="text-xs text-muted-foreground">keep {s.retention} · {s.encrypt ? "encrypted" : "not encrypted"}</p>
                     </TableCell>
-                    <TableCell className="text-sm">
-                      {isPanel(s.target) ? "Panel" : <span className="font-mono text-[13px]">{targetText(s.target, s.targetName)}</span>}
+                    <TableCell className="max-w-[14rem] text-sm">
+                      {isPanel(s.target) ? "Panel" : <Truncate mono text={targetText(s.target, s.targetName)} className="text-[13px]" />}
                     </TableCell>
                     <TableCell className="text-sm whitespace-nowrap">{frequencyText(s)}</TableCell>
-                    <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground" title={destNames(s, destinations)}>{destNames(s, destinations)}</TableCell>
+                    <TableCell className="max-w-[200px] text-sm text-muted-foreground"><Truncate text={destNames(s, destinations)} /></TableCell>
                     <TableCell><LastRun s={s} running={running} /></TableCell>
                     <TableCell className="text-sm whitespace-nowrap text-muted-foreground" title={absTime(s.nextRunAt)}>
                       {s.enabled ? relTime(s.nextRunAt) : "paused"}
@@ -123,8 +124,8 @@ export function SchedulesTab({ schedules, destinations, runningIds, onNew, onEdi
               <Card className="gap-3 py-4">
                 <div className="flex items-start justify-between gap-3 px-4">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{s.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">{targetText(s.target, s.targetName)}</p>
+                    <Truncate text={s.name} className="text-sm font-medium" />
+                    <Truncate text={targetText(s.target, s.targetName)} className="text-xs text-muted-foreground" />
                   </div>
                   <Switch checked={s.enabled} onCheckedChange={v => onToggle(s, v)} aria-label={`Enable schedule ${s.name}`} />
                 </div>

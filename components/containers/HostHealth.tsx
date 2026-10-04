@@ -4,6 +4,7 @@ import { ArrowDownRight, ArrowUpRight, CircleCheck, Cpu, HardDrive, MemoryStick,
 import type { LucideIcon } from "lucide-react"
 import type { HostInfo } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { Truncate } from "@/components/pn/Truncate"
 import { sparkPaths, toneFor, trendOf, TONE_BG, TONE_TEXT, type Tone } from "./utils"
 
 const STATUS: Record<Tone, { label: string; icon: LucideIcon }> = {
@@ -57,7 +58,7 @@ function HostCell({ cell }: { cell: Cell }) {
         </span>
       </div>
 
-      <div className="truncate text-xs text-muted-foreground" title={cell.meta}>{cell.meta}</div>
+      <Truncate text={cell.meta} className="text-xs text-muted-foreground" />
 
       {hasMeter && (
         <div
@@ -135,8 +136,8 @@ export function HostHealth({
       </div>
       <div className="flex flex-wrap gap-x-6 gap-y-1.5 border-t bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground">
         {info.filter(([, v]) => v).map(([k, v, mono]) => (
-          <span key={k} className="inline-flex gap-1.5 whitespace-nowrap">
-            {k}<span className={cn("text-foreground/80", mono && "font-mono")}>{v}</span>
+          <span key={k} className="inline-flex min-w-0 max-w-full gap-1.5 whitespace-nowrap">
+            {k}<Truncate text={v} mono={mono} className="text-foreground/80" />
           </span>
         ))}
       </div>

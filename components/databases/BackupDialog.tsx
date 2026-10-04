@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { nodeApi, API_BASE } from "@/lib/api"
 import type { Database, DbSchemaResult } from "@/lib/types"
 import { fmtBytes } from "./shared"
+import { Truncate } from "@/components/pn/Truncate"
 
 type BkpPhase = "idle" | "starting" | "dumping" | "done" | "error"
 type BkpState = { phase: BkpPhase; jobId: string; bytes: number; error: string; name: string }
@@ -158,7 +159,7 @@ export function BackupDialog({ db, onClose }: { db: Database; onClose: () => voi
             <div role="progressbar" aria-label="Backup progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={state.phase === "done" ? 100 : undefined} className="h-1.5 overflow-hidden rounded-full bg-muted">
               <div className={`h-full rounded-full ${state.phase === "done" ? "w-full bg-success" : state.phase === "error" ? "w-full bg-danger" : "w-1/3 animate-pulse bg-primary"}`} />
             </div>
-            {state.name && <p className="truncate font-mono text-xs text-muted-foreground">{state.name}</p>}
+            {state.name && <Truncate mono text={state.name} className="text-xs text-muted-foreground" />}
             {state.error && (
               <Alert variant="destructive"><AlertDescription className="break-all font-mono text-xs">{state.error}</AlertDescription></Alert>
             )}

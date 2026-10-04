@@ -12,12 +12,14 @@ import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { EmptyState } from "@/components/pn/EmptyState"
 import { Segmented } from "@/components/pn/Segmented"
 import { SearchInput } from "@/components/pn/SearchInput"
 import { Pill } from "@/components/dashboard/Pill"
 import { cn } from "@/lib/utils"
+import { Truncate } from "@/components/pn/Truncate"
 
 type Project = {
   ID: string
@@ -168,19 +170,22 @@ function ProjectCard({ proj, busy, onRedeploy }: { proj: Project; busy: boolean;
             <span className="truncate">{proj.Name}</span>
             {proj.External && <Badge variant="secondary" className="shrink-0 text-[11px]">Hosted on VPS</Badge>}
           </Link>
-          <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground" title={source}>{source}</p>
+          <Truncate mono text={source ?? ""} className="mt-0.5 text-xs text-muted-foreground" />
         </div>
         <StatusPill status={status} />
       </div>
       <dl className="grid grid-cols-3 gap-2.5 px-4 pb-3.5">
         <Meta label="Branch">
-          {proj.External ? "image" : <><GitBranch className="size-3 shrink-0" aria-hidden /><span className="truncate">{proj.Branch}</span></>}
+          {proj.External ? "image" : <><GitBranch className="size-3 shrink-0" aria-hidden /><Truncate text={proj.Branch} /></>}
         </Meta>
         <Meta label="Domain">
           {proj.Domain ? (
-            <a href={`https://${proj.Domain}`} target="_blank" rel="noopener noreferrer" className="truncate hover:underline">
-              {proj.Domain}<span className="sr-only"> (opens in a new tab)</span>
-            </a>
+            <Tooltip>
+              <TooltipTrigger render={<a href={`https://${proj.Domain}`} target="_blank" rel="noopener noreferrer" className="truncate hover:underline" />}>
+                {proj.Domain}<span className="sr-only"> (opens in a new tab)</span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-sm break-all font-mono">{proj.Domain}</TooltipContent>
+            </Tooltip>
           ) : "—"}
         </Meta>
         <Meta label="Build">
@@ -243,7 +248,7 @@ function RepoGroup({ repoUrl, members, busy, onRedeploy }: {
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold">{repoName.split("/").pop() ?? repoName}</p>
-          <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{repoName}</p>
+          <Truncate mono text={repoName} className="mt-0.5 text-xs text-muted-foreground" />
         </div>
         <span className="shrink-0 text-xs text-muted-foreground">
           Deployed separately · <span className="tabular-nums">{members.length}</span> of 2 services

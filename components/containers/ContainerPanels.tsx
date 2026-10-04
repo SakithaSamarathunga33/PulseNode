@@ -9,6 +9,7 @@ import type { Container } from "@/lib/types"
 import { TerminalWindow } from "@/components/magicui/terminal"
 import { LiveBadge } from "@/components/pn/LiveBadge"
 import { SearchInput } from "@/components/pn/SearchInput"
+import { Truncate } from "@/components/pn/Truncate"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -97,7 +98,7 @@ export function LogsPanel({ container }: { container: Container }) {
       <SheetHeader className="border-b pr-14">
         <SheetTitle className="flex items-center gap-2 font-mono text-sm">
           <FileText className="size-4 text-[var(--hue-fg,var(--primary))]" />
-          <span className="truncate">{container.name}</span>
+          <Truncate text={container.name} />
         </SheetTitle>
         <SheetDescription className="font-mono text-[11px]">docker logs --follow --tail {tail}</SheetDescription>
       </SheetHeader>
@@ -204,8 +205,8 @@ export function TerminalPanel({ container }: { container: Container }) {
       <SheetHeader className="border-b pr-14">
         <SheetTitle className="flex items-center gap-2 font-mono text-sm">
           <Terminal className="size-4 text-[var(--hue-fg,var(--primary))]" />
-          <span className="truncate">{container.name}</span>
-          <span className="font-sans font-normal text-muted-foreground">· /bin/sh</span>
+          <Truncate text={container.name} />
+          <span className="shrink-0 font-sans font-normal text-muted-foreground">· /bin/sh</span>
         </SheetTitle>
         <SheetDescription className="flex items-center gap-3 text-xs">
           <LiveBadge stale={running}>{running ? "Running…" : "Ready"}</LiveBadge>

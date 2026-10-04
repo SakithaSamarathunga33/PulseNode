@@ -14,6 +14,7 @@ import { nodeApi, API_BASE } from "@/lib/api"
 import { copyText } from "@/lib/utils"
 import type { Database, DbSchemaResult } from "@/lib/types"
 import { TableDataDialog } from "./TableDataDialog"
+import { Truncate } from "@/components/pn/Truncate"
 
 function ConnectionStringPanel({ dbName, database }: { dbName: string; database?: string }) {
   const [uri, setUri] = useState<string | null>(null)
@@ -236,8 +237,8 @@ export function TablesPanel({ db }: { db: Database }) {
                   <TableBody>
                     {db.slowQueries.map((query, i) => (
                       <TableRow key={`${query.timestamp}-${i}`}>
-                        <TableCell className="max-w-[220px] truncate font-mono text-xs" title={query.query}>
-                          {query.query}
+                        <TableCell className="max-w-[220px] text-xs">
+                          <Truncate mono text={query.query} />
                         </TableCell>
                         <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">{query.duration}ms</TableCell>
                       </TableRow>

@@ -11,6 +11,7 @@ import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { nodeApi, API_BASE } from "@/lib/api"
 import type { Database, DbSchemaResult } from "@/lib/types"
+import { Truncate } from "@/components/pn/Truncate"
 
 const DEFAULT = "__default__"
 
@@ -98,8 +99,9 @@ export function RestoreDialog({ db, onClose }: { db: Database; onClose: () => vo
                 className="h-auto py-1.5 text-xs"
               />
               {file && (
-                <p className="font-mono text-xs tabular-nums text-muted-foreground">
-                  {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
+                <p className="flex gap-1 text-xs tabular-nums text-muted-foreground">
+                  <Truncate mono text={file.name} />
+                  <span className="shrink-0 font-mono">· {(file.size / 1024 / 1024).toFixed(2)} MB</span>
                 </p>
               )}
             </div>
