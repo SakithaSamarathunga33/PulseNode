@@ -13,6 +13,8 @@ import { EmptyState } from "@/components/pn/EmptyState"
 import {
   STATUS, StatusChip, StatusLegend, statusOf, type SavedDomain,
 } from "@/components/domain/DomainParts"
+import { ProxyCard } from "@/components/domain/ProxyCard"
+import { WildcardInline } from "@/components/domain/wildcard"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -275,6 +277,8 @@ export default function DomainPage() {
           <Alert variant="destructive"><AlertCircle /><AlertDescription>{message}</AlertDescription></Alert>
         )}
 
+        <ProxyCard />
+
         <div className="grid items-start gap-5 min-[1200px]:grid-cols-2">
           <div className="min-w-0 space-y-5">
             {/* Saved domains */}
@@ -341,6 +345,7 @@ export default function DomainPage() {
                             </Button>
                           </IconTip>
                         </div>
+                        <WildcardInline host={d.host} />
                       </li>
                     )
                   })}
@@ -382,6 +387,7 @@ export default function DomainPage() {
                       ) : (
                         <Button size="xs" variant="outline" onClick={() => save(h.host)} disabled={saving}><Plus />Save</Button>
                       )}
+                      <WildcardInline host={h.host} />
                     </li>
                   ))}
                 </ul>

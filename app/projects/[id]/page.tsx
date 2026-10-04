@@ -30,6 +30,7 @@ import { FormField, ChoiceGroup, BUILD_METHODS } from "@/components/projects/for
 import { EnvEditor, envProblem, envRowsFromJson, envRowsToObject, type EnvRow } from "@/components/projects/EnvEditor"
 import { DeleteProjectDialog } from "@/components/projects/DeleteProjectDialog"
 import { LogPane, type LogEntry } from "@/components/projects/LogPane"
+import { WildcardBadge, WildcardHint } from "@/components/domain/wildcard"
 import { cn } from "@/lib/utils"
 
 const GO_API = API_BASE
@@ -610,6 +611,7 @@ export default function ProjectDetailPage() {
               <span className="inline-flex items-center gap-1 font-mono text-xs"><FolderGit2 className="size-3.5" aria-hidden />{repoName}</span>
               <span className="inline-flex items-center gap-1 font-mono text-xs"><GitBranch className="size-3.5" aria-hidden />{project.Branch}</span>
               <DomainLink domain={project.Domain} />
+              <WildcardBadge domain={project.Domain} />
             </span>
           }
           actions={
@@ -840,6 +842,7 @@ export default function ProjectDetailPage() {
                   </FormField>
                   <FormField label="Domain" htmlFor="ps-domain">
                     <Input id="ps-domain" value={form.domain} onChange={e => setF("domain", e.target.value)} placeholder="app.yourdomain.com" spellCheck={false} className="h-9 font-mono text-xs" />
+                    <WildcardHint domain={form.domain} className="mt-1.5" />
                   </FormField>
                   <FormField label="Container port" htmlFor="ps-port">
                     <Input id="ps-port" type="number" inputMode="numeric" value={form.port} onChange={e => setF("port", e.target.value)} className="h-9 font-mono text-xs tabular-nums" />

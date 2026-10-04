@@ -153,6 +153,7 @@ func run() error {
 	})
 	spawn(func() { pruneDaily(ctx, database) })
 	spawn(func() { server.RunBackups(ctx) })
+	spawn(func() { server.ReconcileProxy(ctx) })
 
 	httpServer := &http.Server{
 		Addr:              ":" + port,

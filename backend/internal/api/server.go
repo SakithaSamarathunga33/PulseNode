@@ -48,6 +48,7 @@ type Server struct {
 	backupMu  sync.Mutex
 	backups   map[string]*backupJob
 	backupSvc *backups.Service // scheduled backups (internal/backups)
+	proxySt   proxyState       // built-in Traefik proxy (proxy_handler.go)
 
 	insecureNoAuth bool       // PULSENODE_INSECURE_NO_AUTH=true: no admin account → open dashboard
 	setupMu        sync.Mutex // guards setupToken
@@ -190,6 +191,13 @@ func (s *Server) Routes() http.Handler {
 		// Domain settings
 		r.Get("/domain/settings", s.domainSettings)
 		r.Get("/domain/check", s.checkDomain)
+		r.Get("/domains/wildcard", s.wildcardCheck)
+
+		// Built-in proxy (Traefik) for servers without their own
+		r.Get("/proxy/status", s.proxyStatus)
+		r.Post("/proxy/enable", s.proxyEnable)
+		r.Post("/proxy/disable", s.proxyDisable)
+		r.Patch("/proxy/settings", s.proxySettings)
 
 		// Saved domains + live inventory
 		r.Get("/domains", s.listDomains)

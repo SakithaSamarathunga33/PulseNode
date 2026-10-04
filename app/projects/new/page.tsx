@@ -21,6 +21,7 @@ import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { SearchInput } from "@/components/pn/SearchInput"
 import { FormField, ChoiceGroup, BUILD_METHODS } from "@/components/projects/forms"
 import { EnvEditor, envProblem, envRowsToObject, newEnvRow, type EnvRow } from "@/components/projects/EnvEditor"
+import { WildcardHint } from "@/components/domain/wildcard"
 import { cn } from "@/lib/utils"
 
 const GO_API = API_BASE
@@ -549,6 +550,7 @@ function NewProjectForm() {
                 </Tooltip>
               </div>
               <p className="text-xs text-muted-foreground">Must point to this server via DNS. Caddy issues a TLS certificate automatically once it does.</p>
+              <WildcardHint domain={domain} />
             </Section>
 
             <Section title="Build method">

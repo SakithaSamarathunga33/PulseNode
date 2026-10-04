@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -14,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"pulsenode/backend/internal/proxy"
 )
 
 // LogFunc is called for each output line from the build process.
@@ -35,6 +38,8 @@ type Config struct {
 	BackendEnvVars  string // JSON {"KEY":"VALUE"} — monorepo backend env (ignored for single-service)
 	BaseDir         string // "" | "frontend" | "backend" — subfolder to build from when this project is one component of a monorepo deployed separately. Skips monorepo auto-split.
 	TraefikNet      string
+	ManagedProxyOff bool   // true: never start PulseNode's built-in Traefik (fail if no Traefik is found)
+	ACMEEmail       string // Let's Encrypt contact for the built-in proxy (optional)
 	PrevContainerID string // previous running container, removed after the new one is healthy
 	Log             LogFunc
 }
@@ -156,6 +161,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 
 	cfg.log("system", fmt.Sprintf("✓ Container healthy: %s", res.ContainerID[:min(12, len(res.ContainerID))]))
 	cfg.log("system", fmt.Sprintf("✓ Live at https://%s", cfg.Domain))
+	cfg.logDNSNote(ctx)
 	return res, nil
 }
 
@@ -202,9 +208,9 @@ func shortSHA(sha string) string {
 func (cfg Config) buildCompose(ctx context.Context, dir, containerName string, envMap map[string]string) (string, error) {
 	// Write overlay with Traefik labels for the first service
 	cfg.log("system", "→ Writing Traefik labels overlay…")
-	traefikNet := cfg.resolveTraefikNetwork(ctx)
-	if traefikNet == "" {
-		return "", fmt.Errorf("TRAEFIK_NETWORK is not configured and no Traefik Docker network could be detected")
+	traefikNet, err := cfg.resolveTraefikNetwork(ctx)
+	if err != nil {
+		return "", err
 	}
 	overlay := cfg.composeOverlay(traefikNet)
 	if err := os.WriteFile(filepath.Join(dir, "docker-compose.pulsenode.yml"), []byte(overlay), 0o644); err != nil {
@@ -421,9 +427,9 @@ func (cfg Config) deployContainer(ctx context.Context, imageRef, slug string, en
 func (cfg Config) deployService(ctx context.Context, imageRef, slug string, envMap map[string]string, spec serviceSpec) (string, error) {
 	id := cfg.ProjectID
 	port := fmt.Sprintf("%d", spec.port)
-	traefikNet := cfg.resolveTraefikNetwork(ctx)
-	if traefikNet == "" {
-		return "", fmt.Errorf("TRAEFIK_NETWORK is not configured and no Traefik Docker network could be detected")
+	traefikNet, err := cfg.resolveTraefikNetwork(ctx)
+	if err != nil {
+		return "", err
 	}
 
 	if err := validateEnvMap(envMap); err != nil {
@@ -768,9 +774,27 @@ networks:
 `, id, domain, id, id, id, port, net, port, net)
 }
 
-func (cfg Config) resolveTraefikNetwork(ctx context.Context) string {
+// Seams so tests can drive the proxy choice without a Docker daemon.
+var (
+	detectExternalTraefik = detectTraefikNetwork
+	managedProxyRunning   = func(ctx context.Context) bool {
+		st, err := proxy.NewManager().Status(ctx)
+		return err == nil && st.Running
+	}
+	ensureManagedProxy = func(ctx context.Context, email string) error {
+		return proxy.NewManager().Ensure(ctx, proxy.Options{ACMEEmail: email})
+	}
+)
+
+const errNoTraefik = "TRAEFIK_NETWORK is not configured and no Traefik Docker network could be detected"
+
+// resolveTraefikNetwork finds the Docker network deployed containers must join so
+// Traefik can route to them: an explicit TRAEFIK_NETWORK, else an existing
+// Traefik's network, else a running built-in proxy. With none of those it starts
+// the built-in proxy (unless disabled) so a server without Traefik still deploys.
+func (cfg Config) resolveTraefikNetwork(ctx context.Context) (string, error) {
 	if net := strings.TrimSpace(cfg.TraefikNet); net != "" {
-		return net
+		return net, nil
 	}
 
 	workspace := os.Getenv("PULSENODE_WORKSPACE")
@@ -779,14 +803,28 @@ func (cfg Config) resolveTraefikNetwork(ctx context.Context) string {
 	}
 	if net := envFileValue(filepath.Join(workspace, ".env.local"), "TRAEFIK_NETWORK"); net != "" {
 		cfg.log("system", fmt.Sprintf("→ Using Traefik network from .env.local: %s", net))
-		return net
+		return net, nil
 	}
 
-	net := detectTraefikNetwork(ctx)
-	if net != "" {
+	if net := detectExternalTraefik(ctx); net != "" {
 		cfg.log("system", fmt.Sprintf("→ Detected Traefik network: %s", net))
+		return net, nil
 	}
-	return net
+	if managedProxyRunning(ctx) {
+		cfg.log("system", "→ Using PulseNode's built-in proxy")
+		return proxy.Network, nil
+	}
+	if cfg.ManagedProxyOff {
+		return "", fmt.Errorf(errNoTraefik)
+	}
+
+	cfg.log("system", "No Traefik found — starting PulseNode's built-in proxy…")
+	if err := ensureManagedProxy(ctx, cfg.ACMEEmail); err != nil {
+		cfg.log("system", "✕ Could not start the built-in proxy: "+err.Error())
+		return "", fmt.Errorf("built-in proxy: %w", err)
+	}
+	cfg.log("system", "✓ Built-in proxy is running (automatic HTTPS via Let's Encrypt)")
+	return proxy.Network, nil
 }
 
 func envFileValue(path, key string) string {
@@ -805,27 +843,38 @@ func envFileValue(path, key string) string {
 	return ""
 }
 
+// detectTraefikNetwork returns the network of a running Traefik other than
+// PulseNode's built-in proxy, or "" if there is none.
 func detectTraefikNetwork(ctx context.Context) string {
-	out, err := runOutput(ctx, "", "docker", "ps", "--filter", "name=traefik", "--format", "{{.ID}}")
-	if err != nil {
-		return ""
+	return proxy.NewManager().DetectExternal(ctx)
+}
+
+// lookupHost is a seam for the post-deploy DNS note.
+var lookupHost = func(ctx context.Context, host string) ([]string, error) {
+	return net.DefaultResolver.LookupHost(ctx, host)
+}
+
+// logDNSNote tells the user, without ever failing the deploy, whether the
+// project's domain resolves yet — the usual reason a fresh deploy "doesn't load".
+func (cfg Config) logDNSNote(ctx context.Context) {
+	if cfg.Domain == "" {
+		return
 	}
-	for _, id := range strings.Fields(out) {
-		data, err := runOutput(ctx, "", "docker", "inspect", id, "--format", "{{json .NetworkSettings.Networks}}")
-		if err != nil {
-			continue
-		}
-		var networks map[string]any
-		if err := json.Unmarshal([]byte(data), &networks); err != nil {
-			continue
-		}
-		for net := range networks {
-			if net != "bridge" && net != "host" && net != "none" {
-				return net
-			}
-		}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if ips, err := lookupHost(ctx, cfg.Domain); err == nil && len(ips) > 0 {
+		cfg.log("system", fmt.Sprintf("DNS: %s resolves to %s ✓", cfg.Domain, strings.Join(ips, ", ")))
+		return
 	}
-	return ""
+	target := strings.TrimSpace(os.Getenv("VPS_IP"))
+	if target == "" {
+		target = strings.TrimSpace(os.Getenv("PULSENODE_VPS_IP"))
+	}
+	if target == "" {
+		target = "this server's IP"
+	}
+	cfg.log("system", fmt.Sprintf("⚠ %s does not resolve yet — add a wildcard record *.%s → %s at your DNS provider (proxied through Cloudflare is fine)",
+		cfg.Domain, proxy.RegistrableRoot(cfg.Domain), target))
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────

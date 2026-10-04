@@ -220,6 +220,24 @@ The overlay attaches Caddy to the Traefik network and adds the correct router la
 
 ---
 
+## Routing for deployed projects (built-in proxy)
+
+Projects you deploy are routed by Traefik. PulseNode picks what to use in this order:
+
+1. `TRAEFIK_NETWORK` from `.env.local`, if set.
+2. A Traefik container that is already running on the server (used untouched).
+3. Otherwise PulseNode **starts its own Traefik** (`pulsenode-traefik`, image `traefik:v3.6`) on ports 80 and 443 with automatic Let's Encrypt HTTPS, attached to a `pulsenode-proxy` Docker network. The first deploy does this for you; you can also use the proxy status card on the Domain page (`GET /api/proxy/status`, `POST /api/proxy/enable`, `POST /api/proxy/disable`, `PATCH /api/proxy/settings`).
+
+Things to know:
+
+- **Ports 80 and 443 must be free.** If something else (nginx, Apache, another container) holds them, the deploy fails with `ports 80/443 are in use — free them or use the Traefik overlay`. PulseNode never stops or removes other containers.
+- **DNS:** add one wildcard record, `*.example.com` → your server IP, at your DNS provider (proxying through Cloudflare is fine). PulseNode does not touch your DNS; it only checks the record (`GET /api/domains/wildcard?domain=app.example.com`) and writes a `DNS:` line to the deploy log. A wildcard covers one label, so `app.example.com` is covered by `*.example.com` but `a.b.example.com` is not.
+- **Let's Encrypt e-mail** (optional) is set with the proxy settings; certificates are kept in the `pulsenode-traefik-acme` volume, which survives disabling the proxy.
+- **Opt out:** set `PULSENODE_MANAGED_PROXY=false` in `.env.local`, or press Disable. Without a Traefik, deploys then fail with the old `TRAEFIK_NETWORK is not configured` error.
+- The built-in proxy has no dashboard or API. See [SECURITY.md](SECURITY.md) for its Docker socket access.
+
+---
+
 ## Architecture
 
 ```

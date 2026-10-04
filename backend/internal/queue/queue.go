@@ -15,6 +15,7 @@ import (
 	"pulsenode/backend/internal/db"
 	"pulsenode/backend/internal/github"
 	"pulsenode/backend/internal/hub"
+	"pulsenode/backend/internal/proxy"
 )
 
 var (
@@ -223,6 +224,13 @@ func (q *Queue) logErr(what string, err error) {
 	}
 }
 
+// setting reads one settings-table value; unset or unreadable is "".
+func (q *Queue) setting(key string) string {
+	v, err := q.db.GetSetting(key)
+	q.logErr("read setting "+key, err)
+	return v
+}
+
 func (q *Queue) worker() {
 	defer q.wg.Done()
 	for depID := range q.jobs {
@@ -343,6 +351,8 @@ func (q *Queue) runDeployment(depID string) {
 		BackendEnvVars:  proj.BackendEnvVars,
 		BaseDir:         proj.BaseDir,
 		TraefikNet:      os.Getenv("TRAEFIK_NETWORK"),
+		ManagedProxyOff: !proxy.Enabled(q.setting(proxy.SettingManaged)),
+		ACMEEmail:       q.setting(proxy.SettingACMEEmail),
 		PrevContainerID: proj.ContainerID,
 		Log:             emit,
 	}
