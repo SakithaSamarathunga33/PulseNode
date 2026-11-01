@@ -282,7 +282,7 @@ export default function ContainersPage() {
           </Alert>
         )}
 
-        {!hostLoaded ? <Skeleton className="h-[148px] rounded-xl" /> : <HostHealth
+        {!hostLoaded ? <Skeleton className="h-[230px] rounded-2xl" /> : <HostHealth
           host={host}
           cpuHist={cpuHist} ramHist={ramHist} diskHist={diskHist}
           netInHist={netHist} netOutHist={netOutHist} netRx={netRx} netTx={netTx}

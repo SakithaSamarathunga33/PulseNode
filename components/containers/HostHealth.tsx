@@ -1,11 +1,11 @@
 "use client"
 
-import { ArrowDownRight, ArrowUpRight, CircleCheck, Cpu, HardDrive, MemoryStick, Network, OctagonAlert, TriangleAlert } from "lucide-react"
+import { ArrowDownRight, ArrowUpRight, CircleCheck, Clock, Cpu, Globe, HardDrive, MapPin, MemoryStick, Monitor, Network, OctagonAlert, Server, SquareTerminal, TriangleAlert } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { HostInfo } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { Truncate } from "@/components/pn/Truncate"
-import { sparkPaths, toneFor, trendOf, TONE_BG, TONE_TEXT, type Tone } from "./utils"
+import { sparkPaths, toneFor, trendOf, TONE_TEXT, type Tone } from "./utils"
 
 const STATUS: Record<Tone, { label: string; icon: LucideIcon }> = {
   ok: { label: "Normal", icon: CircleCheck },
@@ -26,11 +26,15 @@ type Cell = {
   hist: number[]
   hist2?: number[]
   unitTrend: string
+  /** Series colour for the icon tile and sparkline. */
+  color: string
 }
 
+const PILL: Record<Tone, string> = { ok: "bg-success/12", warn: "bg-warning/12", bad: "bg-danger/12" }
+
 function HostCell({ cell }: { cell: Cell }) {
-  const hasMeter = cell.pct !== undefined
-  const tone: Tone = hasMeter ? toneFor(cell.pct!) : "ok"
+  const hasPct = cell.pct !== undefined
+  const tone: Tone = hasPct ? toneFor(cell.pct!) : "ok"
   const status = STATUS[tone]
   const StatusIcon = status.icon
   const trend = trendOf(cell.hist, cell.unitTrend)
@@ -39,12 +43,19 @@ function HostCell({ cell }: { cell: Cell }) {
   const second = cell.hist2 ? sparkPaths(cell.hist2, 200, 44, Math.max(...cell.hist, 1) * 1.15) : null
 
   return (
-    <div className="flex min-w-0 flex-col gap-2.5 bg-card px-4 pt-4">
+    <div
+      style={{ ["--m" as string]: cell.color }}
+      className="flex min-w-0 flex-col gap-2.5 overflow-hidden rounded-2xl border bg-card px-4 pt-4 shadow-card"
+      {...(hasPct ? { role: "meter", "aria-label": `${cell.label} usage`, "aria-valuenow": Math.round(cell.pct!), "aria-valuemin": 0, "aria-valuemax": 100 } : {})}
+    >
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <cell.icon className="size-4" /> {cell.label}
+        <span className="inline-flex items-center gap-2.5 text-sm font-semibold">
+          <span className="grid size-8 place-items-center rounded-lg bg-[color-mix(in_srgb,var(--m)_14%,transparent)] text-[var(--m)]">
+            <cell.icon className="size-4" />
+          </span>
+          {cell.label}
         </span>
-        <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold", TONE_TEXT[tone])}>
+        <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", TONE_TEXT[tone], PILL[tone])}>
           <StatusIcon className="size-3" /> {status.label}
         </span>
       </div>
@@ -58,35 +69,21 @@ function HostCell({ cell }: { cell: Cell }) {
         </span>
       </div>
 
-      <Truncate text={cell.meta} className="text-xs text-muted-foreground" />
-
-      {hasMeter && (
-        <div
-          role="meter" aria-label={`${cell.label} usage`} aria-valuenow={Math.round(cell.pct!)} aria-valuemin={0} aria-valuemax={100}
-          className="relative h-1 rounded-full bg-muted"
-        >
-          <div
-            className={cn("absolute inset-y-0 left-0 rounded-full transition-[width] duration-500", TONE_BG[tone])}
-            style={{ width: `${Math.max(0, Math.min(100, cell.pct!))}%` }}
-          />
-          <span className="absolute -top-0.5 left-[60%] h-2 w-px bg-border" aria-hidden />
-          <span className="absolute -top-0.5 left-[80%] h-2 w-px bg-border" aria-hidden />
-        </div>
-      )}
-
-      <svg
-        viewBox="0 0 200 44" preserveAspectRatio="none" aria-hidden
-        className={cn("-mx-4 block h-11 w-[calc(100%+2rem)]", hasMeter ? TONE_TEXT[tone] : "text-[var(--hue,var(--primary))]")}
-      >
-        <path d={main.area} fill="currentColor" opacity={0.12} />
-        <path d={main.line} vectorEffect="non-scaling-stroke" fill="none" stroke="currentColor" strokeWidth={1.5} />
+      <svg viewBox="0 0 200 44" preserveAspectRatio="none" aria-hidden className="-mx-4 block h-12 w-[calc(100%+2rem)] text-[var(--m)]">
+        <defs>
+          <linearGradient id={`spark-${cell.key}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="currentColor" stopOpacity={0.28} />
+            <stop offset="100%" stopColor="currentColor" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <path d={main.area} fill={`url(#spark-${cell.key})`} />
+        <path d={main.line} vectorEffect="non-scaling-stroke" fill="none" stroke="currentColor" strokeWidth={1.75} />
         {second && (
-          <path
-            d={second.line} vectorEffect="non-scaling-stroke" fill="none"
-            stroke="var(--primary)" strokeWidth={1.5} strokeDasharray="3 3"
-          />
+          <path d={second.line} vectorEffect="non-scaling-stroke" fill="none" stroke="currentColor" strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="3 3" />
         )}
       </svg>
+
+      <Truncate text={cell.meta} className="-mt-1 pb-3.5 text-xs text-muted-foreground" />
     </div>
   )
 }
@@ -106,38 +103,38 @@ export function HostHealth({
 }) {
   const cells: Cell[] = [
     {
-      key: "cpu", label: "CPU", icon: Cpu, value: fmt(host.cpu.usage), unit: "%", pct: host.cpu.usage, hist: cpuHist, unitTrend: "%",
+      key: "cpu", label: "CPU", icon: Cpu, value: fmt(host.cpu.usage), unit: "%", pct: host.cpu.usage, hist: cpuHist, unitTrend: "%", color: "var(--chart-1)",
       meta: `${host.cpu.cores} cores · ${host.cpu.model.split("@")[0].trim()} · load ${(host.load[0] ?? 0).toFixed(2)}`,
     },
     {
       key: "mem", label: "Memory", icon: MemoryStick, value: fmt(host.memory.used), unit: `/ ${fmt(host.memory.total)} ${host.memory.unit}`,
-      pct: host.memory.pct, hist: ramHist, unitTrend: "%",
+      pct: host.memory.pct, hist: ramHist, unitTrend: "%", color: "var(--chart-5)",
       meta: `${host.memory.pct.toFixed(1)}% used · swap ${fmt(host.swap.used)}/${fmt(host.swap.total)}`,
     },
     {
       key: "disk", label: "Disk", icon: HardDrive, value: fmt(host.disk.used), unit: `/ ${fmt(host.disk.total)} ${host.disk.unit}`,
-      pct: host.disk.pct, hist: diskHist, unitTrend: "%",
+      pct: host.disk.pct, hist: diskHist, unitTrend: "%", color: "var(--chart-2)",
       meta: `${host.disk.pct.toFixed(1)}% used · ${fmt(host.disk.free)} ${host.disk.unit} free`,
     },
     {
-      key: "net", label: "Network", icon: Network, value: fmt(netRx), unit: "KB/s in", hist: netInHist, hist2: netOutHist, unitTrend: "",
+      key: "net", label: "Network", icon: Network, value: fmt(netRx), unit: "KB/s in", hist: netInHist, hist2: netOutHist, unitTrend: "", color: "var(--chart-3)",
       meta: `↑ ${fmt(netTx)} KB/s out`,
     },
   ]
-  const info: [string, string, boolean][] = [
-    ["Host", host.name, false], ["Region", host.region, false], ["IP", host.ip, true],
-    ["OS", host.distro, false], ["Kernel", host.kernel, true], ["Uptime", host.uptime, false],
+  const info: [string, string, boolean, LucideIcon][] = [
+    ["Host", host.name, false, Server], ["Region", host.region, false, MapPin], ["IP", host.ip, true, Globe],
+    ["OS", host.distro, false, Monitor], ["Kernel", host.kernel, true, SquareTerminal], ["Uptime", host.uptime, false, Clock],
   ]
 
   return (
-    <section aria-label="Host health" className="overflow-hidden rounded-xl border bg-card shadow-card">
-      <div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-4">
+    <section aria-label="Host health" className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {cells.map(c => <HostCell key={c.key} cell={c} />)}
       </div>
-      <div className="flex flex-wrap gap-x-6 gap-y-1.5 border-t bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground">
-        {info.filter(([, v]) => v).map(([k, v, mono]) => (
-          <span key={k} className="inline-flex min-w-0 max-w-full gap-1.5 whitespace-nowrap">
-            {k}<Truncate text={v} mono={mono} className="text-foreground/80" />
+      <div className="flex flex-wrap gap-x-6 gap-y-1.5 rounded-xl border bg-card px-4 py-2.5 text-xs text-muted-foreground shadow-card">
+        {info.filter(([, v]) => v).map(([k, v, mono, Icon]) => (
+          <span key={k} className="inline-flex min-w-0 max-w-full items-center gap-1.5 whitespace-nowrap">
+            <Icon className="size-3.5 shrink-0" aria-hidden />{k}:<Truncate text={v} mono={mono} className="font-medium text-foreground/85" />
           </span>
         ))}
       </div>
