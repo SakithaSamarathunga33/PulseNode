@@ -5,9 +5,25 @@ name: CI
 # never publish images.
 on:
   pull_request:
+    # Docs-only changes (README and other Markdown, docs/, licence, design notes, graphify
+    # output) don't build, test or release anything. A push that also touches code still runs.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - 'graphify-out/**'
+      - '.impeccable/**'
   push:
     branches-ignore: [main]
     tags-ignore: ['**']
+    # Docs-only changes (README and other Markdown, docs/, licence, design notes, graphify
+    # output) don't build, test or release anything. A push that also touches code still runs.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - 'graphify-out/**'
+      - '.impeccable/**'
   workflow_call:
 
 permissions:
