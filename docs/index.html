@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PulseNode – Open-source, self-hosted VPS control panel and Docker dashboard</title>
+<meta name="description" content="Free, open-source VPS control panel. Monitor your server, manage Docker, deploy from GitHub with automatic HTTPS, provision databases, back up to S3 and scan containers from one self-hosted dashboard. One-command install.">
+<link rel="canonical" href="https://sakithasamarathunga33.github.io/PulseNode/">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0f1115">
+<meta name="google-site-verification" content="cRe6Jcszg--j5XEtHzwo6krXsIGKoq43uAedqnX9Tg4" />
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="PulseNode">
+<meta property="og:title" content="PulseNode – open-source VPS control panel">
+<meta property="og:description" content="Monitor your server, manage Docker, deploy from GitHub with automatic HTTPS, back up databases and scan containers from one self-hosted dashboard.">
+<meta property="og:url" content="https://sakithasamarathunga33.github.io/PulseNode/">
+<meta property="og:image" content="https://sakithasamarathunga33.github.io/PulseNode/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="PulseNode – open-source VPS control panel">
+<meta name="twitter:description" content="Server metrics, Docker, GitHub deploys with HTTPS, databases, backups and security scanning in one self-hosted dashboard.">
+<meta name="twitter:image" content="https://sakithasamarathunga33.github.io/PulseNode/social-preview.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PulseNode",
+  "description": "Open-source, self-hosted VPS control panel for monitoring servers, managing Docker containers, deploying GitHub projects with automatic HTTPS, provisioning and backing up databases, and scanning container images.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Linux",
+  "license": "https://opensource.org/licenses/MIT",
+  "url": "https://sakithasamarathunga33.github.io/PulseNode/",
+  "downloadUrl": "https://github.com/SakithaSamarathunga33/PulseNode/releases/latest",
+  "codeRepository": "https://github.com/SakithaSamarathunga33/PulseNode",
+  "image": "https://sakithasamarathunga33.github.io/PulseNode/pulsenode-cover.jpg",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "author": { "@type": "Person", "name": "Sakitha Samarathunga", "url": "https://github.com/SakithaSamarathunga33" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "What is PulseNode?",
+      "acceptedAnswer": { "@type": "Answer", "text": "A free, open-source control panel for a Linux VPS. One self-hosted dashboard shows live server metrics, manages Docker containers, deploys apps from GitHub with automatic HTTPS, provisions and backs up databases, scans images for vulnerabilities and sends alerts." } },
+    { "@type": "Question", "name": "How do I install PulseNode on my VPS?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Run the one-command installer on any Linux server with Docker and Docker Compose v2: curl -fsSL https://raw.githubusercontent.com/SakithaSamarathunga33/PulseNode/main/install.sh | bash. It asks you to confirm the server's IP, creates your admin login, and prints the dashboard URL when it's ready." } },
+    { "@type": "Question", "name": "Is PulseNode an alternative to Coolify or Portainer?",
+      "acceptedAnswer": { "@type": "Answer", "text": "For one or two servers, yes. It combines a Docker manager, a metrics dashboard and a git-push deploy platform, plus vulnerability scanning and scheduled backups. It isn't built to manage large fleets." } },
+    { "@type": "Question", "name": "Does PulseNode deploy apps with automatic HTTPS?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Connect GitHub, pick a repo and a domain, and PulseNode builds it (Dockerfile, Docker Compose or Nixpacks) and routes it through Traefik with Let's Encrypt certificates. Pushes redeploy automatically, with zero-downtime swaps and one-click rollback." } },
+    { "@type": "Question", "name": "What server do I need for PulseNode?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Any Linux VPS that runs Docker, on amd64 or arm64, with 2 GB of RAM or more recommended. Port 80 serves the dashboard, and ports 80 and 443 must be free if you deploy projects." } },
+    { "@type": "Question", "name": "Is PulseNode free?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. It is open source under the MIT license, with no paid tier." } }
+  ]
+}
+</script>
+
+<style>
+:root{
+  --bg:#0f1115; --surface:#171a20; --line:#272b33; --text:#eceef2; --muted:#a3a9b5;
+  --accent:#6b93ff; --on-accent:#0b1430; --code:#12151a; --ok:#3ecf8e; --no:#8a909b;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#fafafa; --surface:#ffffff; --line:#e3e5ea; --text:#14161a; --muted:#545b67;
+    --accent:#2056d8; --on-accent:#ffffff; --code:#f2f3f6; --ok:#137a4b; --no:#6b7280;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--accent)}
+.wrap{max-width:1040px;margin:0 auto;padding:0 16px}
+header.top{display:flex;justify-content:space-between;align-items:center;padding:16px 0;gap:12px}
+header.top .brand{font-weight:700;color:var(--text);text-decoration:none}
+header.top nav a{margin-left:16px;text-decoration:none;color:var(--muted)}
+header.top nav a:hover{color:var(--text)}
+.hero{padding:36px 0 24px}
+.hero h1{font-size:clamp(28px,5vw,48px);line-height:1.12;margin:0 0 16px;letter-spacing:-.01em;text-wrap:balance}
+.hero h1 span{color:var(--accent)}
+.lead{font-size:clamp(17px,2.2vw,20px);color:var(--muted);max-width:760px;margin:0 0 20px}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin:18px 0 28px}
+.btn{display:inline-block;padding:11px 18px;border-radius:10px;font-weight:600;text-decoration:none;border:1px solid var(--line)}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.btn.ghost{color:var(--text);background:var(--surface)}
+img.shot{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+section{padding:32px 0;border-top:1px solid var(--line)}
+section h2{font-size:clamp(22px,3vw,28px);margin:0 0 14px}
+section > p{max-width:760px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+.card h3{margin:0 0 8px;font-size:17px}
+.card ul{margin:0;padding-left:18px;color:var(--muted);font-size:15px}
+.card li{margin-bottom:4px}
+pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto;margin:0;flex:1;min-width:0}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px}
+.copy-row{display:flex;gap:8px;align-items:stretch;max-width:960px}
+.copy{flex:none;background:var(--surface);color:var(--text);border:1px solid var(--line);
+  border-radius:10px;padding:0 14px;font-size:14px;font-weight:600;cursor:pointer}
+.note{color:var(--muted);font-size:15px;margin:10px 0 0}
+.table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+table{width:100%;border-collapse:collapse;font-size:15px;min-width:620px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}
+th{background:var(--surface);font-weight:600}
+tr:last-child td{border-bottom:0}
+td.y{color:var(--ok);font-weight:600}
+td.p{color:var(--muted)}
+td.n{color:var(--no)}
+details{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-bottom:10px}
+summary{cursor:pointer;font-weight:600}
+details p{margin:10px 0 0;color:var(--muted)}
+footer{padding:28px 0 40px;color:var(--muted);font-size:14px;border-top:1px solid var(--line)}
+@media (max-width:560px){header.top nav a{margin-left:10px;font-size:14px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="./">PulseNode</a>
+    <nav><a href="#install">Install</a><a href="#compare">Compare</a><a href="#faq">FAQ</a><a href="https://github.com/SakithaSamarathunga33/PulseNode">GitHub</a></nav>
+  </header>
+
+  <main>
+    <div class="hero">
+      <h1>The open-source <span>VPS control panel</span> for the servers you actually run</h1>
+      <p class="lead">Monitor your server, manage Docker, deploy GitHub projects with automatic HTTPS, provision and back up databases, and scan containers for vulnerabilities, all from one self-hosted dashboard. Free and MIT licensed.</p>
+      <div class="copy-row" id="install">
+        <pre><code id="cmd">curl -fsSL https://raw.githubusercontent.com/SakithaSamarathunga33/PulseNode/main/install.sh | bash</code></pre>
+        <button class="copy" type="button" data-target="cmd">Copy</button>
+      </div>
+      <p class="note">Runs on any Linux VPS with Docker and Docker Compose v2 (amd64 or arm64). The installer creates your admin login and prints the dashboard URL.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/SakithaSamarathunga33/PulseNode#one-command-install">Installation guide</a>
+        <a class="btn ghost" href="https://github.com/SakithaSamarathunga33/PulseNode">View on GitHub</a>
+      </div>
+      <img class="shot" src="pulsenode-cover.jpg" width="1600" height="534" alt="PulseNode VPS control panel dashboard showing CPU, memory, disk and network metrics, running Docker containers and their resource usage">
+    </div>
+
+    <section aria-labelledby="features">
+      <h2 id="features">Everything one server needs, in one dashboard</h2>
+      <div class="grid">
+        <div class="card"><h3>Monitor</h3><ul>
+          <li>Live CPU, RAM, disk I/O and network, read from /proc</li>
+          <li>Per-container usage and up/down history</li>
+          <li>Process explorer with suspicious-process detection</li>
+          <li>Alerts to Slack, Discord, Telegram, email or webhook</li></ul></div>
+        <div class="card"><h3>Docker and databases</h3><ul>
+          <li>Containers, images, networks, logs and an in-browser shell</li>
+          <li>Provision PostgreSQL, MySQL, MongoDB and Redis</li>
+          <li>Encrypted scheduled backups to disk or any S3-compatible bucket</li></ul></div>
+        <div class="card"><h3>Deploy from GitHub</h3><ul>
+          <li>Dockerfile, Docker Compose, Nixpacks and frontend/backend monorepos</li>
+          <li>Push-to-deploy with zero-downtime swaps and one-click rollback</li>
+          <li>Automatic HTTPS via Traefik and Let's Encrypt</li></ul></div>
+        <div class="card"><h3>Secure by default</h3><ul>
+          <li>Trivy vulnerability scans and Syft SBOMs</li>
+          <li>Mandatory login, revocable sessions and an audit log</li>
+          <li>Hardened app containers and a Compose allow-list</li>
+          <li>Safe self-update with automatic rollback</li></ul></div>
+      </div>
+    </section>
+
+    <section aria-labelledby="compare">
+      <h2 id="compare">PulseNode vs Portainer, Netdata and Coolify</h2>
+      <p>Running a single VPS usually means juggling separate tools for metrics, Docker, deployments and backups. PulseNode covers all of them for one or two servers.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th></th><th>PulseNode</th><th>Portainer</th><th>Netdata</th><th>Coolify</th></tr></thead>
+          <tbody>
+            <tr><td>Live host metrics</td><td class="y">Yes</td><td class="n">No</td><td class="y">Yes</td><td class="p">Basic</td></tr>
+            <tr><td>Docker containers, images, networks</td><td class="y">Yes</td><td class="y">Yes</td><td class="p">View only</td><td class="p">Partial</td></tr>
+            <tr><td>Git push-to-deploy with rollback</td><td class="y">Yes</td><td class="p">Stacks</td><td class="n">No</td><td class="y">Yes</td></tr>
+            <tr><td>Automatic HTTPS for deployed apps</td><td class="y">Yes</td><td class="n">No</td><td class="n">No</td><td class="y">Yes</td></tr>
+            <tr><td>Vulnerability scanning and SBOMs</td><td class="y">Yes</td><td class="n">No</td><td class="n">No</td><td class="n">No</td></tr>
+            <tr><td>Database provisioning and backups</td><td class="y">Yes</td><td class="n">No</td><td class="n">No</td><td class="y">Yes</td></tr>
+            <tr><td>Alerts to Slack, Discord, Telegram, email</td><td class="y">Yes</td><td class="n">No</td><td class="y">Yes</td><td class="y">Yes</td></tr>
+            <tr><td>Single-command install</td><td class="y">Yes</td><td class="p">Partial</td><td class="y">Yes</td><td class="y">Yes</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">Comparison from the PulseNode README. Check each project's own docs for its latest features.</p>
+    </section>
+
+    <section aria-labelledby="faq">
+      <h2 id="faq">FAQ</h2>
+      <details open><summary>What is PulseNode?</summary>
+        <p>A free, open-source control panel for a Linux VPS. One self-hosted dashboard shows live server metrics, manages Docker containers, deploys apps from GitHub with automatic HTTPS, provisions and backs up databases, scans images for vulnerabilities and sends alerts.</p></details>
+      <details><summary>How do I install PulseNode on my VPS?</summary>
+        <p>Run the one-command installer above on any Linux server with Docker and Docker Compose v2. It asks you to confirm the server's IP, creates your admin login, and prints the dashboard URL when it's ready.</p></details>
+      <details><summary>Is PulseNode an alternative to Coolify or Portainer?</summary>
+        <p>For one or two servers, yes. It combines a Docker manager, a metrics dashboard and a git-push deploy platform, plus vulnerability scanning and scheduled backups. It isn't built to manage large fleets.</p></details>
+      <details><summary>Does PulseNode deploy apps with automatic HTTPS?</summary>
+        <p>Yes. Connect GitHub, pick a repo and a domain, and PulseNode builds it (Dockerfile, Docker Compose or Nixpacks) and routes it through Traefik with Let's Encrypt certificates. Pushes redeploy automatically, with zero-downtime swaps and one-click rollback.</p></details>
+      <details><summary>What server do I need for PulseNode?</summary>
+        <p>Any Linux VPS that runs Docker, on amd64 or arm64, with 2 GB of RAM or more recommended. Port 80 serves the dashboard, and ports 80 and 443 must be free if you deploy projects.</p></details>
+      <details><summary>Is PulseNode free?</summary>
+        <p>Yes. It is open source under the MIT license, with no paid tier.</p></details>
+    </section>
+  </main>
+
+  <footer>
+    <p>PulseNode is an open-source project by <a href="https://github.com/SakithaSamarathunga33">Sakitha Samarathunga</a>, MIT licensed. Portainer, Netdata and Coolify are trademarks of their owners; PulseNode is not affiliated with them.</p>
+  </footer>
+</div>
+<script>
+document.querySelectorAll('.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var t=document.getElementById(b.dataset.target).textContent;
+    try{navigator.clipboard.writeText(t).then(function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)})}catch(e){}
+  });
+});
+</script>
+</body>
+</html>
