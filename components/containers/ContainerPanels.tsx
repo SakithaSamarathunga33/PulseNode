@@ -27,10 +27,10 @@ const levelOf = (line: string): Level =>
   : "info"
 
 const LEVEL_STYLE: Record<Level, string> = {
-  error: "border-l-[var(--t-err)] bg-[var(--t-err)]/10 text-[var(--t-err)]",
-  warn: "border-l-transparent text-[var(--t-warn)]",
-  debug: "border-l-transparent text-[var(--t-muted)]",
-  info: "border-l-transparent",
+  error: "bg-[var(--t-err)]/10 text-[var(--t-err)]",
+  warn: "text-[var(--t-warn)]",
+  debug: "text-[var(--t-muted)]",
+  info: "",
 }
 
 function PanelFooter({ children }: { children: React.ReactNode }) {
@@ -97,7 +97,7 @@ export function LogsPanel({ container }: { container: Container }) {
     <div className="flex h-full min-h-0 flex-col">
       <SheetHeader className="border-b pr-14">
         <SheetTitle className="flex items-center gap-2 font-mono text-sm">
-          <FileText className="size-4 text-[var(--hue-fg,var(--primary))]" />
+          <FileText className="size-4 text-[var(--hue,var(--primary))]" />
           <Truncate text={container.name} />
         </SheetTitle>
         <SheetDescription className="font-mono text-[11px]">docker logs --follow --tail {tail}</SheetDescription>
@@ -135,7 +135,7 @@ export function LogsPanel({ container }: { container: Container }) {
             <div className="py-10 text-center font-sans text-sm text-[var(--t-muted)]">{empty}</div>
           ) : (
             visible.map((line, i) => (
-              <div key={i} className={cn("border-l-2 px-2", LEVEL_STYLE[levelOf(line)])}>{line || " "}</div>
+              <div key={i} className={cn("rounded-sm px-2", LEVEL_STYLE[levelOf(line)])}>{line || " "}</div>
             ))
           )}
         </TerminalWindow>
@@ -204,7 +204,7 @@ export function TerminalPanel({ container }: { container: Container }) {
     <div className="flex h-full min-h-0 flex-col">
       <SheetHeader className="border-b pr-14">
         <SheetTitle className="flex items-center gap-2 font-mono text-sm">
-          <Terminal className="size-4 text-[var(--hue-fg,var(--primary))]" />
+          <Terminal className="size-4 text-[var(--hue,var(--primary))]" />
           <Truncate text={container.name} />
           <span className="shrink-0 font-sans font-normal text-muted-foreground">· /bin/sh</span>
         </SheetTitle>

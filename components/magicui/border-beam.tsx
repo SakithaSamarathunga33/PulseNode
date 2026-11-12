@@ -18,8 +18,8 @@ export function BorderBeam({
   duration = 10,
   anchor = 90,
   borderWidth = 1.5,
-  colorFrom = "var(--pn-cyan)",
-  colorTo = "var(--pn-blue)",
+  colorFrom = "var(--primary)",
+  colorTo = "color-mix(in srgb, var(--primary) 35%, transparent)",
   delay = 0,
 }: BorderBeamProps) {
   return (

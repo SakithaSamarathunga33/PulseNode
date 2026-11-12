@@ -87,7 +87,7 @@ export function AppSidebar() {
   const isActive = (href: string) => pathname === href || pathname?.startsWith(href + "/")
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" variant="inset">
       <SidebarHeader className="h-14 justify-center border-b border-sidebar-border">
         <Link href="/containers" className="flex h-full w-full items-center px-1" aria-label="PulseNode home">
           {/* The PNGs carry transparent margins, so they are sized larger than the box and the
@@ -106,7 +106,7 @@ export function AppSidebar() {
           const items = group.items
           return (
             <SidebarGroup key={group.label} data-area={group.area}>
-              <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-[var(--hue-fg)]">
+              <SidebarGroupLabel className="text-xs font-medium text-muted-foreground">
                 {group.label}
               </SidebarGroupLabel>
               <SidebarGroupContent>
@@ -121,16 +121,14 @@ export function AppSidebar() {
                           isActive={active}
                           aria-current={active ? "page" : undefined}
                           tooltip={item.label}
-                          className="data-active:bg-[color-mix(in_srgb,var(--hue)_14%,transparent)] data-active:text-sidebar-foreground data-active:shadow-[inset_2px_0_0_var(--hue)]"
+                          className="text-sidebar-foreground transition-colors hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground data-active:shadow-[var(--shadow-card)]"
                         >
-                          <span className="grid size-5 shrink-0 place-items-center rounded-md bg-[color-mix(in_srgb,var(--hue)_16%,transparent)] text-[var(--hue)]">
-                            <item.icon className="size-3.5" />
-                          </span>
+                          <item.icon strokeWidth={1.75} className="text-muted-foreground transition-colors group-hover/menu-button:text-sidebar-accent-foreground group-data-active/menu-button:text-[var(--hue)]" />
                           <span>{item.label}</span>
                         </SidebarMenuButton>
                         {count !== undefined && (
                           <SidebarMenuBadge
-                            className={item.badge === "alerts" && count > 0 ? "bg-danger/15 text-danger" : ""}
+                            className={item.badge === "alerts" && count > 0 ? "bg-danger/15 font-mono text-danger" : "font-mono text-muted-foreground"}
                           >
                             {count}
                           </SidebarMenuBadge>
@@ -147,10 +145,10 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t border-sidebar-border">
         <div className="space-y-2 group-data-[collapsible=icon]:hidden">
-          <div className="space-y-2 rounded-lg border bg-card p-2.5 shadow-card">
+          <div className="space-y-2.5 rounded-lg border bg-card p-3 shadow-card">
             <div className="flex items-baseline justify-between">
-              <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Host CPU</span>
-              <span className="text-sm font-semibold tabular-nums">{cpu === null ? "—" : <><NumberTicker value={cpu} decimals={1} />%</>}</span>
+              <span className="text-xs font-medium text-muted-foreground">Host CPU</span>
+              <span className="font-mono text-sm font-medium tabular-nums">{cpu === null ? "—" : <><NumberTicker value={cpu} decimals={1} />%</>}</span>
             </div>
             <div
               role="meter" aria-label="Host CPU" aria-valuenow={Math.round(cpu ?? 0)} aria-valuemin={0} aria-valuemax={100}
@@ -169,7 +167,7 @@ export function AppSidebar() {
               <LiveBadge className="text-[11px]">Live</LiveBadge>
             </div>
           </div>
-          <p className="px-1 text-[11px] text-muted-foreground italic">Infrastructure at a glance.</p>
+          <p className="px-1 text-[11px] text-muted-foreground">Infrastructure at a glance.</p>
         </div>
         <SidebarMenu>
           <SidebarMenuItem data-area="neutral">

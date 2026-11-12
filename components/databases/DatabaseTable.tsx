@@ -18,6 +18,7 @@ import type { Database } from "@/lib/types"
 import { DatabaseWorkspace, type WorkspaceTab } from "./DatabaseWorkspace"
 import { engineColor, statusLabel, statusTone } from "./shared"
 import { Truncate } from "@/components/pn/Truncate"
+import { AreaSparkline } from "@/components/charts/sparkline"
 
 export type SortKey = "name" | "engine" | "state" | "conns" | "qps" | "slow"
 export type Sort = { key: SortKey; dir: 1 | -1 }
@@ -28,23 +29,23 @@ export type DbHandlers = {
   onRestore: (db: Database) => void
 }
 
-const STICKY = "sticky right-0 z-10 bg-card shadow-[-8px_0_12px_-10px_rgb(0_0_0/0.35)]"
+const STICKY = "sticky right-0 z-10 bg-card"
 
-function ConnSpark({ data, color }: { data: number[]; color: string }) {
+const byValue = (v: number) => v
+
+/** Per-database open connections over the last polls (newest on the right). */
+function ConnSpark({ data }: { data: number[] }) {
   const values = data.length > 1 ? data : [0, 0]
-  const w = 80
-  const h = 24
-  const max = Math.max(...values)
-  const min = Math.min(...values)
-  const range = max - min || 1
-  const step = w / (values.length - 1)
-  const pts = values.map((v, i) => `${(i * step).toFixed(1)},${(h - 2 - ((v - min) / range) * (h - 4)).toFixed(1)}`)
-  const d = `M ${pts.join(" L ")}`
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="block" style={{ color }} role="img" aria-label="Connection activity">
-      <path d={`${d} L ${w},${h} L 0,${h} Z`} fill="currentColor" fillOpacity={0.14} />
-      <path d={d} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <AreaSparkline
+      data={values}
+      dataKey={byValue}
+      width={80}
+      height={24}
+      color="var(--chart-1)"
+      crosshair={false}
+      aria-label={`Open connections, last ${values.length} samples, now ${values.at(-1)}`}
+    />
   )
 }
 
@@ -133,10 +134,7 @@ function RowActions({ db, onOpen, h }: { db: Database; onOpen: (t: WorkspaceTab)
 
 function EngineBadge({ db, size = 28 }: { db: Database; size?: number }) {
   return (
-    <span
-      className="grid shrink-0 place-items-center rounded-lg border bg-background"
-      style={{ width: size, height: size, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${engineColor(db.engine)} 25%, transparent)` }}
-    >
+    <span className="grid shrink-0 place-items-center rounded-lg border bg-background" style={{ width: size, height: size, color: engineColor(db.engine) }}>
       <DbIcon engine={db.engine} size={Math.round(size * 0.6)} />
     </span>
   )
@@ -230,7 +228,7 @@ export function DatabaseTable({
                 <TableCell className="text-right font-mono text-xs font-medium tabular-nums">{db.qps > 0 ? db.qps.toLocaleString() : "—"}</TableCell>
                 <TableCell className="text-right"><SlowCell n={db.slow} /></TableCell>
                 <TableCell><EndpointButton db={db} /></TableCell>
-                <TableCell><ConnSpark data={connHist[db.name] ?? connHist[db.host] ?? []} color={engineColor(db.engine)} /></TableCell>
+                <TableCell><ConnSpark data={connHist[db.name] ?? connHist[db.host] ?? []} /></TableCell>
                 <TableCell className={cn(STICKY, "border-l px-2", expanded && "bg-muted")}>
                   <RowActions db={db} onOpen={open} h={handlers} />
                 </TableCell>
@@ -284,7 +282,7 @@ export function DatabaseCards({ databases, connHist, expandedDb, onExpand, handl
               </dl>
               <div className="flex items-center justify-between gap-2">
                 <EndpointButton db={db} />
-                <ConnSpark data={connHist[db.name] ?? connHist[db.host] ?? []} color={engineColor(db.engine)} />
+                <ConnSpark data={connHist[db.name] ?? connHist[db.host] ?? []} />
               </div>
               <div className="flex items-center gap-1.5">
                 <Button variant="outline" size="lg" className="flex-1" aria-expanded={expanded} onClick={() => onExpand(db.name)}>

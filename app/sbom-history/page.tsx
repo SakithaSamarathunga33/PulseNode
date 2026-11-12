@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { toast } from "sonner"
-import { FileCode2, Package, Layers, ScrollText, AlertCircle, CircleSlash, Download } from "lucide-react"
+import { FileCode2, Package, Layers, ScrollText, AlertCircle, CircleSlash, Download, PieChart as PieIcon } from "lucide-react"
 import { nodeApi } from "@/lib/api"
 import type { SBOM } from "@/lib/types"
 import { useSlashFocus } from "@/lib/use-slash-focus"
@@ -16,6 +16,10 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Truncate } from "@/components/pn/Truncate"
+import { PieChart } from "@/components/charts/pie-chart"
+import { PieSlice } from "@/components/charts/pie-slice"
+import { PieCenter } from "@/components/charts/pie-center"
+import { Panel } from "@/components/pn/Panel"
 
 const ECOSYSTEMS = [
   { key: "go", label: "Go", color: "var(--eco-go)" },
@@ -38,7 +42,7 @@ function EcosystemBar({ eco }: { eco: SBOM["ecosystem"] }) {
       >
         {present.map(e => <span key={e.key} style={{ flex: `${eco[e.key] / total} 0 0`, background: e.color }} />)}
       </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
         {present.map(e => (
           <span key={e.key} className="inline-flex items-center gap-1.5">
             <span className="size-[7px] rounded-[2px]" style={{ background: e.color }} />
@@ -47,6 +51,43 @@ function EcosystemBar({ eco }: { eco: SBOM["ecosystem"] }) {
         ))}
       </div>
     </div>
+  )
+}
+
+/** Packages per ecosystem summed across every SBOM, as a Bklit donut beside a legend with counts and shares. */
+function EcosystemSplit({ sboms }: { sboms: SBOM[] }) {
+  const slices = useMemo(
+    () => ECOSYSTEMS.map(e => ({ label: e.label, value: sboms.reduce((a, s) => a + (s.ecosystem[e.key] ?? 0), 0), color: e.color })),
+    [sboms],
+  )
+  const total = slices.reduce((a, s) => a + s.value, 0)
+  if (total === 0) return null
+  return (
+    <Panel role="region" aria-labelledby="sb-split" className="grid gap-4 rounded-xl p-4 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)] sm:items-center">
+      <h2 id="sb-split" className="inline-flex items-center gap-2 text-sm font-semibold sm:col-span-2">
+        <PieIcon className="size-4 text-[var(--hue)]" strokeWidth={1.75} aria-hidden />Packages by ecosystem
+      </h2>
+      {/* The legend carries the same numbers. */}
+      <div aria-hidden className="mx-auto w-[160px]">
+        <PieChart data={slices} size={160} innerRadius={52} padAngle={0.02} cornerRadius={3} hoverOffset={6}>
+          {slices.map((s, i) => <PieSlice key={s.label} index={i} showGlow={false} hoverEffect="grow" />)}
+          <PieCenter defaultLabel="Packages" />
+        </PieChart>
+      </div>
+      <ul className="grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-2">
+        {slices.map(s => (
+          <li key={s.label} className="flex items-center justify-between gap-3 border-b pb-2 last:border-b-0 sm:[&:nth-last-child(2)]:border-b-0">
+            <span className="inline-flex items-center gap-2 text-muted-foreground">
+              <span aria-hidden className="size-2 rounded-full" style={{ background: s.color }} />{s.label}
+            </span>
+            <span className="font-mono tabular-nums">
+              {s.value.toLocaleString()}
+              <span className="ml-2 text-muted-foreground">{Math.round((s.value / total) * 100)}%</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Panel>
   )
 }
 
@@ -105,7 +146,7 @@ export default function SBOMHistoryPage() {
           </span>
         }
       />
-      <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
+      <PageBody>
         {error && (
           <Alert variant="destructive">
             <AlertCircle />
@@ -136,6 +177,8 @@ export default function SBOMHistoryPage() {
             ]}
           />
         )}
+
+        {!loading && <EcosystemSplit sboms={sboms} />}
 
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="relative w-full max-w-[300px]">
@@ -175,8 +218,8 @@ export default function SBOMHistoryPage() {
                   </p>
                 </div>
                 <dl className="grid grid-cols-2 gap-2.5 px-4 pb-3">
-                  <div><dt className="text-[11px] text-muted-foreground">Packages</dt><dd className="text-[17px] font-semibold tabular-nums">{s.packages.toLocaleString()}</dd></div>
-                  <div><dt className="text-[11px] text-muted-foreground">Licenses</dt><dd className="text-[17px] font-semibold tabular-nums">{s.licenses.toLocaleString()}</dd></div>
+                  <div><dt className="text-xs text-muted-foreground">Packages</dt><dd className="text-[17px] font-semibold tabular-nums">{s.packages.toLocaleString()}</dd></div>
+                  <div><dt className="text-xs text-muted-foreground">Licenses</dt><dd className="text-[17px] font-semibold tabular-nums">{s.licenses.toLocaleString()}</dd></div>
                 </dl>
                 <div className="px-4 pb-3.5"><EcosystemBar eco={s.ecosystem} /></div>
                 <div className="mt-auto flex justify-end border-t bg-muted/40 px-3 py-2.5">

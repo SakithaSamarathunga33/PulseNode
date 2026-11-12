@@ -78,7 +78,7 @@ export default function NetworksPage() {
           </>
         }
       />
-      <PageBody className="motion-safe:animate-in motion-safe:fade-in-0 duration-300">
+      <PageBody>
         {loadError && (
           <Alert variant="destructive">
             <AlertCircle />

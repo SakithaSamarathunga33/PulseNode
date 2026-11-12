@@ -1,58 +1,60 @@
 /*
- * PulseNode theme — "Spectrum" direction.
+ * PulseNode theme — "Graphite" direction.
  *
- * 1. shadcn tokens (light on :root, dark on [data-theme="dark"]) — every shadcn
- *    component themes itself from these.
- * 2. PulseNode tokens: one hue per app area, status colours, chart colours,
- *    severity and brand colours.
+ * Near-neutral graphite surfaces, hairline borders and ONE cobalt accent (primary,
+ * focus, selection, the live pulse). Area hues only mark the active nav icon and the
+ * page-title icon. Dark is the default theme; light is the same system on paper-white.
  *
- * Text-bearing colours (--success, --warning, --danger, --info, --area-*-fg) are
- * chosen for >= 4.5:1 on their surface in each theme. Chart colours were run
- * through the dataviz palette validator (CVD separation + contrast) for both.
+ * 1. shadcn tokens (light on :root, dark on [data-theme="dark"]).
+ * 2. PulseNode tokens: area hues, status, chart, severity, brand and terminal colours.
+ *
+ * Text-bearing colours (--primary, --muted-foreground, --success, --warning, --danger,
+ * --info, --area-*-fg) are >= 4.5:1 on card and background in each theme. Chart
+ * colours are unchanged from the dataviz-validated set.
  */
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 :root {
   color-scheme: light;
-  --radius: 0.625rem;
+  --radius: 0.5rem;
 
   /* ── shadcn ──────────────────────────────────────────────────────────── */
-  --background: #f6f7f9;
-  --foreground: #0f172a;
+  --background: #fafafb;
+  --foreground: #0b0b0f;
   --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card-foreground: #0b0b0f;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #1d4ed8;
+  --popover-foreground: #0b0b0f;
+  --primary: #3451d1;
   --primary-foreground: #ffffff;
-  --secondary: #eef1f6;
-  --secondary-foreground: #1e293b;
-  --muted: #eef1f6;
-  --muted-foreground: #5b677a;
-  --accent: #e7eefc;
-  --accent-foreground: #0f172a;
+  --secondary: #f0f0f2;
+  --secondary-foreground: #1b1b22;
+  --muted: #f0f0f2;
+  --muted-foreground: #5f5f6b;
+  --accent: #ececf0;
+  --accent-foreground: #0b0b0f;
   --destructive: #b91c1c;
-  --border: #e1e6ee;
-  --input: #838da1;
-  --ring: #1d4ed8;
+  --border: #e5e5ea;
+  --input: #8a8a96;
+  --ring: #3451d1;
   --chart-1: #2563eb;
   --chart-2: #d97706;
   --chart-3: #0d9488;
   --chart-4: #e11d48;
   --chart-5: #7c3aed;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #334155;
-  --sidebar-primary: #1d4ed8;
+  --sidebar: #eeeef1;
+  --sidebar-foreground: #3a3a44;
+  --sidebar-primary: #3451d1;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eef1f6;
-  --sidebar-accent-foreground: #0f172a;
-  --sidebar-border: #e1e6ee;
-  --sidebar-ring: #1d4ed8;
+  --sidebar-accent: #e3e3e8;
+  --sidebar-accent-foreground: #0b0b0f;
+  --sidebar-border: #dedee4;
+  --sidebar-ring: #3451d1;
 
   /* ── PulseNode: area hues (icons, tints, accents) + text-safe variants ── */
   --area-monitor: #0d9488;   --area-monitor-fg: #0d6f67;
-  --area-resource: #2563eb;  --area-resource-fg: #1d4ed8;
+  --area-resource: #3451d1;  --area-resource-fg: #3451d1;
   --area-deploy: #ea580c;    --area-deploy-fg: #b23a0a;
   --area-security: #7c3aed;  --area-security-fg: #6d28d9;
 
@@ -62,16 +64,16 @@
   --danger: #b91c1c;
   --info: #0369a1;
 
-  --shadow-card: 0 1px 2px rgba(15,23,42,0.05), 0 1px 3px rgba(15,23,42,0.04);
-  --shadow-pop: 0 10px 30px -8px rgba(15,23,42,0.22), 0 2px 6px rgba(15,23,42,0.06);
+  /* Depth: a hairline lift plus a soft offset shadow. */
+  --shadow-card: 0 1px 2px rgba(10,10,15,0.05), 0 2px 8px -4px rgba(10,10,15,0.07);
+  --shadow-pop: 0 16px 40px -12px rgba(10,10,15,0.24), 0 0 0 1px rgba(10,10,15,0.06);
 
-  --scrim: rgba(15,23,42,0.4);
+  --scrim: rgba(10,10,15,0.4);
+
+  --border-2: #d6d6dd;
+  --border-3: #bdbdc7;
 
   /* ── Severity, brand colours ─────────────────────────────────────────── */
-
-  --border-2: #cdd5e2;
-  --border-3: #b4bfd1;
-
   --sev-crit-fg: #b91c1c;  --sev-crit-bg: rgba(220,38,38,0.10);
   --sev-high-fg: #c2410c;  --sev-high-bg: rgba(249,115,22,0.12);
   --sev-med-fg:  #93560a;  --sev-med-bg:  rgba(217,119,6,0.12);
@@ -80,52 +82,52 @@
   --sev-bar-crit: #dc2626; --sev-bar-high: #ea580c; --sev-bar-med: #d97706; --sev-bar-low: #2563eb;
 
   --db-postgres: #336791; --db-redis: #dc382d; --db-mysql: #00758f;
-  --db-clickhouse: #fbcd1c; --db-mongo: #47a248; --db-other: #6d5cff;
-  --eco-go: #00add8; --eco-npm: #cb3837; --eco-deb: #a81d33; --eco-other: #6d5cff;
+  --db-clickhouse: #fbcd1c; --db-mongo: #47a248; --db-other: #3451d1;
+  --eco-go: #00add8; --eco-npm: #cb3837; --eco-deb: #a81d33; --eco-other: #3451d1;
 
-  /* ── Terminal surfaces: dark in BOTH themes (logs, shell, query editor) ── */
-  --t-bg: #0d1117; --t-bar: #161b22; --t-border: #30363d; --t-hover: #21262d;
-  --t-fg: #e6edf3; --t-muted: #8b949e; --t-dim: #7d8590;
-  --t-err: #ff7b72; --t-sys: #d2a8ff; --t-ok: #7ee787; --t-warn: #e3b341;
+  /* ── Terminal surfaces: graphite in BOTH themes (logs, shell, query editor) ── */
+  --t-bg: #0b0b0d; --t-bar: #131316; --t-border: #26262c; --t-hover: #1c1c21;
+  --t-fg: #e6e6ea; --t-muted: #9a9aa5; --t-dim: #85858f;
+  --t-err: #ff7b72; --t-sys: #a3b3ff; --t-ok: #7ee787; --t-warn: #e3b341;
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --background: #0b0f17;
-  --foreground: #e6ebf5;
-  --card: #121826;
-  --card-foreground: #e6ebf5;
-  --popover: #151c2c;
-  --popover-foreground: #e6ebf5;
-  --primary: #60a5fa;
-  --primary-foreground: #0b1020;
-  --secondary: #182031;
-  --secondary-foreground: #e6ebf5;
-  --muted: #182031;
-  --muted-foreground: #9aa6bb;
-  --accent: #1b2a47;
-  --accent-foreground: #e6ebf5;
+  --background: #0c0c0f;
+  --foreground: #ededf0;
+  --card: #121216;
+  --card-foreground: #ededf0;
+  --popover: #17171c;
+  --popover-foreground: #ededf0;
+  --primary: #7b93ff;
+  --primary-foreground: #0a0b14;
+  --secondary: #1a1a20;
+  --secondary-foreground: #ededf0;
+  --muted: #1a1a20;
+  --muted-foreground: #93939e;
+  --accent: #202027;
+  --accent-foreground: #ededf0;
   --destructive: #f87171;
-  --border: #243049;
-  --input: #5a688c;
-  --ring: #60a5fa;
+  --border: #25252d;
+  --input: #62626e;
+  --ring: #7b93ff;
   --chart-1: #3b82f6;
   --chart-2: #d97706;
   --chart-3: #10a99a;
   --chart-4: #f43f5e;
   --chart-5: #8b5cf6;
-  --sidebar: #0e1320;
-  --sidebar-foreground: #b8c2d4;
-  --sidebar-primary: #60a5fa;
-  --sidebar-primary-foreground: #0b1020;
-  --sidebar-accent: #182031;
-  --sidebar-accent-foreground: #e6ebf5;
-  --sidebar-border: #1c2536;
-  --sidebar-ring: #60a5fa;
+  --sidebar: #070709;
+  --sidebar-foreground: #b4b4bd;
+  --sidebar-primary: #7b93ff;
+  --sidebar-primary-foreground: #0a0b14;
+  --sidebar-accent: #15151a;
+  --sidebar-accent-foreground: #ededf0;
+  --sidebar-border: #18181d;
+  --sidebar-ring: #7b93ff;
 
   --area-monitor: #2dd4bf;   --area-monitor-fg: #2dd4bf;
-  --area-resource: #60a5fa;  --area-resource-fg: #60a5fa;
+  --area-resource: #7b93ff;  --area-resource-fg: #7b93ff;
   --area-deploy: #fb923c;    --area-deploy-fg: #fb923c;
   --area-security: #a78bfa;  --area-security-fg: #a78bfa;
 
@@ -134,22 +136,56 @@
   --danger: #f87171;
   --info: #38bdf8;
 
-  --shadow-card: 0 1px 2px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.03);
-  --shadow-pop: 0 14px 36px -8px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
-  --scrim: rgba(2,6,14,0.62);
+  --shadow-card: inset 0 1px 0 rgba(255,255,255,0.035), 0 1px 2px rgba(0,0,0,0.45), 0 6px 16px -10px rgba(0,0,0,0.6);
+  --shadow-pop: 0 18px 44px -12px rgba(0,0,0,0.72), 0 0 0 1px rgba(255,255,255,0.06);
+  --scrim: rgba(4,4,6,0.66);
 
-  --border-2: #34425f;
-  --border-3: #4a5a7d;
+  --border-2: #303038;
+  --border-3: #45454f;
 
-  --sev-crit-fg: #fca5a5;  --sev-crit-bg: rgba(239,68,68,0.18);
-  --sev-high-fg: #fdba74;  --sev-high-bg: rgba(249,115,22,0.18);
-  --sev-med-fg:  #fcd34d;  --sev-med-bg:  rgba(245,158,11,0.18);
-  --sev-low-fg:  #93c5fd;  --sev-low-bg:  rgba(59,130,246,0.18);
-  --sev-info-fg: #67e8f9;  --sev-info-bg: rgba(6,182,212,0.18);
+  --sev-crit-fg: #fca5a5;  --sev-crit-bg: rgba(239,68,68,0.16);
+  --sev-high-fg: #fdba74;  --sev-high-bg: rgba(249,115,22,0.16);
+  --sev-med-fg:  #fcd34d;  --sev-med-bg:  rgba(245,158,11,0.16);
+  --sev-low-fg:  #a3b3ff;  --sev-low-bg:  rgba(123,147,255,0.16);
+  --sev-info-fg: #67e8f9;  --sev-info-bg: rgba(6,182,212,0.16);
   --sev-bar-crit: #ef4444; --sev-bar-high: #f97316; --sev-bar-med: #f59e0b; --sev-bar-low: #3b82f6;
 
-  --db-other: #a78bfa; --eco-other: #a78bfa;
+  --db-other: #a3b3ff; --eco-other: #a3b3ff;
+}
 
+/* ── Bklit charts (components/charts): mapped onto the graphite tokens, so one
+   definition serves both themes. --chart-1..5 stay the validated series colours. ── */
+:root {
+  --chart-positive: var(--success);
+  --chart-negative: var(--danger);
+  --chart-background: var(--card);
+  --chart-foreground: var(--foreground);
+  --chart-foreground-muted: var(--muted-foreground);
+  --chart-line-primary: var(--chart-1);
+  --chart-line-secondary: var(--chart-2);
+  --chart-crosshair: var(--border-3);
+  --chart-grid: var(--border);
+  --chart-brush-border: var(--chart-grid);
+  --chart-tooltip-background: var(--popover);
+  --chart-tooltip-foreground: var(--popover-foreground);
+  --chart-tooltip-muted: var(--muted-foreground);
+  --chart-marker-background: var(--muted);
+  --chart-marker-border: var(--border-2);
+  --chart-marker-foreground: var(--foreground);
+  --chart-label: var(--muted-foreground);
+  --chart-scale-mix: var(--card);
+  --chart-scale-01: var(--muted);
+  --chart-scale-02: color-mix(in oklab, var(--chart-1) 35%, var(--chart-scale-mix));
+  --chart-scale-03: color-mix(in oklab, var(--chart-1) 55%, var(--chart-scale-mix));
+  --chart-scale-04: color-mix(in oklab, var(--chart-1) 78%, var(--chart-scale-mix));
+  --chart-scale-05: var(--chart-1);
+  --chart-scale-pattern-color: var(--card);
+  --chart-indicator-color: var(--foreground);
+  --chart-indicator-secondary-color: var(--muted);
+  --chart-marker-badge-background: var(--foreground);
+  --chart-marker-badge-foreground: var(--background);
+  --chart-segment-background: color-mix(in srgb, var(--foreground) 4%, transparent);
+  --chart-segment-line: color-mix(in srgb, var(--foreground) 22%, transparent);
 }
 
 /* Tailwind utilities for the tokens above (bg-card, text-muted-foreground, bg-area-deploy …) */
@@ -177,6 +213,36 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-chart-positive: var(--chart-positive);
+  --color-chart-negative: var(--chart-negative);
+  --color-chart-background: var(--chart-background);
+  --color-chart-foreground: var(--chart-foreground);
+  --color-chart-foreground-muted: var(--chart-foreground-muted);
+  --color-chart-line-primary: var(--chart-line-primary);
+  --color-chart-line-secondary: var(--chart-line-secondary);
+  --color-chart-crosshair: var(--chart-crosshair);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-brush-border: var(--chart-brush-border);
+  --color-chart-tooltip-background: var(--chart-tooltip-background);
+  --color-chart-tooltip-foreground: var(--chart-tooltip-foreground);
+  --color-chart-tooltip-muted: var(--chart-tooltip-muted);
+  --color-chart-marker-background: var(--chart-marker-background);
+  --color-chart-marker-border: var(--chart-marker-border);
+  --color-chart-marker-foreground: var(--chart-marker-foreground);
+  --color-chart-label: var(--chart-label);
+  --color-chart-scale-mix: var(--chart-scale-mix);
+  --color-chart-scale-01: var(--chart-scale-01);
+  --color-chart-scale-02: var(--chart-scale-02);
+  --color-chart-scale-03: var(--chart-scale-03);
+  --color-chart-scale-04: var(--chart-scale-04);
+  --color-chart-scale-05: var(--chart-scale-05);
+  --color-chart-scale-pattern-color: var(--chart-scale-pattern-color);
+  --color-chart-indicator-color: var(--chart-indicator-color);
+  --color-chart-indicator-secondary-color: var(--chart-indicator-secondary-color);
+  --color-chart-marker-badge-background: var(--chart-marker-badge-background);
+  --color-chart-marker-badge-foreground: var(--chart-marker-badge-foreground);
+  --color-chart-segment-background: var(--chart-segment-background);
+  --color-chart-segment-line: var(--chart-segment-line);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);

@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/pn/EmptyState"
 import { Segmented } from "@/components/pn/Segmented"
 import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
 import { HostHealth } from "@/components/containers/HostHealth"
+import { Fleet } from "@/components/containers/Fleet"
 import { EMPTY_HOST } from "@/components/containers/utils"
 import { ContainerCards, ContainerTable, type Sort, type SortKey } from "@/components/containers/ContainerTable"
 import { LogsPanel, TerminalPanel } from "@/components/containers/ContainerPanels"
@@ -24,6 +25,7 @@ import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { Panel } from "@/components/pn/Panel"
 
 function pushCapped<T>(arr: T[], val: T, max = 20): T[] {
   return arr.length >= max ? [...arr.slice(-(max - 1)), val] : [...arr, val]
@@ -50,7 +52,6 @@ export default function ContainersPage() {
   const [ramHist, setRamHist]       = useState<number[]>([0, 0])
   const [diskHist, setDiskHist]     = useState<number[]>([0, 0])
   const [netHist, setNetHist]       = useState<number[]>([0, 0])
-  const [netOutHist, setNetOutHist] = useState<number[]>([0, 0])
   const [netRx, setNetRx]           = useState(0)
   const [netTx, setNetTx]           = useState(0)
   const [panel, setPanel]           = useState<{ type: "logs" | "terminal"; container: Container } | null>(null)
@@ -68,10 +69,10 @@ export default function ContainersPage() {
         setHost(data)
         setNetRx(data.network.rx)
         setNetTx(data.network.tx)
-        // Seed the sparklines so they draw a flat line until live samples arrive.
+        // Seed the trend histories so the cards show a 0 change until live samples arrive.
         const seed = (v: number) => (h: number[]) => (h.length <= 2 ? [v, v] : h)
         setCpuHist(seed(data.cpu.usage)); setRamHist(seed(data.memory.pct)); setDiskHist(seed(data.disk.pct))
-        setNetHist(seed(data.network.rx)); setNetOutHist(seed(data.network.tx))
+        setNetHist(seed(data.network.rx))
       })
       .catch(() => {})
       .finally(() => setHostLoaded(true))
@@ -97,7 +98,6 @@ export default function ContainersPage() {
     // Live system metrics every 3s
     const onSystemMetrics = (m: SystemMetrics) => {
       setNetHist(prev => pushCapped(prev, m.netIn, 60))
-      setNetOutHist(prev => pushCapped(prev, m.netOut, 60))
       setCpuHist(prev => pushCapped(prev, m.cpu, 60))
       setRamHist(prev => pushCapped(prev, m.ram, 60))
       setDiskHist(prev => pushCapped(prev, m.disk, 60))
@@ -273,7 +273,7 @@ export default function ContainersPage() {
         }
       />
 
-      <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
+      <PageBody>
         {loadError && (
           <Alert variant="destructive">
             <AlertCircle />
@@ -282,11 +282,13 @@ export default function ContainersPage() {
           </Alert>
         )}
 
-        {!hostLoaded ? <Skeleton className="h-[230px] rounded-2xl" /> : <HostHealth
+        {!hostLoaded ? <Skeleton className="h-[190px] rounded-xl" /> : <HostHealth
           host={host}
           cpuHist={cpuHist} ramHist={ramHist} diskHist={diskHist}
-          netInHist={netHist} netOutHist={netOutHist} netRx={netRx} netTx={netTx}
+          netInHist={netHist} netRx={netRx} netTx={netTx}
         />}
+
+        {loaded && <Fleet containers={containers} />}
 
         <section aria-labelledby="ct-title" className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -366,12 +368,12 @@ export default function ContainersPage() {
             />
           ) : (
             <>
-              <div className="hidden overflow-hidden rounded-xl border bg-card shadow-card min-[900px]:block">
+              <Panel className="hidden overflow-hidden rounded-xl min-[900px]:block">
                 <ContainerTable
                   rows={rows} selected={sel} onToggle={onToggle} onToggleAll={onToggleAll}
                   sort={sort} onSort={onSort} busy={actionBusy} handlers={handlers}
                 />
-              </div>
+              </Panel>
               <div className="min-[900px]:hidden">
                 <ContainerCards rows={rows} busy={actionBusy} handlers={handlers} />
               </div>

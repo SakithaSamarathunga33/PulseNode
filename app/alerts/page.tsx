@@ -3,45 +3,35 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
-  Bell, BellOff, Mail, MessageSquare, Send, Webhook, Siren, AlertTriangle, Info, CheckCircle2, XCircle,
-  Check, BellRing, Flame, Eye, Plus, Pencil, Trash2, Loader2, AlertCircle, Hash,
+  Bell, BellOff, Send, Siren, CheckCircle2, Check, BellRing, Flame, Eye, Plus, Pencil, Trash2, AlertCircle,
 } from "lucide-react"
-import { nodeApi, type ApiError } from "@/lib/api"
+import { nodeApi } from "@/lib/api"
 import { getSocket } from "@/lib/socket"
 import { useSlashFocus } from "@/lib/use-slash-focus"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { SearchInput } from "@/components/pn/SearchInput"
 import { Segmented } from "@/components/pn/Segmented"
+import { ViewNav } from "@/components/pn/ViewNav"
 import { EmptyState } from "@/components/pn/EmptyState"
 import { SummaryStrip } from "@/components/pn/SummaryStrip"
 import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
 import { Pill } from "@/components/dashboard/Pill"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { Truncate } from "@/components/pn/Truncate"
+import { RuleDialog } from "@/components/alerts/RuleDialog"
+import { ChannelDialog } from "@/components/alerts/ChannelDialog"
+import { AlertsChart } from "@/components/alerts/AlertsChart"
+import {
+  CHANNEL_META, HISTORY_LIMIT, SEV, errMsg, metricOf, patch, type AlertEvent, type Channel, type Rule,
+} from "@/components/alerts/shared"
 
-type AlertEvent = {
-  id: number; ruleId: string; rule: string; metric: string; severity: "critical" | "warning" | "info"
-  sev: "bad" | "warn" | "info"; target: string; state: "firing" | "ack" | "resolved"
-  message: string; value: number; firedAt: string; ackedAt: string | null; resolvedAt: string | null
-}
-type Rule = {
-  id: string; name: string; metric: string; operator: string; threshold: number; duration: number
-  severity: "critical" | "warning" | "info"; target: string; channelIds: string[]; cooldown: number; enabled: boolean
-}
-type Channel = {
-  id: string; name: string; type: ChannelType; enabled: boolean; summary: string; config: Record<string, string>
-}
-type ChannelType = "webhook" | "slack" | "discord" | "telegram" | "smtp"
 type Tab = "history" | "rules" | "channels"
 type StateFilter = "all" | "firing" | "ack" | "resolved"
 type SevFilter = "all" | "critical" | "warning" | "info"
@@ -68,31 +58,6 @@ function SevLabel({ severity }: { severity: AlertEvent["severity"] }) {
   )
 }
 
-const METRICS: { value: string; label: string; percent: boolean; hint: string }[] = [
-  { value: "host.cpu", label: "Host CPU", percent: true, hint: "CPU usage of the server" },
-  { value: "host.memory", label: "Host memory", percent: true, hint: "RAM usage of the server" },
-  { value: "host.disk", label: "Host disk", percent: true, hint: "Disk usage of the root filesystem" },
-  { value: "container.down", label: "Container down", percent: false, hint: "A container is exited, dead or restarting" },
-  { value: "deploy.failed", label: "Deploy failed", percent: false, hint: "A project deployment fails" },
-]
-const metricOf = (v: string) => METRICS.find(m => m.value === v)
-
-const SEV = {
-  critical: { icon: XCircle, cls: "bg-danger/12 text-danger", label: "Critical", tone: "bad" },
-  warning: { icon: AlertTriangle, cls: "bg-warning/14 text-warning", label: "Warning", tone: "warn" },
-  info: { icon: Info, cls: "bg-info/12 text-info", label: "Info", tone: "info" },
-} as const
-
-const CHANNEL_META: Record<ChannelType, { label: string; icon: typeof Mail; desc: string }> = {
-  webhook: { label: "Webhook", icon: Webhook, desc: "POST JSON to any URL, optionally HMAC-signed" },
-  slack: { label: "Slack", icon: Hash, desc: "Incoming webhook into a Slack channel" },
-  discord: { label: "Discord", icon: MessageSquare, desc: "Webhook into a Discord channel" },
-  telegram: { label: "Telegram", icon: Send, desc: "Bot message to a chat or channel" },
-  smtp: { label: "Email", icon: Mail, desc: "Send through your SMTP server" },
-}
-
-const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
-
 function ago(iso: string): string {
   const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000))
   if (s < 60) return "just now"
@@ -113,9 +78,6 @@ function StatePill({ state }: { state: string }) {
   if (state === "resolved") return <Pill tone="ok" dot>Resolved</Pill>
   return <Pill tone="outline">{state}</Pill>
 }
-
-const selectCls =
-  "h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
 
 export default function AlertsPage() {
   const [tab, setTab] = useState<Tab>("history")
@@ -141,7 +103,7 @@ export default function AlertsPage() {
     loadingRef.current = true
     try {
       const [ev, ru, ch, mu] = await Promise.all([
-        nodeApi.get<AlertEvent[]>("/api/alerts/history?limit=300"),
+        nodeApi.get<AlertEvent[]>(`/api/alerts/history?limit=${HISTORY_LIMIT}`),
         nodeApi.get<Rule[]>("/api/alerts/rules"),
         nodeApi.get<Channel[]>("/api/alerts/channels"),
         nodeApi.get<{ until: number }>("/api/alerts/mute"),
@@ -285,20 +247,19 @@ export default function AlertsPage() {
           </>
         }
       >
-        <Segmented<Tab>
+        <ViewNav<Tab>
           aria-label="Alerts view"
           value={tab}
           onChange={setTab}
-          size="default"
           options={[
-            { value: "history", label: "History", count: events ? list.length : undefined },
-            { value: "rules", label: "Rules", count: rules?.length },
-            { value: "channels", label: "Channels", count: channels?.length },
+            { value: "history", label: events ? `History · ${list.length}` : "History" },
+            { value: "rules", label: rules ? `Rules · ${rules.length}` : "Rules" },
+            { value: "channels", label: channels ? `Channels · ${channels.length}` : "Channels" },
           ]}
         />
       </PageHeader>
 
-      <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
+      <PageBody>
         {error && (
           <Alert variant="destructive">
             <AlertCircle />
@@ -331,6 +292,7 @@ export default function AlertsPage() {
 
         {tab === "history" && (
           <section aria-label="Alert history" className="min-w-0 space-y-3">
+            {events && events.length > 0 && <AlertsChart events={events} />}
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative w-full max-w-[280px]">
                 <SearchInput
@@ -552,15 +514,13 @@ export default function AlertsPage() {
                   return (
                     <Card key={ch.id}>
                       <CardContent className="space-y-3">
-                        <div className="flex items-start justify-between">
-                          <span className="grid size-9 place-items-center rounded-lg bg-[color-mix(in_srgb,var(--hue)_14%,transparent)] text-[var(--hue)]">
-                            <meta.icon className="size-[18px]" />
-                          </span>
+                        <div className="flex items-start gap-2.5">
+                          <meta.icon className="mt-0.5 size-4 shrink-0 text-[var(--hue)]" aria-hidden />
+                          <div className="min-w-0 flex-1">
+                            <Truncate text={ch.name} className="text-sm font-medium" />
+                            <Truncate text={`${meta.label}${ch.summary ? ` · ${ch.summary}` : ""}`} className="mt-0.5 text-xs text-muted-foreground" />
+                          </div>
                           <Switch checked={ch.enabled} onCheckedChange={v => toggleChannel(ch, v)} aria-label={`Enable channel ${ch.name}`} />
-                        </div>
-                        <div className="min-w-0">
-                          <Truncate text={ch.name} className="text-sm font-medium" />
-                          <Truncate text={`${meta.label}${ch.summary ? ` · ${ch.summary}` : ""}`} className="mt-0.5 text-xs text-muted-foreground" />
                         </div>
                         <div className="flex gap-1 border-t pt-2">
                           <Button variant="outline" size="xs" onClick={() => testChannel(ch)}><Send className="size-3" /> Test</Button>
@@ -593,287 +553,5 @@ export default function AlertsPage() {
         note="This cannot be undone." confirmLabel="Delete" loading={busy} onConfirm={doDelete}
       />
     </>
-  )
-}
-
-/** PATCH helper (lib/api exposes get/post/delete only). */
-async function patch(path: string, body: unknown) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_GO_API ?? ""}${path}`, {
-    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    if (res.status === 401 && window.location.pathname !== "/login") window.location.href = "/login"
-    const b = await res.json().catch(() => ({})) as { error?: string }
-    const err = new Error(b.error ?? `${res.status} request failed`)
-    ;(err as ApiError).status = res.status
-    throw err
-  }
-  return res.json()
-}
-
-async function sendJSON<T>(method: "POST" | "PATCH", path: string, body: unknown): Promise<T> {
-  if (method === "POST") return nodeApi.post<T>(path, body)
-  return patch(path, body) as Promise<T>
-}
-
-function Field({ id, label, children, hint }: { id: string; label: string; children: React.ReactNode; hint?: string }) {
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-    </div>
-  )
-}
-
-function RuleDialog({ value, channels, onClose, onSaved }: {
-  value: Rule | "new" | null; channels: Channel[]; onClose: () => void; onSaved: (r: Rule) => void
-}) {
-  const editing = value && value !== "new" ? value : null
-  const [form, setForm] = useState<Rule>(blankRule())
-  const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (value) { setForm(value === "new" ? blankRule() : { ...value }); setErr(null) }
-  }, [value])
-
-  const metric = metricOf(form.metric)
-  const set = <K extends keyof Rule>(k: K, v: Rule[K]) => setForm(f => ({ ...f, [k]: v }))
-
-  async function save() {
-    setSaving(true); setErr(null)
-    try {
-      const body = {
-        name: form.name, metric: form.metric, operator: form.operator, threshold: Number(form.threshold),
-        duration: Number(form.duration), severity: form.severity, target: form.target, channelIds: form.channelIds,
-        cooldown: Number(form.cooldown), enabled: form.enabled,
-      }
-      const saved = editing
-        ? await sendJSON<Rule>("PATCH", `/api/alerts/rules/${editing.id}`, body)
-        : await sendJSON<Rule>("POST", "/api/alerts/rules", body)
-      toast.success(editing ? "Rule updated" : "Rule created")
-      onSaved(saved)
-    } catch (e) { setErr(errMsg(e, "Could not save rule")) } finally { setSaving(false) }
-  }
-
-  return (
-    <Dialog open={!!value} onOpenChange={o => { if (!o) onClose() }}>
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{editing ? "Edit rule" : "New alert rule"}</DialogTitle>
-          <DialogDescription>{metric?.hint}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <Field id="r-name" label="Name">
-            <Input id="r-name" value={form.name} onChange={e => set("name", e.target.value)} placeholder="High CPU" autoFocus />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field id="r-metric" label="Watch">
-              <select id="r-metric" className={selectCls} value={form.metric} onChange={e => set("metric", e.target.value)}>
-                {METRICS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-              </select>
-            </Field>
-            <Field id="r-sev" label="Severity">
-              <select id="r-sev" className={selectCls} value={form.severity} onChange={e => set("severity", e.target.value as Rule["severity"])}>
-                <option value="critical">Critical</option><option value="warning">Warning</option><option value="info">Info</option>
-              </select>
-            </Field>
-          </div>
-          {metric?.percent ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Field id="r-op" label="When">
-                <select id="r-op" className={selectCls} value={form.operator} onChange={e => set("operator", e.target.value)}>
-                  <option value=">">above</option><option value=">=">at least</option><option value="<">below</option><option value="<=">at most</option>
-                </select>
-              </Field>
-              <Field id="r-th" label="Threshold (%)">
-                <Input id="r-th" type="number" min={0} max={100} value={form.threshold} onChange={e => set("threshold", Number(e.target.value))} />
-              </Field>
-              <Field id="r-dur" label="For (seconds)">
-                <Input id="r-dur" type="number" min={0} value={form.duration} onChange={e => set("duration", Number(e.target.value))} />
-              </Field>
-            </div>
-          ) : (
-            <Field id="r-target" label={form.metric === "deploy.failed" ? "Project (blank = any)" : "Container name (blank = any)"}>
-              <Input id="r-target" value={form.target === "*" ? "" : form.target} onChange={e => set("target", e.target.value)} className="font-mono" />
-            </Field>
-          )}
-          <Field id="r-cool" label="Cooldown (seconds)" hint="After an alert resolves, wait this long before it can fire again. Prevents flapping.">
-            <Input id="r-cool" type="number" min={0} value={form.cooldown} onChange={e => set("cooldown", Number(e.target.value))} />
-          </Field>
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">Notify</legend>
-            {channels.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No channels yet. Add one in the Channels tab; until then alerts only appear here.</p>
-            ) : (
-              <>
-                <p className="text-xs text-muted-foreground">Leave all unchecked to notify every enabled channel.</p>
-                {channels.map(c => (
-                  <label key={c.id} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox" className="size-4 accent-[var(--primary)]"
-                      checked={form.channelIds.includes(c.id)}
-                      onChange={e => set("channelIds", e.target.checked ? [...form.channelIds, c.id] : form.channelIds.filter(x => x !== c.id))}
-                    />
-                    {c.name} <span className="text-xs text-muted-foreground">{CHANNEL_META[c.type]?.label}</span>
-                  </label>
-                ))}
-              </>
-            )}
-          </fieldset>
-          {err && <Alert variant="destructive"><AlertDescription>{err}</AlertDescription></Alert>}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} disabled={saving || !form.name.trim()}>
-            {saving && <Loader2 className="size-4 animate-spin" />} {editing ? "Save" : "Create rule"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function blankRule(): Rule {
-  return { id: "", name: "", metric: "host.cpu", operator: ">", threshold: 90, duration: 60, severity: "warning", target: "", channelIds: [], cooldown: 300, enabled: true }
-}
-
-// secret: stored encrypted and never returned (blank on edit = keep). plain: show the box as readable text while typing.
-type FieldSpec = { key: string; label: string; secret?: boolean; plain?: boolean; placeholder?: string; type?: string; optional?: boolean; hint?: string }
-const CHANNEL_FIELDS: Record<ChannelType, FieldSpec[]> = {
-  webhook: [
-    { key: "url", label: "URL", secret: true, plain: true, placeholder: "https://example.com/hooks/pulsenode", hint: "Stored encrypted — URLs often embed tokens, so only the host is shown after saving." },
-    { key: "secret", label: "Signing secret", secret: true, optional: true, hint: "If set, requests carry X-PulseNode-Signature: sha256=HMAC of the body." },
-  ],
-  slack: [{ key: "webhookUrl", label: "Incoming webhook URL", secret: true, placeholder: "https://hooks.slack.com/services/…" }],
-  discord: [{ key: "webhookUrl", label: "Webhook URL", secret: true, placeholder: "https://discord.com/api/webhooks/…" }],
-  telegram: [
-    { key: "botToken", label: "Bot token", secret: true, placeholder: "123456:ABC…", hint: "Create a bot with @BotFather." },
-    { key: "chatId", label: "Chat ID", placeholder: "-1001234567890 or @channelname" },
-  ],
-  smtp: [
-    { key: "host", label: "SMTP host", placeholder: "smtp.example.com" },
-    { key: "port", label: "Port", placeholder: "587", type: "number" },
-    { key: "username", label: "Username", optional: true },
-    { key: "password", label: "Password", secret: true, optional: true },
-    { key: "from", label: "From", placeholder: "PulseNode <alerts@example.com>" },
-    { key: "to", label: "To", placeholder: "you@example.com, team@example.com" },
-  ],
-}
-
-function ChannelDialog({ value, onClose, onSaved }: {
-  value: Channel | "new" | null; onClose: () => void; onSaved: (c: Channel) => void
-}) {
-  const editing = value && value !== "new" ? value : null
-  const [type, setType] = useState<ChannelType>("slack")
-  const [name, setName] = useState("")
-  const [cfg, setCfg] = useState<Record<string, string>>({})
-  const [security, setSecurity] = useState("starttls")
-  const [saving, setSaving] = useState(false)
-  const [testing, setTesting] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!value) return
-    setErr(null)
-    if (value === "new") { setType("slack"); setName(""); setCfg({}); setSecurity("starttls") }
-    else {
-      setType(value.type); setName(value.name); setSecurity(value.config.security || "starttls")
-      setCfg(Object.fromEntries(Object.entries(value.config).filter(([k]) => !k.endsWith("Set") && !k.endsWith("Hint"))))
-    }
-  }, [value])
-
-  const fields = CHANNEL_FIELDS[type]
-  const body = () => ({ name, type, config: { ...cfg, ...(type === "smtp" ? { security } : {}) } })
-
-  async function save() {
-    setSaving(true); setErr(null)
-    try {
-      const saved = editing
-        ? await sendJSON<Channel>("PATCH", `/api/alerts/channels/${editing.id}`, body())
-        : await sendJSON<Channel>("POST", "/api/alerts/channels", body())
-      toast.success(editing ? "Channel updated" : "Channel added")
-      onSaved(saved)
-    } catch (e) { setErr(errMsg(e, "Could not save channel")) } finally { setSaving(false) }
-  }
-
-  async function test() {
-    setTesting(true); setErr(null)
-    try {
-      await nodeApi.post("/api/alerts/channels/test", { ...body(), id: editing?.id })
-      toast.success("Test notification sent")
-    } catch (e) { setErr(errMsg(e, "Test failed")) } finally { setTesting(false) }
-  }
-
-  return (
-    <Dialog open={!!value} onOpenChange={o => { if (!o) onClose() }}>
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{editing ? "Edit channel" : "Add notification channel"}</DialogTitle>
-          <DialogDescription>{CHANNEL_META[type].desc}. Secrets are encrypted at rest and never shown again.</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          {!editing && (
-            <Field id="c-type" label="Type">
-              <select id="c-type" className={selectCls} value={type} onChange={e => { setType(e.target.value as ChannelType); setCfg({}); setErr(null) }}>
-                {(Object.keys(CHANNEL_META) as ChannelType[]).map(t => <option key={t} value={t}>{CHANNEL_META[t].label}</option>)}
-              </select>
-            </Field>
-          )}
-          <Field id="c-name" label="Name">
-            <Input id="c-name" value={name} onChange={e => setName(e.target.value)} placeholder={`${CHANNEL_META[type].label} alerts`} />
-          </Field>
-          {fields.map(f => {
-            const stored = !!editing && f.secret && editing.config[`${f.key}Set`] === "true"
-            const savedHint = stored ? editing?.config[`${f.key}Hint`] : undefined
-            return (
-              <Field
-                key={f.key} id={`c-${f.key}`} label={f.label}
-                hint={stored ? `Saved${savedHint ? ` for ${savedHint}` : ""}. Leave blank to keep it.${f.hint && !f.plain ? ` ${f.hint}` : ""}` : f.hint}
-              >
-                <Input
-                  id={`c-${f.key}`} type={f.secret && !f.plain ? "password" : f.type ?? "text"} autoComplete="off"
-                  value={cfg[f.key] ?? ""} onChange={e => setCfg(c => ({ ...c, [f.key]: e.target.value }))}
-                  placeholder={stored ? (savedHint ? `${savedHint} (saved — leave blank to keep)` : "•••••••• (saved — leave blank to keep)") : f.placeholder}
-                  className={f.type === "number" ? undefined : "font-mono text-xs"}
-                />
-              </Field>
-            )
-          })}
-          {type === "smtp" && (
-            <Field id="c-sec" label="Encryption">
-              <select id="c-sec" className={selectCls} value={security} onChange={e => setSecurity(e.target.value)}>
-                <option value="starttls">STARTTLS (port 587)</option><option value="tls">TLS (port 465)</option><option value="none">None (not recommended)</option>
-              </select>
-            </Field>
-          )}
-          {err && (
-            <Alert variant="destructive">
-              <AlertDescription>
-                {err}
-                {/entered again/i.test(err) && (
-                  <span className="mt-1 block text-xs">
-                    You changed where this channel sends to. Saved secrets are never reused for a new destination — type the secret
-                    again, or put the original host back to leave it blank.
-                  </span>
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
-        </div>
-        <DialogFooter className="sm:justify-between">
-          <Button variant="outline" onClick={test} disabled={testing || saving}>
-            {testing ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />} Send test
-          </Button>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
-            <Button onClick={save} disabled={saving || !name.trim()}>
-              {saving && <Loader2 className="size-4 animate-spin" />} {editing ? "Save" : "Add channel"}
-            </Button>
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }

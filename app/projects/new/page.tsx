@@ -23,6 +23,7 @@ import { FormField, ChoiceGroup, BUILD_METHODS } from "@/components/projects/for
 import { EnvEditor, envProblem, envRowsToObject, newEnvRow, type EnvRow } from "@/components/projects/EnvEditor"
 import { WildcardHint } from "@/components/domain/wildcard"
 import { cn } from "@/lib/utils"
+import { Panel } from "@/components/pn/Panel"
 
 const GO_API = API_BASE
 
@@ -52,7 +53,7 @@ function Section({ title, aside, children }: { title: string; aside?: React.Reac
   return (
     <div className="space-y-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[11px] font-semibold tracking-widest text-muted-foreground uppercase">{title}</h2>
+        <h2 className="text-sm font-semibold">{title}</h2>
         {aside}
       </div>
       {children}
@@ -70,8 +71,8 @@ function OptionCard({ on, onClick, title, lines, note }: {
       aria-checked={on}
       onClick={onClick}
       className={cn(
-        "flex flex-col gap-2 rounded-xl border bg-card p-3.5 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-3 focus-visible:ring-ring/50",
-        on && "border-primary bg-primary/8 ring-3 ring-primary/12",
+        "flex flex-col gap-2 rounded-lg border bg-background p-3.5 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-3 focus-visible:ring-ring/50",
+        on && "border-primary bg-primary/8",
       )}
     >
       <span className="flex items-center gap-2">
@@ -378,7 +379,7 @@ function NewProjectForm() {
 
         {/* Step 1 — Select repository */}
         {step === 1 && (
-          <section aria-label="Choose repository" className="overflow-hidden rounded-xl border bg-card shadow-card motion-safe:animate-in fade-in-0 duration-300">
+          <Panel role="region" aria-label="Choose repository" className="overflow-hidden rounded-xl motion-safe:animate-in fade-in-0 duration-300">
             <div className="flex items-center gap-2.5 border-b p-3">
               <SearchInput
                 aria-label="Search repositories"
@@ -464,12 +465,12 @@ function NewProjectForm() {
                 ) : null}
               </div>
             )}
-          </section>
+          </Panel>
         )}
 
         {/* Step 2 — Configure */}
         {step === 2 && (
-          <section aria-label="Configure" className="space-y-5 motion-safe:animate-in fade-in-0 duration-300">
+          <Panel role="region" aria-label="Configure" className="divide-y overflow-hidden rounded-xl motion-safe:animate-in fade-in-0 duration-300 [&>*]:p-4.5">
             {monorepo && (
               <Section title="Project structure">
                 <div role="radiogroup" aria-label="Project structure" className="grid gap-2.5 sm:grid-cols-2">
@@ -589,17 +590,17 @@ function NewProjectForm() {
                 </p>
               )}
             </Section>
-          </section>
+          </Panel>
         )}
 
         {/* Step 3 — Review & deploy */}
         {step === 3 && (
           <section aria-label="Deploy" className="space-y-3.5 motion-safe:animate-in fade-in-0 duration-300">
-            <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-2 lg:grid-cols-3">
+            <dl aria-label="Review" className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border bg-border shadow-card sm:grid-cols-2 lg:grid-cols-3">
               {summary.map(row => (
-                <div key={row.label} className="bg-card px-3.5 py-3">
-                  <dt className="text-[11px] text-muted-foreground">{row.label}</dt>
-                  <dd className="mt-0.5 font-mono text-xs break-all">{row.value || "—"}</dd>
+                <div key={row.label} className="bg-card px-4 py-3">
+                  <dt className="text-xs text-muted-foreground">{row.label}</dt>
+                  <dd className="mt-1 font-mono text-[13px] break-all">{row.value || "—"}</dd>
                 </div>
               ))}
             </dl>
@@ -630,13 +631,13 @@ function NewProjectForm() {
             )}
 
             {finished && dep.status === "success" && (
-              <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-success/30 bg-success/10 px-4 py-3.5">
+              <Panel role="status" className="flex flex-wrap items-center gap-3 rounded-xl px-4 py-3.5">
                 <CircleCheck className="size-[18px] text-success" aria-hidden />
                 <span className="flex-1 text-[13px]">
                   <b className="font-semibold">{name}</b> is live at{" "}
-                  <a href={`https://${domain}`} target="_blank" rel="noopener noreferrer" className="font-mono hover:underline">{domain}<span className="sr-only"> (opens in a new tab)</span></a>
+                  <a href={`https://${domain}`} target="_blank" rel="noopener noreferrer" className="rounded-sm font-mono text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50">{domain}<span className="sr-only"> (opens in a new tab)</span></a>
                 </span>
-              </div>
+              </Panel>
             )}
             {finished && dep.status === "failed" && (
               <Alert variant="destructive" role="status">

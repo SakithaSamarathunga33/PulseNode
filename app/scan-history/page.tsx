@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { toast } from "sonner"
 import {
   ShieldCheck, ShieldAlert, AlertTriangle, AlertCircle, Info, Package, Play, Eye, Download, RotateCcw,
-  CheckCircle2, XCircle, Loader2, ScanSearch, CircleSlash,
+  CheckCircle2, XCircle, Loader2, ScanSearch, CircleSlash, BarChart3,
 } from "lucide-react"
 import { nodeApi } from "@/lib/api"
 import type { Scan } from "@/lib/types"
@@ -26,6 +26,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Truncate } from "@/components/pn/Truncate"
+import { BarChart } from "@/components/charts/bar-chart"
+import { Bar } from "@/components/charts/bar"
+import { BarXAxis } from "@/components/charts/bar-x-axis"
+import { Grid } from "@/components/charts/grid"
+import { ChartTooltip } from "@/components/charts/tooltip"
+import { Panel } from "@/components/pn/Panel"
 
 type ScanRow = Omit<Scan, "status"> & { status: Scan["status"] | "unavailable"; message?: string }
 
@@ -44,12 +50,73 @@ function StatusPill({ status }: { status: ScanRow["status"] }) {
   }
 }
 
-function SevTile({ label, value, tone }: { label: string; value: number; tone: "crit" | "high" | "med" | "low" }) {
+const SEVERITIES = [
+  { key: "crit", label: "Critical", color: "var(--sev-bar-crit)" },
+  { key: "high", label: "High", color: "var(--sev-bar-high)" },
+  { key: "med", label: "Medium", color: "var(--sev-bar-med)" },
+  { key: "low", label: "Low", color: "var(--sev-bar-low)" },
+] as const
+
+function SevTile({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className="rounded-lg px-3 py-2.5" style={{ background: `var(--sev-${tone}-bg)`, color: `var(--sev-${tone}-fg)` }}>
-      <p className="text-[11px] font-bold tracking-wider">{label}</p>
-      <p className="text-[22px] leading-tight font-semibold tabular-nums">{value}</p>
+    <div className="rounded-lg border px-3 py-2.5">
+      <p className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
+        <span aria-hidden className="size-2 rounded-full" style={{ background: color }} />{label}
+      </p>
+      <p className="mt-0.5 text-[28px] leading-tight font-semibold tabular-nums">{value}</p>
     </div>
+  )
+}
+
+const CHART_IMAGES = 8
+const LABEL_MAX = 14
+/** "ghcr.io/org/app:1.2.3" → "app:1.2.3", clipped so x-axis labels do not overlap. */
+const shortImage = (ref: string) => {
+  const name = ref.split("/").pop() || ref
+  return name.length > LABEL_MAX ? `${name.slice(0, LABEL_MAX - 1)}…` : name
+}
+const CHART_MARGIN = { top: 8, right: 4, bottom: 34, left: 4 }
+
+/** Open findings of the most exposed images (newest finished scan each), stacked by severity. */
+function FindingsByImage({ rows }: { rows: ScanRow[] }) {
+  const data = useMemo(
+    () => [...rows]
+      .filter(s => total(s) > 0)
+      .sort((a, b) => b.crit - a.crit || b.high - a.high || total(b) - total(a))
+      .slice(0, CHART_IMAGES)
+      .map(s => ({ name: shortImage(s.image), image: s.image, crit: s.crit, high: s.high, med: s.med, low: s.low }))
+      // Band keys must be unique; fall back to the full reference when two short names collide.
+      .map((d, _, all) => (all.filter(o => o.name === d.name).length > 1 ? { ...d, name: d.image } : d)),
+    [rows],
+  )
+  if (data.length === 0) return null
+  return (
+    <Panel role="region" aria-labelledby="sh-chart" className="space-y-3 rounded-xl p-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <h2 id="sh-chart" className="inline-flex items-center gap-2 text-sm font-semibold">
+          <BarChart3 className="size-4 text-[var(--hue)]" strokeWidth={1.75} aria-hidden />Open findings by image
+        </h2>
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted-foreground" aria-label="Legend">
+          {SEVERITIES.map(s => (
+            <li key={s.key} className="inline-flex items-center gap-1.5">
+              <span aria-hidden className="size-2 rounded-[2px]" style={{ background: s.color }} />{s.label}
+            </li>
+          ))}
+        </ul>
+      </div>
+      {/* Same counts as the Findings column in the table below. */}
+      <div aria-hidden>
+        <BarChart data={data} xDataKey="name" stacked aspectRatio="auto" className="h-[200px]" margin={CHART_MARGIN} barGap={0.4} animationDuration={600}>
+          <Grid horizontal numTicksRows={3} strokeOpacity={0.7} />
+          {SEVERITIES.map(s => <Bar key={s.key} dataKey={s.key} fill={s.color} lineCap={2} />)}
+          <BarXAxis />
+          <ChartTooltip rows={p => [
+            { color: "transparent", label: String(p.image ?? ""), value: "" },
+            ...SEVERITIES.map(s => ({ color: s.color, label: s.label, value: Number(p[s.key] ?? 0) })),
+          ]} />
+        </BarChart>
+      </div>
+    </Panel>
   )
 }
 
@@ -161,7 +228,7 @@ export default function ScanHistoryPage() {
     const rows = [...latest.values()]
     const sum = (k: "crit" | "high" | "med" | "low") => rows.reduce((a, s) => a + s[k], 0)
     const affected = (k: "crit" | "high" | "med" | "low") => rows.filter(s => s[k] > 0).length
-    return { crit: sum("crit"), high: sum("high"), med: sum("med"), low: sum("low"), ac: affected("crit"), ah: affected("high"), am: affected("med"), al: affected("low") }
+    return { rows, crit: sum("crit"), high: sum("high"), med: sum("med"), low: sum("low"), ac: affected("crit"), ah: affected("high"), am: affected("med"), al: affected("low") }
   }, [list])
 
   const filteredScans = useMemo(() => {
@@ -194,7 +261,7 @@ export default function ScanHistoryPage() {
           </Button>
         }
       />
-      <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
+      <PageBody>
         {loadError && (
           <Alert variant="destructive">
             <AlertCircle />
@@ -226,6 +293,8 @@ export default function ScanHistoryPage() {
             ]}
           />
         )}
+
+        {scans !== null && <FindingsByImage rows={open.rows} />}
 
         <section aria-labelledby="sh-table" className="min-w-0 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -361,10 +430,7 @@ export default function ScanHistoryPage() {
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <SevTile label="CRITICAL" value={selectedScan.crit} tone="crit" />
-                <SevTile label="HIGH" value={selectedScan.high} tone="high" />
-                <SevTile label="MEDIUM" value={selectedScan.med} tone="med" />
-                <SevTile label="LOW" value={selectedScan.low} tone="low" />
+                {SEVERITIES.map(sv => <SevTile key={sv.key} label={sv.label} value={selectedScan[sv.key]} color={sv.color} />)}
               </div>
               {selectedScan.message && (
                 <Alert variant={selectedScan.status === "failed" ? "destructive" : "default"}>

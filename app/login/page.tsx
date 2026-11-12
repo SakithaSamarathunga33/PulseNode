@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { BorderBeam } from "@/components/magicui/border-beam"
 
 const GO_API = API_BASE
 
@@ -110,18 +111,18 @@ function LoginForm() {
   }
 
   return (
-    <main className="login-bg relative flex min-h-screen flex-col items-center justify-center gap-7 p-4 text-foreground">
-      <div className="pointer-events-none absolute inset-0 bg-background/70" />
+    <main className="relative flex min-h-screen flex-col items-center justify-center gap-7 bg-background p-4 text-foreground">
+      <div aria-hidden className="login-grid pointer-events-none absolute inset-0" />
 
       <div className="relative z-10 flex flex-col items-center gap-1.5 text-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logodark-removebg-preview.png" alt="PulseNode" className="theme-logo-dark mx-auto h-14 w-auto" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo-removebg-preview.png" alt="PulseNode" className="theme-logo-light mx-auto h-14 w-auto" />
-        <span className="font-mono text-[11px] tracking-[0.12em] text-muted-foreground">VPS · CONSOLE</span>
+        <span className="text-xs text-muted-foreground">vps · console</span>
       </div>
 
-      <div className="relative z-10 w-full max-w-[380px] overflow-hidden rounded-xl border bg-card shadow-pop motion-safe:animate-in fade-in-0 duration-300">
+      <div className="relative z-10 w-full max-w-[380px] overflow-hidden rounded-xl border bg-card shadow-pop motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 duration-500">
         <div className="space-y-1 px-[22px] pt-[22px] pb-1.5">
           <h1 className="text-lg font-semibold">{setup ? "Create your admin account" : "Sign in"}</h1>
           <p className="text-[13px] text-muted-foreground">
@@ -231,9 +232,10 @@ function LoginForm() {
           <Lock className="size-3" aria-hidden />
           {setup ? "Login protection turns on as soon as the account exists." : "Login protection is enabled on this dashboard."}
         </div>
+        <BorderBeam size={120} duration={14} borderWidth={1} />
       </div>
 
-      <p className="relative z-10 text-xs text-muted-foreground italic">Infrastructure at a glance.</p>
+      <p className="relative z-10 text-xs text-muted-foreground">Infrastructure at a glance.</p>
     </main>
   )
 }

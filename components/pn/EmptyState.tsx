@@ -13,10 +13,10 @@ export function EmptyState({
   className?: string
 }) {
   return (
-    <Empty className={cn("border py-12", className)}>
+    <Empty className={cn("border border-dashed bg-card/40 py-12", className)}>
       <EmptyHeader>
         {Icon && (
-          <EmptyMedia variant="icon" className="size-11 bg-[color-mix(in_srgb,var(--hue,var(--primary))_14%,transparent)] text-[var(--hue,var(--primary))]">
+          <EmptyMedia variant="icon" className="size-11 border bg-card text-[var(--hue,var(--primary))] shadow-card">
             <Icon className="size-5" />
           </EmptyMedia>
         )}

@@ -1,13 +1,14 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { Box, Cpu, MemoryStick, Activity, ArrowUp, ArrowDown, ChevronsUpDown, AlertCircle, Flame } from "lucide-react"
+import { useState, useEffect, useRef, useMemo } from "react"
+import { Box, Cpu, MemoryStick, Activity, ArrowUp, ArrowDown, ChevronsUpDown, AlertCircle, Flame, BarChart3, CircleCheck, TriangleAlert } from "lucide-react"
 import { nodeApi } from "@/lib/api"
 import type { Container } from "@/lib/types"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { LiveBadge } from "@/components/pn/LiveBadge"
 import { EmptyState } from "@/components/pn/EmptyState"
 import { Segmented } from "@/components/pn/Segmented"
+import { ViewNav } from "@/components/pn/ViewNav"
 import { SummaryStrip } from "@/components/pn/SummaryStrip"
 import { StatusDot } from "@/components/pn/StatusDot"
 import { Pill } from "@/components/dashboard/Pill"
@@ -16,8 +17,14 @@ import { Card } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
+import { BarChart } from "@/components/charts/bar-chart"
+import { Bar } from "@/components/charts/bar"
+import { BarYAxis } from "@/components/charts/bar-y-axis"
+import { Grid } from "@/components/charts/grid"
+import { ChartTooltip } from "@/components/charts/tooltip"
 import { cn } from "@/lib/utils"
 import { Truncate } from "@/components/pn/Truncate"
+import { Panel } from "@/components/pn/Panel"
 
 const BAR_COUNT = 50
 const RANGE_OPTIONS = ["24h", "3d", "7d"] as const
@@ -73,13 +80,75 @@ function usageTone(v: number): "ok" | "warn" | "bad" {
 
 const TEXT_TONE = { ok: "text-foreground", warn: "text-warning", bad: "text-danger" } as const
 
+const CHART_TOP_N = 8
+const CHART_ROW_PX = 30
+const CPU_COLOR = "var(--chart-1)"
+const MEM_COLOR = "var(--chart-5)"
+
+const LegendSwatch = ({ color, label }: { color: string; label: string }) => (
+  <span className="inline-flex items-center gap-1.5">
+    <span aria-hidden className="size-2 rounded-full" style={{ background: color }} />{label}
+  </span>
+)
+
+/** Bklit horizontal bars: CPU and memory % of the busiest running containers. Duplicates the table, so hidden from screen readers. */
+function UsageByContainer({ containers }: { containers: ContainerStat[] }) {
+  const data = useMemo(
+    () => [...containers].sort((a, b) => b.cpu - a.cpu).slice(0, CHART_TOP_N)
+      .map(c => ({ name: c.name, cpu: Math.round(c.cpu * 10) / 10, mem: Math.round(c.ramPct * 10) / 10 })),
+    [containers],
+  )
+  return (
+    <Panel role="region" aria-labelledby="rt-chart" className="space-y-3 rounded-xl p-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
+        <h2 id="rt-chart" className="inline-flex items-center gap-2 text-sm font-semibold">
+          <BarChart3 className="size-4 text-[var(--hue)]" strokeWidth={1.75} />CPU and memory by container
+        </h2>
+        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+          <LegendSwatch color={CPU_COLOR} label="CPU %" />
+          <LegendSwatch color={MEM_COLOR} label="Memory % of limit" />
+          {containers.length > CHART_TOP_N && <span>Top {CHART_TOP_N} by CPU</span>}
+        </div>
+      </div>
+      <div aria-hidden style={{ height: data.length * CHART_ROW_PX + 8 }}>
+        <BarChart
+          data={data}
+          orientation="horizontal"
+          aspectRatio="auto"
+          className="h-full"
+          margin={{ top: 4, right: 8, bottom: 4, left: 84 }}
+          barGap={0.28}
+          animationDuration={600}
+        >
+          <Grid vertical horizontal={false} numTicksColumns={5} strokeOpacity={0.7} />
+          <Bar dataKey="cpu" fill={CPU_COLOR} lineCap={3} groupGap={2} />
+          <Bar dataKey="mem" fill={MEM_COLOR} lineCap={3} groupGap={2} />
+          <BarYAxis />
+          <ChartTooltip
+            rows={p => [
+              { color: CPU_COLOR, label: "CPU", value: `${Number(p.cpu ?? 0).toFixed(1)}%` },
+              { color: MEM_COLOR, label: "Memory", value: `${Number(p.mem ?? 0).toFixed(1)}%` },
+            ]}
+          />
+        </BarChart>
+      </div>
+    </Panel>
+  )
+}
+
+const BEAT_STYLE: Record<BeatStatus, string> = {
+  up: "bg-success",
+  down: "bg-danger",
+  none: "bg-muted ring-1 ring-inset ring-border",
+}
+
 function HeartbeatBar({ statuses, windowMs, name, pct, downs }: { statuses: BeatStatus[]; windowMs: number; name: string; pct: number | null; downs: number }) {
   const bucketMs = windowMs / BAR_COUNT
   const now = Date.now()
   const fmt = (t: number) => new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
   return (
     <div
-      className="grid h-[26px] grid-cols-[repeat(50,minmax(0,1fr))] gap-px sm:gap-[3px]"
+      className="grid h-6 grid-cols-[repeat(50,minmax(0,1fr))] gap-px sm:gap-0.5"
       role="img"
       aria-label={`${name} uptime ${pct === null ? "unknown" : pct.toFixed(2) + "%"}, ${downs} down intervals`}
     >
@@ -90,10 +159,7 @@ function HeartbeatBar({ statuses, windowMs, name, pct, downs }: { statuses: Beat
           <span
             key={i}
             title={`${label} · ${fmt(end - bucketMs)} – ${fmt(end)}`}
-            className={cn(
-              "rounded-[2px] transition-transform hover:scale-y-110",
-              st === "down" ? "bg-danger" : st === "up" ? "bg-success" : "border bg-muted",
-            )}
+            className={cn("rounded-[3px] transition-opacity hover:opacity-70", BEAT_STYLE[st])}
           />
         )
       })}
@@ -224,6 +290,20 @@ export default function RuntimePage() {
   const hottest     = containers.length ? [...containers].sort((a, b) => b.cpu - a.cpu)[0] : null
   const upCount     = allContainers.filter(c => c.state === "running").length
 
+  const uptimeRows = allContainers.map(c => {
+    const beats = heartbeats.find(h => h.name === c.name)?.beats ?? []
+    const statuses = bucketBeats(beats, RANGE_MS[range])
+    const downs = statuses.filter(b => b === "down").length
+    const pct = beats.length ? (beats.filter(b => b.up).length / beats.length) * 100 : null
+    const isUp = c.state === "running"
+    const tone: "ok" | "warn" | "bad" = !isUp ? "bad" : downs ? "warn" : "ok"
+    return { c, statuses, downs, pct, isUp, tone }
+  })
+  const tracked = uptimeRows.filter(r => r.pct !== null)
+  const avgUptime = tracked.length ? tracked.reduce((s, r) => s + (r.pct ?? 0), 0) / tracked.length : null
+  const incidents = uptimeRows.reduce((s, r) => s + r.downs, 0)
+  const affected = uptimeRows.filter(r => r.downs > 0).length
+
   const rangeLabel = { "24h": "Last 24 hours", "3d": "Last 3 days", "7d": "Last 7 days" }[range]
   const rangeStart = { "24h": "24h ago", "3d": "3d ago", "7d": "7d ago" }[range]
 
@@ -234,20 +314,19 @@ export default function RuntimePage() {
         title="Runtime"
         description="Per-container resource usage and availability history."
         actions={
-          <Segmented
+          <ViewNav
             aria-label="Runtime view"
             value={view}
             onChange={setView}
-            size="default"
             options={[
-              { value: "resources", label: <><Cpu className="size-3.5" />Resources</> },
-              { value: "uptime", label: <><Activity className="size-3.5" />Uptime</> },
+              { value: "resources", label: "Resources", icon: <Cpu className="size-3.5" /> },
+              { value: "uptime", label: "Uptime", icon: <Activity className="size-3.5" /> },
             ]}
           />
         }
       />
 
-      <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
+      <PageBody>
         {view === "resources" && (
           <>
             {error && (
@@ -270,6 +349,8 @@ export default function RuntimePage() {
                 ]}
               />
             )}
+
+            {!loading && containers.length > 0 && <UsageByContainer containers={containers} />}
 
             <section aria-labelledby="rt-res" className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -373,45 +454,51 @@ export default function RuntimePage() {
         )}
 
         {view === "uptime" && (
-          <section aria-labelledby="rt-up" className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="space-y-1">
-                <h2 id="rt-up" className="text-lg font-semibold">Uptime</h2>
-                <p className="text-xs text-muted-foreground">{rangeLabel} · {upCount} / {allContainers.length} up · Recorded every 60s</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="flex gap-3.5 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1.5"><span className="h-3.5 w-1.5 rounded-sm bg-success" />Up</span>
-                  <span className="inline-flex items-center gap-1.5"><span className="h-3.5 w-1.5 rounded-sm bg-danger" />Down</span>
-                  <span className="inline-flex items-center gap-1.5"><span className="h-3.5 w-1.5 rounded-sm border bg-muted" />No data</span>
-                </div>
-                <Segmented
-                  aria-label="Time range"
-                  value={range}
-                  onChange={setRange}
-                  options={RANGE_OPTIONS.map(r => ({ value: r, label: r }))}
-                />
-              </div>
-            </div>
+          <>
+            {!allLoaded ? (
+              <Skeleton className="h-[112px] rounded-xl" />
+            ) : allContainers.length > 0 && (
+              <SummaryStrip
+                aria-label="Uptime summary"
+                items={[
+                  { label: "Up now", icon: CircleCheck, value: upCount, unit: `of ${allContainers.length}`, meta: `${allContainers.length - upCount} stopped or exited`, tone: upCount < allContainers.length ? "warn" : undefined },
+                  { label: "Average uptime", icon: Activity, value: avgUptime === null ? "—" : avgUptime.toFixed(2), unit: avgUptime === null ? undefined : "%", meta: `${rangeLabel} · ${tracked.length} tracked` },
+                  { label: "Incidents", icon: TriangleAlert, value: incidents, meta: incidents ? `Down intervals across ${affected} container${affected === 1 ? "" : "s"}` : "No down intervals in range", tone: incidents ? "warn" : undefined },
+                ]}
+              />
+            )}
 
-            <Card className="gap-0 overflow-hidden py-0">
-              {!allLoaded ? (
-                <TableSkeleton />
-              ) : allContainers.length === 0 ? (
-                <EmptyState icon={Activity} title="No containers found" className="rounded-none border-0"
-                  description="Uptime history appears once containers exist." />
-              ) : (
-                <ul className="divide-y">
-                  {allContainers.map(c => {
-                    const beats = heartbeats.find(h => h.name === c.name)?.beats ?? []
-                    const statuses = bucketBeats(beats, RANGE_MS[range])
-                    const downs = statuses.filter(b => b === "down").length
-                    const ups = beats.filter(b => b.up).length
-                    const pct = beats.length ? (ups / beats.length) * 100 : null
-                    const isUp = c.state === "running"
-                    const tone = !isUp ? "bad" : downs ? "warn" : "ok"
-                    return (
-                      <li key={c.id} className="space-y-2.5 px-[18px] py-3.5">
+            <section aria-labelledby="rt-up" className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <h2 id="rt-up" className="text-lg font-semibold">Uptime</h2>
+                  <p className="text-xs text-muted-foreground">{rangeLabel} · {upCount} / {allContainers.length} up · Recorded every 60s</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex gap-3.5 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5"><span aria-hidden className={cn("h-3.5 w-1.5 rounded-[2px]", BEAT_STYLE.up)} />Up</span>
+                    <span className="inline-flex items-center gap-1.5"><span aria-hidden className={cn("h-3.5 w-1.5 rounded-[2px]", BEAT_STYLE.down)} />Down</span>
+                    <span className="inline-flex items-center gap-1.5"><span aria-hidden className={cn("h-3.5 w-1.5 rounded-[2px]", BEAT_STYLE.none)} />No data</span>
+                  </div>
+                  <Segmented
+                    aria-label="Time range"
+                    value={range}
+                    onChange={setRange}
+                    options={RANGE_OPTIONS.map(r => ({ value: r, label: r }))}
+                  />
+                </div>
+              </div>
+
+              <Card className="gap-0 overflow-hidden py-0">
+                {!allLoaded ? (
+                  <TableSkeleton />
+                ) : allContainers.length === 0 ? (
+                  <EmptyState icon={Activity} title="No containers found" className="rounded-none border-0"
+                    description="Uptime history appears once containers exist." />
+                ) : (
+                  <ul className="divide-y">
+                    {uptimeRows.map(({ c, statuses, downs, pct, isUp, tone }) => (
+                      <li key={c.id} className="space-y-2 px-4 py-3.5">
                         <div className="flex items-center gap-2.5">
                           <span className={cn("inline-flex", tone === "ok" ? "text-success" : tone === "warn" ? "text-warning" : "text-danger")}>
                             <StatusDot tone={tone} />
@@ -421,19 +508,19 @@ export default function RuntimePage() {
                             {!isUp ? "Down" : downs ? `${downs} incident${downs > 1 ? "s" : ""}` : "No incidents"}
                           </span>
                           <span className="flex-1" />
-                          <span className={cn("text-[15px] font-semibold tabular-nums", downs || !isUp ? "text-warning" : "text-foreground")}>
+                          <span className={cn("font-mono text-sm font-semibold tabular-nums", downs || !isUp ? "text-warning" : "text-foreground")}>
                             {pct === null ? "—" : `${pct.toFixed(2)}%`}
                           </span>
                         </div>
                         <HeartbeatBar statuses={statuses} windowMs={RANGE_MS[range]} name={c.name} pct={pct} downs={downs} />
                         <div className="flex justify-between text-[11px] text-muted-foreground"><span>{rangeStart}</span><span>now</span></div>
                       </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </Card>
-          </section>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+            </section>
+          </>
         )}
       </PageBody>
     </>

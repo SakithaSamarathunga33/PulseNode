@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { shortId, sparkPaths, splitImage, toneFor, trendOf } from "@/components/containers/utils"
+import { shortId, splitImage, toneFor, trendOf } from "@/components/containers/utils"
 
 describe("toneFor", () => {
   it("uses the 60% / 80% thresholds shown across the dashboard", () => {
@@ -29,29 +29,6 @@ describe("shortId", () => {
   it("keeps the first 12 characters", () => {
     expect(shortId("0123456789abcdef")).toBe("0123456789ab")
     expect(shortId("abc")).toBe("abc")
-  })
-})
-
-describe("sparkPaths", () => {
-  it("draws a line and a closed area inside the viewBox", () => {
-    const { line, area } = sparkPaths([1, 5, 3], 200, 44)
-    expect(line.startsWith("M0.0,")).toBe(true)
-    expect(line.match(/L/g)).toHaveLength(2)
-    expect(area.endsWith("L200,44 L0,44 Z")).toBe(true)
-  })
-  it("survives empty and single-point series", () => {
-    expect(sparkPaths([]).line).toMatch(/^M0\.0,/)
-    expect(sparkPaths([7]).line).toMatch(/^M0\.0,/)
-  })
-  it("keeps y coordinates finite for a flat series", () => {
-    const { line } = sparkPaths([4, 4, 4, 4])
-    expect(line).not.toMatch(/NaN|Infinity/)
-  })
-  it("uses a fixed scale when max is given", () => {
-    const low = sparkPaths([0, 0], 100, 40, 100).line
-    const high = sparkPaths([100, 100], 100, 40, 100).line
-    expect(low).toContain(",37.0")
-    expect(high).toContain(",3.0")
   })
 })
 

@@ -3,13 +3,15 @@
 import { API_BASE } from "@/lib/api"
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
-  AlertCircle, AlertTriangle, CircleCheck, CircleX, Copy, Globe, Info as InfoIcon, Loader2, Plus, RefreshCw,
-  Shield, Star, Trash2,
+  AlertCircle, AlertTriangle, Boxes, CircleCheck, CircleX, Copy, Globe, Info as InfoIcon, ListTree, Loader2, Plus,
+  RefreshCw, Search, Shield, Star, Trash2, type LucideIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
 import { EmptyState } from "@/components/pn/EmptyState"
+import { SummaryStrip } from "@/components/pn/SummaryStrip"
+import { Pill } from "@/components/dashboard/Pill"
 import {
   STATUS, StatusChip, StatusLegend, statusOf, type SavedDomain,
 } from "@/components/domain/DomainParts"
@@ -56,16 +58,18 @@ function IconTip({ label, children }: { label: string; children: React.ReactElem
 }
 
 /** A card with a header band (title + optional right-hand control) and flush content. */
-function Panel({ id, title, subtitle, right, children }: {
-  id: string; title: React.ReactNode; subtitle?: string; right?: React.ReactNode; children: React.ReactNode
+function Panel({ id, icon: Icon, title, subtitle, right, children }: {
+  id: string; icon: LucideIcon; title: React.ReactNode; subtitle?: string; right?: React.ReactNode; children: React.ReactNode
 }) {
   return (
     <section aria-labelledby={id}>
       <Card className="gap-0 overflow-hidden py-0">
-        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b px-[18px] py-3.5">
-          <div className="space-y-0.5">
-            <h2 id={id} className="text-[15px] font-semibold">{title}</h2>
-            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b px-4 py-3">
+          <div className="min-w-0 space-y-0.5">
+            <h2 id={id} className="inline-flex items-center gap-2 text-sm font-semibold">
+              <Icon className="size-4 text-[var(--hue)]" strokeWidth={1.75} aria-hidden />{title}
+            </h2>
+            {subtitle && <p className="text-[13px] text-muted-foreground">{subtitle}</p>}
           </div>
           {right}
         </div>
@@ -232,15 +236,19 @@ export default function DomainPage() {
   const aliases = data?.aliases || []
   const domains = data?.domains || []
   const savedHosts = new Set(domains.map(d => d.host))
+  const counts = { pointed: 0, proxied: 0, not: 0, unchecked: 0, error: 0 }
+  for (const d of domains) counts[statusOf(d)]++
+  const attention = counts.not + counts.error
+  const primary = domains.find(d => d.isPrimary)?.host
 
   const resultStatus = result
     ? result.error ? "error" : result.proxied ? "proxied" : result.pointed ? "pointed" : "not"
     : null
   const RESULT = {
-    pointed: { title: "Pointed correctly", Icon: CircleCheck, tone: "text-success", box: "border-success/30 bg-success/8" },
-    proxied: { title: "Proxied through Cloudflare", Icon: Shield, tone: "text-info", box: "border-info/30 bg-info/8" },
-    not:     { title: "Not pointed to this VPS", Icon: CircleX, tone: "text-danger", box: "border-danger/30 bg-danger/8" },
-    error:   { title: "Lookup failed", Icon: AlertTriangle, tone: "text-warning", box: "border-warning/30 bg-warning/8" },
+    pointed: { title: "Pointed correctly", Icon: CircleCheck, tone: "text-success" },
+    proxied: { title: "Proxied through Cloudflare", Icon: Shield, tone: "text-info" },
+    not:     { title: "Not pointed to this VPS", Icon: CircleX, tone: "text-danger" },
+    error:   { title: "Lookup failed", Icon: AlertTriangle, tone: "text-warning" },
   } as const
 
   return (
@@ -250,20 +258,20 @@ export default function DomainPage() {
         title="Domains"
         description="Save the domains you use, verify their DNS, and see what each container is serving."
         actions={
-          <span className="inline-flex h-[30px] items-center gap-2 rounded-lg border bg-card px-3 text-xs text-muted-foreground">
+          <span className="inline-flex h-8 items-center gap-2 rounded-lg border bg-card px-3 text-[13px] text-muted-foreground shadow-card">
             VPS IP
             <code className="font-mono font-medium text-foreground">{expectedIp || "unknown"}</code>
             {expectedIp && (
               <IconTip label="Copy IP">
                 <button type="button" onClick={() => copy(expectedIp, "IP copied")} aria-label="Copy VPS IP" className="rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-2">
-                  <Copy className="size-3" />
+                  <Copy className="size-3.5" />
                 </button>
               </IconTip>
             )}
           </span>
         }
       />
-      <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
+      <PageBody>
         {loadError && (
           <Alert variant="destructive">
             <AlertCircle />
@@ -278,6 +286,21 @@ export default function DomainPage() {
           <Alert variant="destructive"><AlertCircle /><AlertDescription>{message}</AlertDescription></Alert>
         )}
 
+        <SummaryStrip
+          aria-label="Domain summary"
+          items={[
+            { label: "Saved domains", icon: Globe, value: loading ? "—" : domains.length,
+              meta: primary ? <>Primary <span className="font-mono">{primary}</span></> : "No primary domain set" },
+            { label: "Resolving here", icon: CircleCheck, value: loading ? "—" : counts.pointed + counts.proxied,
+              meta: `${counts.proxied} proxied through Cloudflare`,
+              tone: !loading && domains.length > 0 && attention === 0 ? "ok" : undefined },
+            { label: "Need attention", icon: AlertTriangle, value: loading ? "—" : attention,
+              meta: attention > 0 ? `${counts.not} not pointed · ${counts.error} lookup failed` : `${counts.unchecked} not checked yet`,
+              tone: attention > 0 ? "bad" : undefined },
+            { label: "In use", icon: Boxes, value: loading ? "—" : inUse.length, meta: "Hostnames on containers, projects and Caddy" },
+          ]}
+        />
+
         <ProxyCard />
 
         <div className="grid items-start gap-5 min-[1200px]:grid-cols-2">
@@ -285,7 +308,8 @@ export default function DomainPage() {
             {/* Saved domains */}
             <Panel
               id="dm-saved"
-              title={<>Saved domains <span className="ml-1 text-[13px] font-medium text-muted-foreground">{domains.length}</span></>}
+              icon={Globe}
+              title={<>Saved domains <span className="font-mono text-[13px] font-medium text-muted-foreground tabular-nums">{domains.length}</span></>}
               right={
                 <form
                   onSubmit={e => { e.preventDefault(); void save(newDomain) }}
@@ -316,14 +340,12 @@ export default function DomainPage() {
                     const busy = busyHost === d.host
                     const ips = d.records?.length ? d.records.join(", ") : d.error ? "SERVFAIL" : "—"
                     return (
-                      <li key={d.host} className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 py-2 pr-2.5 pl-[18px]">
+                      <li key={d.host} className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 py-2.5 pr-2.5 pl-4 transition-colors hover:bg-accent/40">
                         <div className="flex min-w-0 flex-1 basis-56 flex-col gap-0.5">
                           <div className="flex min-w-0 flex-wrap items-center gap-2">
                             <code className="font-mono text-[13px] font-medium break-all">{d.host}</code>
                             {d.isPrimary && (
-                              <span className="inline-flex items-center gap-1 rounded bg-primary/12 px-1.5 py-px text-[11px] font-semibold text-primary">
-                                <Star className="size-2.5" />Primary
-                              </span>
+                              <Pill tone="acc"><Star className="size-3" aria-hidden />Primary</Pill>
                             )}
                           </div>
                           <Truncate mono text={d.error || ips} className="text-xs text-muted-foreground" />
@@ -358,6 +380,7 @@ export default function DomainPage() {
             {/* In use */}
             <Panel
               id="dm-use"
+              icon={Boxes}
               title="In use"
               subtitle="Hostnames found in container labels, projects and the Caddyfile"
               right={
@@ -369,11 +392,11 @@ export default function DomainPage() {
               {loading ? (
                 <div className="space-y-2 p-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>
               ) : inUse.length === 0 ? (
-                <p className="px-[18px] py-4 text-sm text-muted-foreground">No domains discovered from containers, projects, or Caddy.</p>
+                <p className="p-4 text-sm text-muted-foreground">No domains discovered from containers, projects, or Caddy.</p>
               ) : (
                 <ul className="divide-y">
                   {inUse.map(h => (
-                    <li key={h.host} className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 py-2 pr-3.5 pl-[18px]">
+                    <li key={h.host} className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 py-2.5 pr-3.5 pl-4 transition-colors hover:bg-accent/40">
                       <div className="flex min-w-0 flex-1 basis-56 flex-col gap-0.5">
                         <code className="font-mono text-[13px] break-all">{h.host}</code>
                         <p className="text-xs break-all text-muted-foreground">
@@ -398,10 +421,10 @@ export default function DomainPage() {
 
           <div className="min-w-0 space-y-5">
             {/* DNS check */}
-            <Panel id="dm-check" title="DNS check">
+            <Panel id="dm-check" icon={Search} title="DNS check" subtitle="Resolve any hostname and compare it with this VPS IP. Press / to focus.">
               <form
                 onSubmit={e => { e.preventDefault(); if (checkDomain.trim()) void check() }}
-                className="flex gap-2 px-[18px] py-3.5"
+                className="flex gap-2 p-4"
               >
                 <div className="relative flex-1">
                   <Globe className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -423,28 +446,28 @@ export default function DomainPage() {
                 const R = RESULT[resultStatus]
                 const ips = result.records?.length ? result.records : []
                 return (
-                  <div role="status" className={cn("mx-[18px] mb-[18px] overflow-hidden rounded-xl border motion-safe:animate-in fade-in-0 duration-200", R.box)}>
-                    <div className="flex items-center gap-2.5 px-4 py-3.5">
-                      <span className={cn("grid size-[30px] place-items-center rounded-lg bg-card", R.tone)}><R.Icon className="size-[17px]" /></span>
+                  <div role="status" className="mx-4 mb-4 overflow-hidden rounded-lg border motion-safe:animate-in fade-in-0 duration-200">
+                    <div className="flex items-center gap-2.5 px-4 py-3">
+                      <R.Icon className={cn("size-5 shrink-0", R.tone)} aria-hidden />
                       <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className="text-[15px] font-semibold">{R.title}</span>
+                        <span className="text-sm font-semibold">{R.title}</span>
                         <span className="font-mono text-xs break-all text-muted-foreground">{result.domain}</span>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 gap-px bg-border sm:grid-cols-2">
-                      <div className="bg-card px-4 py-3">
-                        <div className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Expected IP</div>
-                        <div className="mt-1 font-mono text-sm font-medium tabular-nums">{result.expectedIp || "Unknown"}</div>
+                    <dl className="grid grid-cols-1 border-t max-sm:divide-y sm:grid-cols-2 sm:divide-x">
+                      <div className="px-4 py-3">
+                        <dt className="text-[13px] text-muted-foreground">Expected IP</dt>
+                        <dd className="mt-1 font-mono text-sm font-medium tabular-nums">{result.expectedIp || "Unknown"}</dd>
                       </div>
-                      <div className="bg-card px-4 py-3">
-                        <div className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Resolved IPs</div>
+                      <div className="px-4 py-3">
+                        <dt className="text-[13px] text-muted-foreground">Resolved IPs</dt>
                         {ips.length ? ips.map(ip => (
-                          <div key={ip} className={cn("mt-1 font-mono text-sm font-medium tabular-nums", ip === result.expectedIp ? "text-success" : resultStatus === "not" ? "text-danger" : "")}>{ip}</div>
-                        )) : <div className="mt-1 font-mono text-sm text-muted-foreground">—</div>}
+                          <dd key={ip} className={cn("mt-1 font-mono text-sm font-medium tabular-nums", ip === result.expectedIp ? "text-success" : resultStatus === "not" ? "text-danger" : "")}>{ip}</dd>
+                        )) : <dd className="mt-1 font-mono text-sm text-muted-foreground">—</dd>}
                       </div>
-                    </div>
+                    </dl>
                     {(result.message || result.error) && (
-                      <div className="border-t bg-card px-4 py-2.5 text-xs text-muted-foreground">{result.error || result.message}</div>
+                      <p className="border-t px-4 py-2.5 text-xs text-muted-foreground">{result.error || result.message}</p>
                     )}
                   </div>
                 )
@@ -452,16 +475,16 @@ export default function DomainPage() {
             </Panel>
 
             {/* DNS records */}
-            <Panel id="dm-rec" title="DNS records" subtitle="Point these records to this VPS IP at your DNS provider.">
+            <Panel id="dm-rec" icon={ListTree} title="DNS records" subtitle="Point these records to this VPS IP at your DNS provider.">
               {loading ? (
                 <div className="p-4"><Skeleton className="h-10 w-full" /></div>
               ) : aliases.length === 0 ? (
-                <p className="px-[18px] py-4 text-sm text-muted-foreground">Save a domain to see the records to create for it.</p>
+                <p className="p-4 text-sm text-muted-foreground">Save a domain to see the records to create for it.</p>
               ) : (
                 <>
                   <ul className="divide-y md:hidden" aria-label="DNS records">
                     {aliases.map(alias => (
-                      <li key={alias} className="flex items-center gap-3 px-[18px] py-2.5">
+                      <li key={alias} className="flex items-center gap-3 px-4 py-2.5">
                         <div className="min-w-0 flex-1 space-y-0.5">
                           <p className="font-mono text-xs break-all">{alias}</p>
                           <p className="font-mono text-xs text-muted-foreground tabular-nums">A · {expectedIp || "Unknown"} · TTL Auto</p>
@@ -476,16 +499,16 @@ export default function DomainPage() {
                     <Table>
                       <TableHeader>
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="pl-[18px]">Type</TableHead>
+                          <TableHead className="pl-4">Type</TableHead>
                           <TableHead>Name</TableHead>
                           <TableHead>Value</TableHead>
-                          <TableHead className="pr-[18px]">TTL</TableHead>
+                          <TableHead className="pr-4">TTL</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {aliases.map(alias => (
-                          <TableRow key={alias} className="h-[46px]">
-                            <TableCell className="pl-[18px]"><span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs font-semibold">A</span></TableCell>
+                          <TableRow key={alias}>
+                            <TableCell className="pl-4"><span className="rounded-md border px-1.5 py-0.5 font-mono text-xs font-semibold">A</span></TableCell>
                             <TableCell className="max-w-[20rem]">
                               <Tooltip>
                                 <TooltipTrigger
@@ -501,7 +524,7 @@ export default function DomainPage() {
                                 {expectedIp || "Unknown"}<Copy className="size-3" />
                               </button>
                             </TableCell>
-                            <TableCell className="pr-[18px] text-xs text-muted-foreground">Auto</TableCell>
+                            <TableCell className="pr-4 text-xs text-muted-foreground">Auto</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -509,11 +532,11 @@ export default function DomainPage() {
                   </div>
                 </>
               )}
-              <p className="flex items-start gap-2 px-[18px] py-2.5 text-xs text-muted-foreground">
+              <p className="flex items-start gap-2 border-t px-4 py-2.5 text-xs text-muted-foreground">
                 <InfoIcon className="mt-px size-3.5 shrink-0" />
                 <span>
                   Using a Cloudflare proxy? Keep the record orange-clouded; the status shows{" "}
-                  <b className="font-semibold text-foreground/80">{STATUS.proxied.label}</b> because the resolved IPs belong to Cloudflare.
+                  <span className="font-medium text-foreground">{STATUS.proxied.label}</span> because the resolved IPs belong to Cloudflare.
                 </span>
               </p>
             </Panel>

@@ -30,7 +30,7 @@ const isBusy = (b: Busy, id: string) => ["start", "stop", "restart", "remove"].s
 const STATE_STYLE: Record<string, string> = {
   running: "bg-success/12 text-success",
   exited: "bg-danger/12 text-danger",
-  paused: "bg-warning/14 text-warning",
+  paused: "bg-warning/12 text-warning",
   stopped: "bg-muted text-muted-foreground",
 }
 const STATE_SHAPE: Record<string, StatusShape> = { running: "ok", exited: "bad", paused: "warn", stopped: "off" }
@@ -121,18 +121,17 @@ function SortHead({
     <TableHead aria-sort={on ? (sort.dir > 0 ? "ascending" : "descending") : "none"} className={className}>
       <button
         type="button" onClick={() => onSort(k)}
-        className={cn("inline-flex items-center gap-1 rounded-sm hover:text-foreground focus-visible:outline-2", on && "text-foreground")}
+        className={cn("-mx-1 inline-flex items-center gap-1 rounded-sm px-1 py-0.5 outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50", on && "text-foreground")}
       >
-        {label}<Icon className="size-3" />
+        {label}<Icon className={cn("size-3", !on && "opacity-50")} />
       </button>
     </TableHead>
   )
 }
 
-const GROUP = "px-3 pt-2.5 pb-1 text-[11px] font-semibold tracking-wider uppercase text-muted-foreground"
-const STICKY = "sticky right-0 bg-card shadow-[-8px_0_12px_-10px_rgb(0_0_0/0.35)]"
+const STICKY = "sticky right-0 bg-card shadow-[-1px_0_0_var(--border)]"
 
-/** Desktop table: grouped headers (Identity / Runtime / Resources), selection, sortable columns, sticky actions. */
+/** Desktop table: selection, sortable columns, hairline dividers between identity / runtime / resource columns, sticky actions. */
 export function ContainerTable({
   rows, selected, onToggle, onToggleAll, sort, onSort, busy, handlers,
 }: {
@@ -150,13 +149,6 @@ export function ContainerTable({
     <Table className="min-w-[1120px]">
       <TableHeader>
         <TableRow className="hover:bg-transparent">
-          <TableHead className="w-10" />
-          <TableHead colSpan={3} className={GROUP}>Identity</TableHead>
-          <TableHead colSpan={3} className={cn(GROUP, "border-l")}>Runtime</TableHead>
-          <TableHead colSpan={2} className={cn(GROUP, "border-l text-right")}>Resources</TableHead>
-          <TableHead className={cn(STICKY, "border-l")} />
-        </TableRow>
-        <TableRow className="hover:bg-transparent">
           <TableHead className="w-10 pl-3.5">
             <Checkbox checked={allChecked} onCheckedChange={v => onToggleAll(!!v)} aria-label="Select all visible containers" />
           </TableHead>
@@ -168,7 +160,7 @@ export function ContainerTable({
           <TableHead>Created</TableHead>
           <SortHead label="CPU" k="cpu" sort={sort} onSort={onSort} className="border-l text-right" />
           <SortHead label="RAM" k="ram" sort={sort} onSort={onSort} className="text-right" />
-          <TableHead className={cn(STICKY, "border-l pr-3.5 text-right")}>Actions</TableHead>
+          <TableHead className={cn(STICKY, "pr-3.5 text-right")}>Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -206,7 +198,7 @@ export function ContainerTable({
               <TableCell className="whitespace-nowrap text-muted-foreground">{c.created}</TableCell>
               <TableCell className="border-l text-right"><UsageCell pct={c.cpu} running={running} /></TableCell>
               <TableCell className="text-right"><UsageCell pct={c.ram} running={running} /></TableCell>
-              <TableCell className={cn(STICKY, "border-l px-2")}><RowActions c={c} busy={busy} h={handlers} /></TableCell>
+              <TableCell className={cn(STICKY, "px-2")}><RowActions c={c} busy={busy} h={handlers} /></TableCell>
             </TableRow>
           )
         })}

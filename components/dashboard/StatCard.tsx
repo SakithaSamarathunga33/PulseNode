@@ -24,23 +24,29 @@ const TONE_VAR: Record<string, string> = {
   ok: "var(--success)", warn: "var(--warning)", bad: "var(--danger)", info: "var(--info)",
 }
 
-function MiniSparkline({ data }: { data: number[] }) {
+function MiniSparkline({ data, id }: { data: number[]; id: string }) {
   if (data.length < 2) return null
   const max = Math.max(...data), min = Math.min(...data), range = max - min || 1
-  const w = 84, h = 30
+  const w = 96, h = 32
   const x = (i: number) => (i * w) / (data.length - 1)
   const y = (v: number) => h - 3 - ((v - min) / range) * (h - 6)
   const d = data.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ")
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="block overflow-visible text-[var(--tone)]" aria-hidden>
-      <path d={`${d} L${w},${h} L0,${h} Z`} fill="currentColor" fillOpacity={0.16} />
-      <path d={d} fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={x(data.length - 1)} cy={y(data[data.length - 1])} r={2.4} fill="currentColor" />
+      <defs>
+        <linearGradient id={id} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="currentColor" stopOpacity={0.22} />
+          <stop offset="1" stopColor="currentColor" stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <path d={`${d} L${w},${h} L0,${h} Z`} fill={`url(#${id})`} />
+      <path d={d} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={x(data.length - 1)} cy={y(data[data.length - 1])} r={2.25} fill="currentColor" />
     </svg>
   )
 }
 
-/** Headline metric tile, tinted with its tone (page area hue by default). */
+/** Headline metric tile on the card surface; tone colours the icon, sparkline and status. */
 export function StatCard({
   label, value, unit, sub, icon: Icon, spark, delta, deltaTone, tone = "acc", animate = true,
 }: StatCardProps) {
@@ -48,21 +54,17 @@ export function StatCard({
   return (
     <div
       style={{ "--tone": TONE_VAR[tone] } as React.CSSProperties}
-      className="relative min-w-0 overflow-hidden rounded-xl border border-[color-mix(in_srgb,var(--tone)_22%,var(--border))] bg-[color-mix(in_srgb,var(--tone)_7%,var(--card))] p-4 shadow-card"
+      className="group/stat relative min-w-0 overflow-hidden rounded-xl border bg-card p-4 shadow-card transition-colors hover:border-[var(--border-2)]"
     >
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
-          {Icon && (
-            <span className="grid size-6 shrink-0 place-items-center rounded-md bg-[color-mix(in_srgb,var(--tone)_16%,transparent)] text-[var(--tone)]">
-              <Icon className="size-3.5" />
-            </span>
-          )}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-muted-foreground">
+          {Icon && <Icon className="size-4 shrink-0 text-[var(--tone)]" strokeWidth={1.75} />}
           <span className="truncate">{label}</span>
         </span>
         {delta && (
           <span
             className={cn(
-              "shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px]",
+              "shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[11px] tabular-nums",
               deltaTone === "up" && "bg-success/12 text-success",
               deltaTone === "down" && "bg-danger/12 text-danger",
               (!deltaTone || deltaTone === "flat") && "bg-muted text-muted-foreground",
@@ -72,17 +74,17 @@ export function StatCard({
           </span>
         )}
       </div>
-      <div className="flex items-end justify-between gap-2">
+      <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-bold tabular-nums tracking-tight">
-              {isNum && animate ? <NumberTicker value={value as number} className="text-2xl font-bold" /> : value}
+            <span className="text-[28px] leading-none font-semibold tracking-tight tabular-nums">
+              {isNum && animate ? <NumberTicker value={value as number} className="text-[28px] leading-none font-semibold" /> : value}
             </span>
             {unit && <span className="text-sm text-muted-foreground">{unit}</span>}
           </div>
-          {sub && <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">{sub}</div>}
+          {sub && <div className="mt-2 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">{sub}</div>}
         </div>
-        {spark && <div className="shrink-0"><MiniSparkline data={spark} /></div>}
+        {spark && <div className="shrink-0"><MiniSparkline data={spark} id={`spark-${label.replace(/\W+/g, "-")}`} /></div>}
       </div>
     </div>
   )

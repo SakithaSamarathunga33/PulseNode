@@ -5,6 +5,7 @@ import { nodeApi } from "@/lib/api"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { LiveBadge } from "@/components/pn/LiveBadge"
+import { ProgressBar } from "@/components/dashboard/ProgressBar"
 import { cn } from "@/lib/utils"
 import type { Database, DbMetricItem, DbMetrics } from "@/lib/types"
 
@@ -16,11 +17,27 @@ function MetricCard({ item }: { item: DbMetricItem }) {
     "text-foreground"
 
   return (
-    <div className="flex flex-col gap-1.5 rounded-lg border bg-muted/40 p-3.5">
-      <div className="truncate text-xs font-medium text-muted-foreground">{item.label}</div>
+    <div className="flex min-w-0 flex-col gap-1.5 rounded-lg border bg-card px-3.5 py-3">
+      <div className="truncate text-[13px] text-muted-foreground">{item.label}</div>
       <div className={cn("truncate text-xl font-semibold tabular-nums", valueColor)} title={String(item.value)}>
         {String(item.value)}
       </div>
+    </div>
+  )
+}
+
+/** Connections used vs the engine's default limit (from the backend, not the server's real max), as a neutral meter. */
+function ConnectionMeter({ db }: { db: Database }) {
+  const pct = db.maxConns > 0 ? (db.conns / db.maxConns) * 100 : 0
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between gap-3 text-[13px]">
+        <span className="text-muted-foreground">Connections used</span>
+        <span className="font-mono tabular-nums">
+          {db.conns}<span className="text-muted-foreground"> / {db.maxConns} default · {Math.round(pct)}%</span>
+        </span>
+      </div>
+      <ProgressBar value={pct} tone="info" label={`${db.name} connections used of the engine default limit`} />
     </div>
   )
 }
@@ -52,9 +69,10 @@ export function DatabaseMetricsPanel({ db }: { db: Database; onClose?: () => voi
       </div>
 
       <div className="space-y-3 p-3">
+        <ConnectionMeter db={db} />
         {loading && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[72px] rounded-lg" />)}
           </div>
         )}
         {error && (
@@ -63,8 +81,8 @@ export function DatabaseMetricsPanel({ db }: { db: Database; onClose?: () => voi
           </Alert>
         )}
         {metrics && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {metrics.metrics.map((m, i) => (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {(Array.isArray(metrics.metrics) ? metrics.metrics : []).map((m, i) => (
               <MetricCard key={i} item={m} />
             ))}
           </div>

@@ -16,7 +16,7 @@ import { Segmented } from "@/components/pn/Segmented"
 import { EmptyState } from "@/components/pn/EmptyState"
 import { LiveBadge } from "@/components/pn/LiveBadge"
 import { StatusDot } from "@/components/pn/StatusDot"
-import { TONE_BG, TONE_TEXT, toneFor } from "@/components/containers/utils"
+import { TONE_TEXT, toneFor } from "@/components/containers/utils"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
@@ -24,9 +24,11 @@ import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { detectSuspicious } from "@/components/processes/detect"
+import { CoreLoad } from "@/components/processes/CoreLoad"
 import { ProcessConfirm, ProcessIconActions, RiskPill, procName, type DialogState, type Risk } from "@/components/processes/parts"
 import { cn } from "@/lib/utils"
 import { Truncate } from "@/components/pn/Truncate"
+import { Panel } from "@/components/pn/Panel"
 
 type SortKey = "pid" | "user" | "cmd" | "state" | "cpu" | "mem" | "res"
 type Dir = "asc" | "desc"
@@ -284,7 +286,7 @@ export default function ProcessesPage() {
         actions={<LiveBadge stale={loadError}>{loadError ? "Updates failing" : "Auto · 5s"}</LiveBadge>}
       />
 
-      <PageBody className="motion-safe:animate-in motion-safe:fade-in-0 duration-300">
+      <PageBody>
         {loadError && (
           <Alert variant="destructive">
             <AlertCircle />
@@ -299,28 +301,7 @@ export default function ProcessesPage() {
           onConfirmSuspend={handleSuspend}
         />
 
-        {/* ── CPU cores ── */}
-        {cpuCores.length > 0 && (
-          <section
-            aria-label="CPU cores"
-            className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border shadow-card sm:grid-cols-4 min-[1200px]:grid-cols-8"
-          >
-            {cpuCores.map((pct, i) => (
-              <div key={i} className="space-y-2 bg-card px-3.5 py-3">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-xs font-medium text-muted-foreground">CPU {i + 1}</span>
-                  <span className={cn("text-[15px] font-semibold tabular-nums", cpuText(pct))}>{pct}%</span>
-                </div>
-                <div
-                  role="meter" aria-label={`CPU ${i + 1}`} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}
-                  className="h-1 overflow-hidden rounded-full bg-muted"
-                >
-                  <div className={cn("h-full transition-[width] duration-500", TONE_BG[toneFor(pct)])} style={{ width: `${Math.min(100, pct)}%` }} />
-                </div>
-              </div>
-            ))}
-          </section>
-        )}
+        {cpuCores.length > 0 && <CoreLoad cores={cpuCores} />}
 
         {/* ── Suspicious activity ── */}
         <section id="suspicious" aria-labelledby="sus-title" className="scroll-mt-4 space-y-3">
@@ -339,7 +320,7 @@ export default function ProcessesPage() {
             />
           ) : (
             <div className="overflow-hidden rounded-xl border border-danger/30 bg-card shadow-card">
-              <div role="alert" className="flex items-start gap-3 border-b border-danger/20 bg-danger/10 px-[18px] py-3.5">
+              <div role="alert" className="flex items-start gap-3 border-b border-danger/20 bg-danger/10 px-4 py-3.5">
                 <ShieldAlert className="mt-0.5 size-[18px] shrink-0 text-danger" />
                 <div className="min-w-0 flex-1 space-y-1">
                   <p className="text-sm font-semibold">{suspicious.length} process{suspicious.length !== 1 ? "es" : ""} matched detection rules</p>
@@ -355,7 +336,7 @@ export default function ProcessesPage() {
                 {suspicious.map(({ proc, result }) => {
                   const open = inspecting.has(proc.pid)
                   return (
-                    <li key={proc.pid} className="space-y-2.5 px-[18px] py-3.5">
+                    <li key={proc.pid} className="space-y-2.5 px-4 py-3.5">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                         <RiskPill risk={result.risk} />
                         <span className="font-mono text-xs text-muted-foreground">PID <b className="font-semibold text-foreground">{proc.pid}</b></span>
@@ -407,7 +388,7 @@ export default function ProcessesPage() {
           )}
 
           {released.size > 0 && (
-            <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card px-4 py-3 shadow-card">
+            <Panel className="flex flex-wrap items-center gap-2 rounded-xl px-4 py-3">
               <ShieldCheck className="size-4 text-success" />
               <span className="text-sm font-medium">Released (false positives)</span>
               <span className="rounded-full bg-muted px-1.5 font-mono text-[11px] tabular-nums text-muted-foreground">{released.size}</span>
@@ -429,7 +410,7 @@ export default function ProcessesPage() {
                 })}
               </div>
               <Button variant="ghost" size="xs" className="ml-auto" onClick={() => setReleased(new Set())}>Clear all</Button>
-            </div>
+            </Panel>
           )}
         </section>
 
@@ -479,12 +460,7 @@ export default function ProcessesPage() {
         {/* ── All processes ── */}
         <section aria-labelledby="pt-title" className="min-w-0 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <h2 id="pt-title" className="text-lg font-semibold">All processes</h2>
-              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="h-3.5 w-[3px] rounded-sm bg-primary" aria-hidden />PM2-managed
-              </span>
-            </div>
+            <h2 id="pt-title" className="text-lg font-semibold">All processes</h2>
             <div className="flex flex-wrap items-center gap-2">
               <Segmented<SortKey>
                 aria-label="Sort processes"
@@ -522,7 +498,6 @@ export default function ProcessesPage() {
                     className={cn(
                       "space-y-2.5 rounded-xl border bg-card p-3.5 shadow-card",
                       flagged.has(proc.pid) && "bg-danger/5",
-                      proc.type === "pm2" && "shadow-[inset_3px_0_0_var(--primary)]",
                     )}
                   >
                     <div className="flex items-center gap-2">
@@ -559,7 +534,7 @@ export default function ProcessesPage() {
                     <TableBody>
                       {sorted.map(proc => (
                         <TableRow key={proc.pid} className={cn("h-[46px]", flagged.has(proc.pid) && "bg-danger/5")}>
-                          <TableCell className={cn("font-mono text-xs tabular-nums text-muted-foreground", proc.type === "pm2" && "shadow-[inset_3px_0_0_var(--primary)]")}>{proc.pid}</TableCell>
+                          <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">{proc.pid}</TableCell>
                           <TableCell className="font-mono text-xs text-muted-foreground">{proc.user}</TableCell>
                           <TableCell className="max-w-[460px]"><CommandCell proc={proc} flagged={flagged.has(proc.pid)} /></TableCell>
                           <TableCell><StateLabel state={proc.state} /></TableCell>

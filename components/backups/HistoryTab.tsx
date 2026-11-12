@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { API_BASE } from "@/lib/api"
 import { selectCls } from "./DestinationDialog"
+import { RecentRuns } from "./RecentRuns"
 import { runLabel, runTone } from "./SchedulesTab"
 import { absTime, fmtSize, isPanel, relTime, targetText, toMs, type HistoryEntry, type Schedule } from "./shared"
 import { Truncate } from "@/components/pn/Truncate"
@@ -102,6 +103,7 @@ export function HistoryTab({ history, schedules, filter, onFilter, onDelete, onR
   return (
     <div className="space-y-3">
       {filterBar}
+      {history.length >= 2 && <RecentRuns history={history} />}
       <Card className="hidden gap-0 overflow-hidden py-0 md:block">
         <div className="overflow-x-auto">
           <Table className="min-w-[900px]">

@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { API_BASE, nodeApi } from "@/lib/api"
 import { Label } from "@/components/ui/label"
 import { Truncate } from "@/components/pn/Truncate"
+import { Panel } from "@/components/pn/Panel"
 
 const GO_API = API_BASE
 
@@ -32,7 +33,7 @@ type UpdatePhase = "idle" | "preflight" | "snapshot" | "pulling" | "building" | 
 
 interface UpdateStatus {
   running: boolean
-  log: string[]
+  log: string[] // Go sends null when empty — always read with ?.
   error: string | null
   startedAt: string | null
   // Persisted by the backend, so they survive the container restart:
@@ -178,7 +179,7 @@ export default function SettingsPage() {
   // Auto-scroll log to bottom whenever new lines arrive
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [status?.log.length])
+  }, [status?.log?.length])
 
   // Capture the backend's boot id on mount so we have a baseline to compare against
   // once an update restarts the container.
@@ -316,7 +317,7 @@ export default function SettingsPage() {
   return (
     <>
       <PageHeader icon={Settings} title="Settings" description="Version, updates and dashboard access." />
-      <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
+      <PageBody>
         {loadError && !updating && (
           <Alert variant="destructive">
             <AlertTriangle />
@@ -356,11 +357,11 @@ export default function SettingsPage() {
                 <>
                   <div className="grid grid-cols-2 gap-px bg-border">
                     <div className="bg-card px-[18px] py-3.5">
-                      <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Installed</p>
+                      <p className="text-[13px] text-muted-foreground">Installed</p>
                       <Truncate mono text={version ? `v${version.current}` : ""} className="mt-1 text-xl font-semibold tabular-nums" />
                     </div>
                     <div className="bg-card px-[18px] py-3.5">
-                      <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Latest</p>
+                      <p className="text-[13px] text-muted-foreground">Latest</p>
                       {version?.latest ? (
                         <Truncate mono text={`v${version.latest}`} className={`mt-1 text-xl font-semibold tabular-nums ${version.hasUpdate ? "text-warning" : "text-success"}`} />
                       ) : (
@@ -420,7 +421,7 @@ export default function SettingsPage() {
                   >
                     <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${pct}%` }} />
                   </div>
-                  {status && status.log.length > 0 && (
+                  {status && (status.log?.length ?? 0) > 0 && (
                     <LogWell lines={status.log} label="Update log" className="h-[220px]" endRef={logEndRef} />
                   )}
                   {status?.error && (
@@ -459,7 +460,7 @@ export default function SettingsPage() {
             )}
 
             {!updating && status && (status.phase === "done" || status.phase === "rolled_back" || status.phase === "failed") && (
-              <section aria-labelledby="st-last" className="overflow-hidden rounded-xl border bg-card shadow-card">
+              <Panel role="region" aria-labelledby="st-last" className="overflow-hidden rounded-xl">
                 <div className="flex items-center justify-between gap-2.5 border-b px-[18px] py-3.5">
                   <h2 id="st-last" className="flex items-center gap-2 text-[15px] font-semibold">
                     <Undo2 className="size-4 text-[var(--hue)]" aria-hidden /> Last update
@@ -517,11 +518,11 @@ export default function SettingsPage() {
                     </details>
                   )}
                 </div>
-              </section>
+              </Panel>
             )}
 
             {!updating && status?.snapshots && status.snapshots.length > 0 && (
-              <section aria-labelledby="st-snap" className="overflow-hidden rounded-xl border bg-card shadow-card">
+              <Panel role="region" aria-labelledby="st-snap" className="overflow-hidden rounded-xl">
                 <div className="space-y-0.5 border-b px-[18px] py-3.5">
                   <h2 id="st-snap" className="flex items-center gap-2 text-[15px] font-semibold">
                     <DatabaseBackup className="size-4 text-[var(--hue)]" aria-hidden /> Database snapshots
@@ -541,12 +542,12 @@ export default function SettingsPage() {
                     </li>
                   ))}
                 </ul>
-              </section>
+              </Panel>
             )}
 
             {!updating && (
-              <section aria-labelledby="st-how" className="space-y-3 rounded-xl border bg-card px-[18px] py-3.5">
-                <h2 id="st-how" className="text-[13px] font-semibold text-muted-foreground">How updates work</h2>
+              <Panel role="region" aria-labelledby="st-how" className="space-y-3 rounded-xl px-[18px] py-3.5">
+                <h2 id="st-how" className="text-sm font-semibold">How updates work</h2>
                 <ol className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2.5">
                   {[
                     ["01", "Check and snapshot", "Confirms the release's images are published and saves a database snapshot."],
@@ -556,7 +557,7 @@ export default function SettingsPage() {
                     ["05", "Reconnect", "The dashboard reloads when the new version is up."],
                   ].map(([n, t, d]) => (
                     <li key={n} className="flex flex-col gap-1 rounded-lg border bg-muted/40 p-2.5">
-                      <span className="font-mono text-[11px] font-semibold text-primary">{n}</span>
+                      <span className="font-mono text-xs text-muted-foreground tabular-nums">{n}</span>
                       <span className="text-[13px] font-medium">{t}</span>
                       <span className="text-xs leading-snug text-muted-foreground">{d}</span>
                     </li>
@@ -565,12 +566,12 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground">
                   Only available when installed via <code className="font-mono">install.sh</code> (git clone required).
                 </p>
-              </section>
+              </Panel>
             )}
           </div>
 
           {/* Right column: Security */}
-          <section aria-labelledby="st-sec" className="min-w-0 overflow-hidden rounded-xl border bg-card shadow-card">
+          <Panel role="region" aria-labelledby="st-sec" className="min-w-0 overflow-hidden rounded-xl">
             <div className="flex items-center justify-between gap-2.5 border-b px-[18px] py-3.5">
               <h2 id="st-sec" className="flex items-center gap-2 text-[15px] font-semibold">
                 <Shield className="size-4 text-[var(--hue)]" aria-hidden /> Security
@@ -624,7 +625,7 @@ export default function SettingsPage() {
                 </form>
               )}
             </div>
-          </section>
+          </Panel>
         </div>
       </PageBody>
 

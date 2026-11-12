@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { LiveBadge } from "@/components/pn/LiveBadge"
 
@@ -5,8 +6,10 @@ export type LegendItem = { label: string; color: string }
 
 /** Titled chart panel: title, then current value + unit with the legend inline, plot below. */
 export function ChartCard({
-  title, value, unit, live, legend, children,
+  icon: Icon, title, value, unit, live, legend, children,
 }: {
+  /** Small title icon in the area hue. */
+  icon?: LucideIcon
   title: string
   value: React.ReactNode
   unit?: string
@@ -16,13 +19,14 @@ export function ChartCard({
 }) {
   return (
     <Card className="gap-3 py-4">
-      <div className="space-y-1.5 px-[18px]">
+      <div className="space-y-2.5 px-4">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
+          {Icon && <Icon className="size-4 text-[var(--hue)]" strokeWidth={1.75} />}
           {title}
           {live && <LiveBadge>Live</LiveBadge>}
         </h2>
         <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
-          <span className="text-[22px] font-semibold tracking-tight tabular-nums">{value}</span>
+          <span className="text-[28px] leading-none font-semibold tracking-tight tabular-nums">{value}</span>
           {unit && <span className="text-[13px] text-muted-foreground">{unit}</span>}
           {legend && legend.length > 1 && legend.map(l => (
             <span key={l.label} className="ml-2.5 inline-flex items-center gap-1.5 text-xs text-muted-foreground">

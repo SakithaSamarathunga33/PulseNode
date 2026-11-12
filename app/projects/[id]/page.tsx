@@ -5,9 +5,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import {
-  Play, Trash2, GitBranch, ChevronLeft, Terminal, History, ExternalLink,
-  Save, Zap, RotateCcw, Webhook, Server, Square, RotateCw, Box, Loader2, AlertCircle, RefreshCw, FolderGit2,
-  Clock, ScrollText, Copy, Lock, MoreHorizontal, CircleCheck, CircleX, User, TriangleAlert,
+  Play, Trash2, GitBranch, Terminal, History, ExternalLink, Save, Zap, RotateCcw, Webhook, Loader2,
+  AlertCircle, RefreshCw, FolderGit2, Copy, Lock, MoreHorizontal, TriangleAlert,
 } from "lucide-react"
 import { toast } from "sonner"
 import { getSocket } from "@/lib/socket"
@@ -19,7 +18,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -31,228 +29,20 @@ import { FormField, ChoiceGroup, BUILD_METHODS } from "@/components/projects/for
 import { EnvEditor, envProblem, envRowsFromJson, envRowsToObject, type EnvRow } from "@/components/projects/EnvEditor"
 import { DeleteProjectDialog } from "@/components/projects/DeleteProjectDialog"
 import { LogPane, type LogEntry } from "@/components/projects/LogPane"
+import { ExternalProjectView } from "@/components/projects/ExternalProjectView"
+import { DeploymentHistory } from "@/components/projects/DeploymentHistory"
+import {
+  BackLink, DomainLink, Panel, StatusPill, copyText, age, isBusyStatus, type Deployment, type Project,
+} from "@/components/projects/project-ui"
 import { WildcardBadge, WildcardHint } from "@/components/domain/wildcard"
 import { cn } from "@/lib/utils"
 import { Truncate } from "@/components/pn/Truncate"
+import { LoadingButton } from "@/components/interior/loading-button"
 
 const GO_API = API_BASE
 
-type Project = {
-  ID: string; Name: string; RepoURL: string; Branch: string
-  Domain: string; Status: string; BuildMethod: string; Port: number
-  BuildCommand: string; EnvVars: string; BackendEnvVars: string; BaseDir: string; CreatedAt: string
-  AutoDeploy: boolean; LastCommitSHA: string
-  // Set for apps already hosted on the VPS (behind a domain) that weren't
-  // deployed through PulseNode — see ExternalProjectView below.
-  External?: boolean; Image?: string; Ports?: string; ContainerID?: string
-}
-type Deployment = {
-  ID: string; Status: string; Trigger: string
-  CommitSHA: string; CommitMsg: string; ImageTag: string
-  StartedAt: string | null; FinishedAt: string | null; CreatedAt: string
-}
 type WebhookStatus = { installed: boolean; supported: boolean; url: string; error?: string }
 
-const STATUS_TONE: Record<string, "ok" | "warn" | "bad" | "info" | "outline"> = {
-  running: "ok", success: "ok", building: "info", queued: "info",
-  failed: "bad", idle: "outline", exited: "outline",
-}
-
-const isBusyStatus = (s: string) => s === "building" || s === "queued"
-
-function StatusPill({ status }: { status: string }) {
-  return (
-    <Pill tone={STATUS_TONE[status] ?? "outline"} dot className="capitalize">
-      {status || "unknown"}
-    </Pill>
-  )
-}
-
-function DomainLink({ domain }: { domain: string }) {
-  if (!domain) return null
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <a
-            href={`https://${domain}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex min-w-0 max-w-[16rem] items-center gap-1 rounded-sm font-mono text-[var(--hue-fg)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
-          />
-        }
-      >
-        <span className="truncate">{domain}</span>
-        <ExternalLink className="size-3 shrink-0" aria-hidden />
-        <span className="sr-only">(opens in a new tab)</span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-sm break-all font-mono">{domain}</TooltipContent>
-    </Tooltip>
-  )
-}
-
-function BackLink() {
-  return (
-    <Link href="/projects" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-      <ChevronLeft className="size-3.5" aria-hidden /> Projects
-    </Link>
-  )
-}
-
-async function copyText(text: string, what: string) {
-  try {
-    await navigator.clipboard.writeText(text)
-    toast.success(`${what} copied`)
-  } catch { toast.error("Could not copy — clipboard unavailable") }
-}
-
-function age(ts: string) {
-  const d = Date.now() - new Date(ts).getTime()
-  if (d < 60_000) return "just now"
-  if (d < 3_600_000) return `${Math.floor(d / 60_000)} min ago`
-  if (d < 86_400_000) return `${Math.floor(d / 3_600_000)} h ago`
-  const days = Math.floor(d / 86_400_000)
-  return days === 1 ? "yesterday" : `${days} days ago`
-}
-
-function duration(dep: Deployment): string {
-  if (!dep.StartedAt) return ""
-  const end = dep.FinishedAt ? new Date(dep.FinishedAt).getTime() : Date.now()
-  const s = Math.max(0, Math.round((end - new Date(dep.StartedAt).getTime()) / 1000))
-  return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`
-}
-
-function Panel({ title, description, aside, children, className }: {
-  title: string; description?: string; aside?: React.ReactNode; children: React.ReactNode; className?: string
-}) {
-  return (
-    <section aria-label={title} className={cn("overflow-hidden rounded-xl border bg-card shadow-card", className)}>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4.5 py-3.5">
-        <div className="space-y-0.5">
-          <h2 className="text-sm font-semibold">{title}</h2>
-          {description && <p className="text-xs text-muted-foreground">{description}</p>}
-        </div>
-        {aside}
-      </div>
-      {children}
-    </section>
-  )
-}
-
-// Read-only(ish) detail view for an app already hosted on the VPS behind a
-// domain but not deployed through PulseNode (discovered from a running
-// container, not the projects table — see backend discoverExternalProjects).
-// No settings/redeploy/rollback, since there's no repo or build config for
-// it here; container start/stop/restart and logs reuse the generic docker
-// endpoints the Containers page uses.
-function ExternalProjectView({ project }: { project: Project }) {
-  const containerID = project.ContainerID ?? ""
-  const [status, setStatus] = useState(project.Status)
-  const [logs, setLogs] = useState<LogEntry[]>([])
-  const [acting, setActing] = useState<string | null>(null)
-  const fetching = useRef(false)
-
-  const fetchLogs = useCallback(async () => {
-    if (fetching.current) return
-    fetching.current = true
-    try {
-      const { data } = await nodeApi.get<{ logs?: string }>(`/api/docker/logs/${containerID}?tail=300`)
-      setLogs((data.logs ?? "").split("\n").filter(Boolean).map(line => ({ stream: "stdout", line, ts: "" })))
-    } catch { /* keep the last lines */ }
-    finally { fetching.current = false }
-  }, [containerID])
-
-  // Same cadence the design shows: the last 300 lines, refreshed every 2.5s while running.
-  useEffect(() => {
-    let stopped = false
-    let timer: ReturnType<typeof setTimeout>
-    const tick = async () => {
-      if (!document.hidden) await fetchLogs()
-      if (!stopped) timer = setTimeout(tick, 2500)
-    }
-    tick()
-    return () => { stopped = true; clearTimeout(timer) }
-  }, [fetchLogs])
-
-  const runAction = async (action: "start" | "stop" | "restart") => {
-    setActing(action)
-    try {
-      const r = await fetch(`${GO_API}/api/docker/${action}/${containerID}`, { method: "POST" })
-      if (r.status === 401) { window.location.href = "/login"; return }
-      if (r.ok) {
-        setStatus(action === "stop" ? "exited" : "running")
-        toast.success(`${project.Name} ${action === "stop" ? "stopped" : action === "start" ? "started" : "restarted"}`)
-        await fetchLogs()
-      } else {
-        toast.error(`Could not ${action} ${project.Name}`)
-      }
-    } finally { setActing(null) }
-  }
-
-  const info = [
-    { label: "Image", value: project.Image },
-    { label: "Ports", value: project.Ports },
-    { label: "Container", value: containerID },
-    { label: "Created", value: project.CreatedAt },
-  ]
-
-  return (
-    <>
-      <PageHeader
-        icon={Server}
-        title={
-          <span className="flex flex-wrap items-center gap-2">
-            {project.Name}<StatusPill status={status} />
-            <span className="rounded border px-1.5 py-0.5 text-[11px] font-semibold tracking-wider text-muted-foreground">EXTERNAL · READ-ONLY</span>
-          </span>
-        }
-        description={<span className="flex flex-wrap items-center gap-x-3 gap-y-1"><BackLink /><DomainLink domain={project.Domain} /></span>}
-        actions={
-          <>
-            <Button variant="outline" onClick={() => runAction("restart")} disabled={acting !== null}>
-              <RotateCw className={cn("size-4", acting === "restart" && "animate-spin")} />
-              Restart
-            </Button>
-            {status === "running" ? (
-              <Button variant="outline" className="text-danger hover:text-danger" onClick={() => runAction("stop")} disabled={acting !== null}>
-                <Square className="size-4" />
-                Stop
-              </Button>
-            ) : (
-              <Button onClick={() => runAction("start")} disabled={acting !== null}>
-                <Play className="size-4" />
-                Start
-              </Button>
-            )}
-          </>
-        }
-      />
-      <PageBody className="max-w-[1200px]">
-        <p className="text-xs text-muted-foreground">
-          Hosted on this VPS behind a domain, but not deployed through PulseNode — read-only details, pulled live from Docker.
-        </p>
-        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border shadow-card lg:grid-cols-4">
-          {info.map(row => (
-            <div key={row.label} className="min-w-0 bg-card px-4.5 py-3">
-              <dt className="text-[11px] text-muted-foreground">{row.label}</dt>
-              <dd className="mt-0.5 flex items-center gap-1 text-xs">
-                {row.label === "Container" && <Box className="size-3 shrink-0 text-muted-foreground" aria-hidden />}
-                <Truncate mono text={row.value ?? ""} />
-              </dd>
-            </div>
-          ))}
-        </dl>
-        <LogPane
-          title={`${project.Name} · docker logs --tail 300`}
-          lines={logs}
-          state={status === "running" ? "live" : "stopped"}
-          transport="Last 300 lines · refreshed every 2.5s"
-          emptyText="No logs."
-        />
-      </PageBody>
-    </>
-  )
-}
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -432,21 +222,23 @@ export default function ProjectDetailPage() {
     return false
   }
 
-  const triggerDeploy = async () => {
+  /** Returns whether the deploy was queued (failures are already toasted). */
+  const triggerDeploy = async (): Promise<boolean> => {
     setDeploying(true)
     try {
       const r = await fetch(`${GO_API}/api/projects/${id}/deploy`, { method: "POST" })
-      if (handledAuthFailure(r)) return
+      if (handledAuthFailure(r)) return false
       const d = await r.json().catch(() => ({}))
       if (r.ok) {
         await fetchDeployments()
         setActiveDep(d.deploymentId)
         setTab("logs")
         fetchProject()
-      } else {
-        // 409 = already building; 503 = queue full or shutting down — the server message says which.
-        toast.error(d.error ?? "Redeploy failed")
+        return true
       }
+      // 409 = already building; 503 = queue full or shutting down — the server message says which.
+      toast.error(d.error ?? "Redeploy failed")
+      return false
     } finally { setDeploying(false) }
   }
 
@@ -593,7 +385,6 @@ export default function ProjectDetailPage() {
   const setF = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm(f => ({ ...f, [k]: v }))
   const busy = saving || deploying
   const repoName = project.RepoURL.replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "")
-  const currentDep = deployments.find(d => d.Status === "success")
   const activeRow = deployments.find(d => d.ID === activeDep)
   const logState = !activeRow ? "completed" : isBusyStatus(activeRow.Status) ? "live" : activeRow.Status === "failed" ? "failed" : "completed"
 
@@ -634,14 +425,24 @@ export default function ProjectDetailPage() {
           }
           actions={
             <>
-              <Button
-                onClick={triggerDeploy}
-                disabled={deploying || isBusyStatus(project.Status)}
-                title={`Redeploy the latest commit on ${project.Branch || "the deploy branch"}`}
-              >
-                {deploying || isBusyStatus(project.Status) ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
-                {deploying ? "Deploying…" : isBusyStatus(project.Status) ? "Building…" : "Redeploy"}
-              </Button>
+              {isBusyStatus(project.Status) ? (
+                <Button disabled title="A build is already running">
+                  <Loader2 className="size-4 animate-spin" /> Building…
+                </Button>
+              ) : (
+                // interior.dev LoadingButton: Redeploy → Deploying… → Queued / Failed, in place.
+                <span title={`Redeploy the latest commit on ${project.Branch || "the deploy branch"}`}>
+                  <LoadingButton
+                    onAction={async () => { if (!(await triggerDeploy())) throw new Error("Redeploy failed") }}
+                    pendingLabel="Deploying…"
+                    successLabel="Queued"
+                    errorLabel="Failed"
+                    disabled={deploying}
+                  >
+                    Redeploy
+                  </LoadingButton>
+                </span>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger render={<Button variant="outline" size="icon" aria-label="More actions" />}>
                   <MoreHorizontal className="size-4" />
@@ -697,7 +498,7 @@ export default function ProjectDetailPage() {
           <TabsList className="ml-auto shrink-0" aria-label="Logs and history">
             <TabsTrigger value="logs">
               <Terminal className="size-4" />Logs
-              {busyNow && <span className="size-1.5 rounded-full bg-success motion-safe:animate-pulse" aria-label="live" />}
+              {busyNow && <><span className="size-1.5 rounded-full bg-success motion-safe:animate-pulse" aria-hidden /><span className="sr-only">(live)</span></>}
             </TabsTrigger>
             <TabsTrigger value="history"><History className="size-4" />History</TabsTrigger>
           </TabsList>
@@ -714,71 +515,12 @@ export default function ProjectDetailPage() {
 
         {/* History tab */}
         <TabsContent value="history" className="min-h-0 flex-1 overflow-auto">
-          <div className="space-y-2.5">
-            {deployments.length === 0 ? (
-              <EmptyState icon={History} title="No deployments yet" description="Deployments appear here after the first deploy." />
-            ) : deployments.map(dep => {
-              const ok = dep.Status === "success"
-              const failed = dep.Status === "failed"
-              const live = isBusyStatus(dep.Status)
-              const isCurrent = currentDep?.ID === dep.ID
-              const sha = dep.CommitSHA ? dep.CommitSHA.slice(0, 7) : ""
-              const canRollback = ok && !isCurrent && Boolean(dep.ImageTag)
-              const dur = duration(dep)
-              return (
-                <article
-                  key={dep.ID}
-                  className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3.5 gap-y-3 rounded-xl border bg-card px-4 py-3.5 shadow-card sm:grid-cols-[auto_minmax(0,1fr)_auto]"
-                >
-                  <span className={cn(
-                    "grid size-8 place-items-center rounded-lg",
-                    ok ? "bg-success/12 text-success" : failed ? "bg-danger/12 text-danger" : "bg-info/12 text-info",
-                  )}>
-                    {ok ? <CircleCheck className="size-4" aria-hidden /> : failed ? <CircleX className="size-4" aria-hidden /> : <Loader2 className="size-4 animate-spin" aria-hidden />}
-                  </span>
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={cn("text-[13px] font-semibold", ok ? "text-success" : failed ? "text-danger" : "text-info")}>
-                        {ok ? "Succeeded" : failed ? "Failed" : dep.Status === "queued" ? "Queued" : "Building"}
-                      </span>
-                      <span className={cn(
-                        "inline-flex items-center gap-1 rounded px-1.5 py-px text-[11px] font-semibold capitalize",
-                        dep.Trigger === "auto" ? "bg-primary/12 text-primary" : dep.Trigger === "rollback" ? "bg-warning/14 text-warning" : "bg-muted text-muted-foreground",
-                      )}>
-                        {dep.Trigger === "auto" ? <Zap className="size-3" aria-hidden /> : dep.Trigger === "rollback" ? <RotateCcw className="size-3" aria-hidden /> : <User className="size-3" aria-hidden />}
-                        {dep.Trigger || "manual"}
-                      </span>
-                      {isCurrent && <span className="rounded bg-primary/12 px-1.5 py-px text-[11px] font-semibold text-primary">Current</span>}
-                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
-                        <Clock className="size-3" aria-hidden />{age(dep.CreatedAt)}{dur && ` · ${dur}`}
-                      </span>
-                    </div>
-                    <div className="flex min-w-0 gap-2 text-[13px]">
-                      {sha && <span className="shrink-0 font-mono text-xs text-primary">{sha}</span>}
-                      <Truncate text={dep.CommitMsg || (live ? "Deployment in progress" : "")} className="text-muted-foreground" />
-                    </div>
-                  </div>
-                  <div className="col-span-2 flex flex-wrap items-center gap-2 sm:col-span-1 sm:justify-end">
-                    <Button variant="ghost" size="sm" onClick={() => { setActiveDep(dep.ID); setTab("logs") }}>
-                      <ScrollText className="size-3.5" />View logs
-                    </Button>
-                    {canRollback && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={rolling !== null}
-                        title="Redeploy this build's image (zero-downtime)"
-                        onClick={() => setRollbackTarget(dep)}
-                      >
-                        <RotateCcw className={cn("size-3.5", rolling === dep.ID && "animate-spin")} />
-                        {rolling === dep.ID ? "Rolling…" : `Rollback to ${sha || dep.ID.slice(0, 7)}`}
-                      </Button>
-                    )}
-                  </div>
-                </article>
-              )
-            })}
-          </div>
+          <DeploymentHistory
+            deployments={deployments}
+            rolling={rolling}
+            onViewLogs={depID => { setActiveDep(depID); setTab("logs") }}
+            onRollback={setRollbackTarget}
+          />
         </TabsContent>
         </section>
 
@@ -805,7 +547,7 @@ export default function ProjectDetailPage() {
                 {identity.map(row => (
                   <div key={row.label} className="flex min-w-0 items-center gap-2.5 bg-card px-4.5 py-3">
                     <div className="min-w-0 flex-1">
-                      <dt className="text-[11px] text-muted-foreground">{row.label}</dt>
+                      <dt className="text-xs text-muted-foreground">{row.label}</dt>
                       <dd className="mt-0.5 text-xs"><Truncate mono text={row.value === "—" ? "" : row.value} /></dd>
                     </div>
                     {row.value !== "—" && (
@@ -848,7 +590,7 @@ export default function ProjectDetailPage() {
               aside={
                 <div className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
                   <Label htmlFor="auto-deploy" className="flex items-center gap-1.5 font-normal">
-                    <Zap className="size-3.5 text-[var(--hue)]" aria-hidden />Auto deploy on push
+                    <Zap className="size-3.5" aria-hidden />Auto deploy on push
                   </Label>
                   <Switch id="auto-deploy" checked={form.autoDeploy} onCheckedChange={v => setF("autoDeploy", v)} />
                 </div>
@@ -942,7 +684,7 @@ export default function ProjectDetailPage() {
             </div>
 
             {/* Danger zone */}
-            <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-danger/30 bg-card px-4.5 py-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-danger/30 bg-card px-4.5 py-3.5 shadow-card">
               <div className="space-y-0.5">
                 <p className="text-[13px] font-semibold text-danger">Delete project</p>
                 <p className="text-xs text-muted-foreground">Stops containers, removes images and routes. The repository is untouched.</p>

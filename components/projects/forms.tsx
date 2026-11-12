@@ -46,7 +46,7 @@ export function ChoiceGroup<T extends string>({
             onClick={() => onChange(opt.value)}
             className={cn(
               "rounded-lg border bg-background p-3 text-left outline-none transition-colors hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50",
-              on && "border-[var(--hue)] bg-[color-mix(in_srgb,var(--hue)_10%,transparent)] hover:bg-[color-mix(in_srgb,var(--hue)_14%,transparent)]",
+              on && "border-primary bg-primary/8 hover:bg-primary/12",
             )}
           >
             <span className="flex items-center justify-between gap-2 text-sm font-medium">
@@ -55,10 +55,10 @@ export function ChoiceGroup<T extends string>({
                 aria-hidden
                 className={cn(
                   "grid size-4 shrink-0 place-items-center rounded-full border",
-                  on ? "border-[var(--hue)] bg-[var(--hue)]" : "border-input",
+                  on ? "border-primary bg-primary" : "border-input",
                 )}
               >
-                {on && <span className="size-1.5 rounded-full bg-[var(--hue-fg-on,var(--background))]" />}
+                {on && <span className="size-1.5 rounded-full bg-primary-foreground" />}
               </span>
             </span>
             {opt.desc && <span className="mt-0.5 block text-xs text-muted-foreground">{opt.desc}</span>}

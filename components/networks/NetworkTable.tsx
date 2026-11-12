@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react"
+import { ChevronDown, ChevronUp, ChevronsUpDown, ShieldOff } from "lucide-react"
 import type { DockerNetwork } from "@/lib/types"
 import { Pill } from "@/components/dashboard/Pill"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -17,21 +17,17 @@ export const sortValue: Record<SortKey, (n: DockerNetwork) => string | number> =
   name: n => n.name, driver: n => n.driver, containers: n => n.containers,
 }
 
-function driverTone(d: string): "acc" | "warn" | "outline" {
-  if (d === "bridge") return "acc"
-  if (d === "host") return "warn"
-  return "outline"
-}
-
 const Tag = ({ children }: { children: React.ReactNode }) => (
-  <span className="rounded bg-muted px-1.5 py-px text-[11px] text-muted-foreground">{children}</span>
+  <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-px text-[11px] text-muted-foreground">{children}</span>
 )
+
+const Driver = ({ d }: { d: string }) => <Pill className="font-mono">{d}</Pill>
 
 function Flags({ net }: { net: DockerNetwork }) {
   return (
     <>
       {isSystem(net) && <Tag>system</Tag>}
-      {net.internal && <span className="rounded bg-info/12 px-1.5 py-px text-[11px] text-info">internal</span>}
+      {net.internal && <Tag><ShieldOff className="size-3" />internal</Tag>}
       {net.attachable && <Tag>attachable</Tag>}
     </>
   )
@@ -74,7 +70,7 @@ export function NetworkTable({ rows, sort, onSort }: { rows: DockerNetwork[]; so
                 <Flags net={net} />
               </span>
             </TableCell>
-            <TableCell><Pill tone={driverTone(net.driver)}>{net.driver}</Pill></TableCell>
+            <TableCell><Driver d={net.driver} /></TableCell>
             <TableCell className="text-muted-foreground">{net.scope}</TableCell>
             <TableCell className="max-w-[12rem] text-xs text-muted-foreground"><Truncate mono text={net.subnet} /></TableCell>
             <TableCell className="max-w-[12rem] text-xs text-muted-foreground"><Truncate mono text={net.gateway} /></TableCell>
@@ -93,7 +89,7 @@ export function NetworkCards({ rows }: { rows: DockerNetwork[] }) {
         <li key={net.name} className="space-y-2.5 rounded-xl border bg-card p-3.5 shadow-card">
           <div className="flex items-center gap-2">
             <Truncate mono text={net.name} className="flex-1 text-xs font-medium" />
-            <Pill tone={driverTone(net.driver)}>{net.driver}</Pill>
+            <Driver d={net.driver} />
           </div>
           <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
             <div><dt className="text-muted-foreground">Scope</dt><dd>{net.scope}</dd></div>

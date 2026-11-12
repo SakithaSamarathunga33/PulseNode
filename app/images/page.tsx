@@ -13,6 +13,7 @@ import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
 import {
   ImageCards, ImageTable, fmtMb, parseMb, shortDigest, sortValue, type Sort, type SortKey,
 } from "@/components/images/ImageParts"
+import { ImageCharts } from "@/components/images/ImageCharts"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -156,7 +157,7 @@ export default function ImagesPage() {
           </>
         }
       />
-      <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
+      <PageBody>
         {loadError && (
           <Alert variant="destructive">
             <AlertCircle />
@@ -180,6 +181,8 @@ export default function ImagesPage() {
             ]}
           />
         )}
+
+        {!loaded ? <Skeleton className="h-[220px] rounded-xl" /> : images.length > 0 && <ImageCharts images={images} />}
 
         <section aria-label="Image list" className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">

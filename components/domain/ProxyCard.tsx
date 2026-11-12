@@ -144,11 +144,11 @@ export function ProxyCard() {
     <section aria-labelledby="dm-proxy">
       <Card>
         <CardHeader>
-          <CardTitle id="dm-proxy" className="flex flex-wrap items-center gap-2 text-[15px]">
-            <Network className="size-4 text-muted-foreground" aria-hidden />Built-in proxy
+          <CardTitle id="dm-proxy" className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+            <Network className="size-4 text-[var(--hue)]" strokeWidth={1.75} aria-hidden />Built-in proxy
             {d && <Pill tone={d.tone} dot>{d.label}</Pill>}
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-[13px]">
             PulseNode runs its own Traefik to route and secure your apps when none is installed. Needs ports 80 and 443 free on this server.
           </CardDescription>
         </CardHeader>
@@ -171,11 +171,11 @@ export function ProxyCard() {
               )}
               {status && (
                 <>
-                  <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
-                    <div><dt className="text-xs text-muted-foreground">Ports</dt><dd className="font-mono tabular-nums">{status.httpPort} / {status.httpsPort}</dd></div>
-                    <div className="min-w-0"><dt className="text-xs text-muted-foreground">Container</dt><dd><Truncate mono text={status.container} /></dd></div>
-                    <div className="min-w-0"><dt className="text-xs text-muted-foreground">Network</dt><dd><Truncate mono text={status.network} /></dd></div>
-                    <div><dt className="text-xs text-muted-foreground">Auto-start</dt><dd>{status.mode === "managed" ? (status.enabled ? "On" : "Off") : "—"}</dd></div>
+                  <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border text-sm sm:grid-cols-4">
+                    <div className="bg-card px-3 py-2.5"><dt className="text-[13px] text-muted-foreground">Ports</dt><dd className="mt-0.5 font-mono tabular-nums">{status.httpPort} / {status.httpsPort}</dd></div>
+                    <div className="min-w-0 bg-card px-3 py-2.5"><dt className="text-[13px] text-muted-foreground">Container</dt><dd className="mt-0.5"><Truncate mono text={status.container || "—"} /></dd></div>
+                    <div className="min-w-0 bg-card px-3 py-2.5"><dt className="text-[13px] text-muted-foreground">Network</dt><dd className="mt-0.5"><Truncate mono text={status.network || "—"} /></dd></div>
+                    <div className="bg-card px-3 py-2.5"><dt className="text-[13px] text-muted-foreground">Auto-start</dt><dd className="mt-0.5">{status.mode === "managed" ? (status.enabled ? "On" : "Off") : "—"}</dd></div>
                   </dl>
 
                   {external && (

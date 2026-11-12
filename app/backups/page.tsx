@@ -5,7 +5,7 @@ import { CalendarClock, Cloud, DatabaseBackup, History, KeyRound, Plus, RefreshC
 import { toast } from "sonner"
 import { PageBody, PageHeader } from "@/components/pn/PageHeader"
 import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
-import { Segmented } from "@/components/pn/Segmented"
+import { ViewNav } from "@/components/pn/ViewNav"
 import { SummaryStrip } from "@/components/pn/SummaryStrip"
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -191,15 +191,14 @@ export default function BackupsPage() {
         description="Automatic, encrypted backups of the panel and your databases, copied off this server."
         actions={
           <>
-            <Segmented<Tab>
+            <ViewNav<Tab>
               aria-label="Backups view"
               value={tab}
               onChange={setTab}
-              size="default"
               options={[
-                { value: "schedules", label: <><CalendarClock className="size-3.5" />Schedules</>, count: schedules.length },
-                { value: "history", label: <><History className="size-3.5" />History</> },
-                { value: "destinations", label: <><Cloud className="size-3.5" />Destinations</>, count: destinations.length },
+                { value: "schedules", label: `Schedules · ${schedules.length}`, icon: <CalendarClock className="size-3.5" /> },
+                { value: "history", label: "History", icon: <History className="size-3.5" /> },
+                { value: "destinations", label: `Destinations · ${destinations.length}`, icon: <Cloud className="size-3.5" /> },
               ]}
             />
             {tab !== "history" && (
@@ -211,7 +210,7 @@ export default function BackupsPage() {
         }
       />
 
-      <PageBody className="motion-safe:animate-in fade-in-0 duration-300">
+      <PageBody>
         {error && (
           <Alert variant="destructive">
             <TriangleAlert />

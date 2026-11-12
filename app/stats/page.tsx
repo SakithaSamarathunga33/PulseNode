@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { AlertCircle, ArrowDownRight, ArrowUpRight, BarChart3, Cpu, HardDrive, MemoryStick, Network, Trash2 } from "lucide-react"
+import { AlertCircle, ArrowDownRight, ArrowUpRight, BarChart3, Cpu, HardDrive, MemoryStick, Network, Server, Trash2 } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import { nodeApi } from "@/lib/api"
 import { clearBuildCache } from "@/lib/build-cache"
 import { EMPTY_HOST } from "@/components/containers/utils"
@@ -13,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { SummaryStrip } from "@/components/pn/SummaryStrip"
 import { ProgressBar } from "@/components/dashboard/ProgressBar"
-import { UPlotChart } from "@/components/dashboard/UPlotChart"
+import { TimeSeriesChart } from "@/components/dashboard/TimeSeriesChart"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { LiveBadge } from "@/components/pn/LiveBadge"
 import { ChartCard } from "@/components/stats/ChartCard"
@@ -27,7 +28,6 @@ type PyMetrics = {
 }
 
 const C1 = "var(--chart-1)", C2 = "var(--chart-2)", C3 = "var(--chart-3)"
-const fill = (c: string) => `color-mix(in srgb, ${c} 16%, transparent)`
 const tone = (pct: number) => (pct >= 80 ? "bad" : pct >= 60 ? "warn" : undefined) as "bad" | "warn" | undefined
 
 /** Change between the start and end of the in-memory history window. */
@@ -57,13 +57,31 @@ function LegendRow({ color, label, value, pct }: { color: string; label: string;
   return (
     <div className="flex items-center justify-between text-xs">
       <span className="flex items-center gap-2 text-muted-foreground">
-        <span className="size-2 rounded-full" style={{ background: color }} />{label}
+        <span aria-hidden className="size-2 rounded-full ring-1 ring-inset ring-border" style={{ background: color }} />{label}
       </span>
       <span className="flex items-center gap-2">
         <span className="font-mono tabular-nums">{value}</span>
         <span className="w-10 text-right font-mono tabular-nums text-muted-foreground">{pct.toFixed(1)}%</span>
       </span>
     </div>
+  )
+}
+
+/** Card title with the area-hue icon, matching the Dashboard cards. */
+function PanelTitle({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
+  return (
+    <CardTitle className="inline-flex items-center gap-2 text-sm font-semibold">
+      <Icon className="size-4 text-[var(--hue)]" strokeWidth={1.75} />{children}
+    </CardTitle>
+  )
+}
+
+function Headline({ value, unit }: { value: React.ReactNode; unit: string }) {
+  return (
+    <p className="flex items-baseline gap-1.5">
+      <span className="text-[28px] leading-none font-semibold tracking-tight tabular-nums">{value}</span>
+      <span className="text-sm text-muted-foreground">{unit}</span>
+    </p>
   )
 }
 
@@ -166,7 +184,7 @@ export default function StatsPage() {
         description={`${host.name} · ${host.region} · ${host.ip}`}
         actions={<LiveBadge>Live</LiveBadge>}
       />
-      <PageBody className="motion-safe:animate-in motion-safe:fade-in-0 duration-300">
+      <PageBody>
         {hostState === "error" && (
           <Alert variant="destructive">
             <AlertCircle />
@@ -185,22 +203,23 @@ export default function StatsPage() {
         />}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <ChartCard title="CPU usage" value={host.cpu.usage} unit="%" live legend={[{ label: "CPU %", color: C1 }]}>
-            <UPlotChart series={[{ label: "CPU%", values: cpuHist, color: C1, fill: fill(C1) }]} max={100} />
+          <ChartCard icon={Cpu} title="CPU usage" value={host.cpu.usage} unit="%" live legend={[{ label: "CPU %", color: C1 }]}>
+            <TimeSeriesChart unit="%" max={100} series={[{ label: "CPU", values: cpuHist, color: C1 }]} />
           </ChartCard>
 
-          <ChartCard title="Memory usage" value={host.memory.pct} unit="%" live legend={[{ label: "Memory %", color: C2 }]}>
-            <UPlotChart series={[{ label: "MEM%", values: ramHist, color: C2, fill: fill(C2) }]} max={100} />
+          <ChartCard icon={MemoryStick} title="Memory usage" value={host.memory.pct} unit="%" live legend={[{ label: "Memory %", color: C2 }]}>
+            <TimeSeriesChart unit="%" max={100} series={[{ label: "Memory", values: ramHist, color: C2 }]} />
           </ChartCard>
 
           <ChartCard
+            icon={HardDrive}
             title="Disk I/O"
             value={`R ${lastRead.toFixed(1)} · W ${lastWrite.toFixed(1)}`}
             unit="MB/s"
             legend={[{ label: "Read", color: C1 }, { label: "Write", color: C3 }]}
           >
-            <UPlotChart
-              mode="bar"
+            <TimeSeriesChart
+              unit=" MB/s"
               series={[
                 { label: "Read", values: diskReadHist, color: C1 },
                 { label: "Write", values: diskWriteHist, color: C3 },
@@ -209,12 +228,15 @@ export default function StatsPage() {
           </ChartCard>
 
           <ChartCard
+            icon={Network}
             title="Network"
             value={`↓ ${host.network.rx} · ↑ ${host.network.tx}`}
             unit={host.network.unit}
             legend={[{ label: "RX (in)", color: C1 }, { label: "TX (out)", color: C3 }]}
           >
-            <UPlotChart
+            <TimeSeriesChart
+              unit={` ${host.network.unit}`}
+              decimals={0}
               series={[
                 { label: "RX", values: netHist, color: C1 },
                 { label: "TX", values: netTxHist, color: C3 },
@@ -225,7 +247,7 @@ export default function StatsPage() {
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Card size="sm">
-            <CardHeader><CardTitle className="text-sm">Host info</CardTitle></CardHeader>
+            <CardHeader><PanelTitle icon={Server}>Host info</PanelTitle></CardHeader>
             <CardContent>
               <dl className="divide-y">
                 <KV k="Hostname" v={host.name} />
@@ -241,22 +263,20 @@ export default function StatsPage() {
           </Card>
 
           <Card size="sm">
-            <CardHeader><CardTitle className="text-sm">Memory breakdown</CardTitle></CardHeader>
+            <CardHeader><PanelTitle icon={MemoryStick}>Memory breakdown</PanelTitle></CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-2xl font-bold tabular-nums">
-                {host.memory.used} <span className="text-sm font-normal text-muted-foreground">/ {host.memory.total} {host.memory.unit}</span>
-              </p>
-              <div className="flex h-3 gap-0.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={`Memory ${usedPct.toFixed(0)}% used, ${freePct.toFixed(0)}% free`}>
-                <div className="rounded-l-full" style={{ width: `${usedPct}%`, background: C1 }} />
+              <Headline value={host.memory.used} unit={`/ ${host.memory.total} ${host.memory.unit}`} />
+              <div className="h-2 overflow-hidden rounded-full bg-muted ring-1 ring-inset ring-border/60" role="img" aria-label={`Memory ${usedPct.toFixed(0)}% used, ${freePct.toFixed(0)}% free`}>
+                <div className="h-full rounded-full transition-[width] duration-500 ease-out" style={{ width: `${usedPct}%`, background: C2 }} />
               </div>
               <div className="space-y-2">
-                <LegendRow color={C1} label="Used" value={`${memUsed} ${host.memory.unit}`} pct={usedPct} />
+                <LegendRow color={C2} label="Used" value={`${memUsed} ${host.memory.unit}`} pct={usedPct} />
                 <LegendRow color="var(--muted)" label="Free" value={`${memFree.toFixed(1)} ${host.memory.unit}`} pct={freePct} />
               </div>
               <div className="border-t pt-4">
-                <p className="mb-2 text-xs font-medium text-muted-foreground">Swap</p>
+                <p className="mb-2 text-[13px] text-muted-foreground">Swap</p>
                 <div className="flex items-center gap-3">
-                  <ProgressBar value={host.swap.pct} className="flex-1" />
+                  <ProgressBar value={host.swap.pct} label="Swap usage" className="flex-1" />
                   <span className="font-mono text-xs tabular-nums">{host.swap.used}/{host.swap.total} GB</span>
                 </div>
               </div>
@@ -264,24 +284,22 @@ export default function StatsPage() {
           </Card>
 
           <Card size="sm">
-            <CardHeader><CardTitle className="text-sm">Disk</CardTitle></CardHeader>
+            <CardHeader><PanelTitle icon={HardDrive}>Disk</PanelTitle></CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-2xl font-bold tabular-nums">
-                {host.disk.pct}% <span className="text-sm font-normal text-muted-foreground">used</span>
-              </p>
-              <ProgressBar value={host.disk.pct} className="h-3" />
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <Headline value={`${host.disk.pct}%`} unit="used" />
+              <ProgressBar value={host.disk.pct} label="Disk usage" className="h-2" />
+              <dl className="grid grid-cols-3 divide-x rounded-lg border">
                 {[
                   { label: "Used", val: host.disk.used },
                   { label: "Free", val: host.disk.free },
                   { label: "Total", val: host.disk.total },
                 ].map(item => (
-                  <div key={item.label} className="rounded-lg bg-muted/60 px-3 py-2">
-                    <p className="text-xs text-muted-foreground">{item.label}</p>
-                    <p className="mt-0.5 font-mono text-sm font-semibold tabular-nums">{item.val} <span className="text-xs font-normal text-muted-foreground">{host.disk.unit}</span></p>
+                  <div key={item.label} className="min-w-0 px-3 py-2">
+                    <dt className="text-xs text-muted-foreground">{item.label}</dt>
+                    <dd className="mt-0.5 truncate font-mono text-sm font-semibold tabular-nums">{item.val} <span className="text-xs font-normal text-muted-foreground">{host.disk.unit}</span></dd>
                   </div>
                 ))}
-              </div>
+              </dl>
               <dl className="divide-y border-t pt-2">
                 <KV k="Read rate" v={`${lastRead.toFixed(1)} MB/s`} />
                 <KV k="Write rate" v={`${lastWrite.toFixed(1)} MB/s`} />

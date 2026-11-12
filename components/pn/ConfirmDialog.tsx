@@ -40,7 +40,7 @@ export function ConfirmDialog({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           {description && <AlertDialogDescription>{description}</AlertDialogDescription>}
         </AlertDialogHeader>
-        {target && <div className="rounded-lg border bg-muted/50 px-3 py-2 font-mono text-xs break-all">{target}</div>}
+        {target && <div className="rounded-lg border bg-background/60 px-3 py-2 font-mono text-xs break-all">{target}</div>}
         {items && items.length > 0 && (
           <ul className="max-h-48 divide-y overflow-auto rounded-lg border bg-muted/40 py-1">
             {items.map(it => (
@@ -59,7 +59,8 @@ export function ConfirmDialog({
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <Button
-            variant={tone === "danger" ? "destructive" : "default"}
+            variant="default"
+            className={tone === "danger" ? "bg-destructive text-background hover:bg-[color-mix(in_oklch,var(--destructive),var(--foreground)_12%)]" : undefined}
             disabled={loading}
             onClick={() => void onConfirm()}
           >

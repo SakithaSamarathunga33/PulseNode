@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { GitHubDark } from "developer-icons"
 import { ArrowLeft, CheckCircle2, Loader2, XCircle, Zap } from "lucide-react"
+import { Panel } from "@/components/pn/Panel"
 
 const GO_API = API_BASE
 
@@ -86,41 +87,44 @@ function CallbackInner() {
   }, [searchParams, router, later])
 
   const view = {
-    loading: { title: "Registering installation…", desc: "Exchanging the authorization code with GitHub.", tone: "bg-primary/12 text-primary" },
-    ok:      { title: message || "Installation registered", desc: "Your repositories are now available for deployment.", tone: "bg-success/12 text-success" },
-    error:   { title: "Could not register the installation", desc: "Check the details below, then try connecting again.", tone: "bg-danger/12 text-danger" },
+    loading: { title: "Registering installation…", desc: "Exchanging the authorization code with GitHub.", tone: "text-primary" },
+    ok:      { title: message || "Installation registered", desc: "Your repositories are now available for deployment.", tone: "text-success" },
+    error:   { title: "Could not register the installation", desc: "Check the details below, then try connecting again.", tone: "text-danger" },
   }[status]
 
   return (
-    <main className="grid min-h-screen place-items-center bg-background p-6 text-foreground">
-      <div role="status" aria-live="polite" className="flex w-full max-w-[420px] flex-col items-center gap-[18px] text-center motion-safe:animate-in fade-in-0 duration-300">
-        <div className="flex items-center gap-2.5 text-muted-foreground" aria-hidden>
-          <span className="grid size-9 place-items-center rounded-[9px] border bg-card text-primary"><Zap className="size-[18px]" /></span>
-          <ArrowLeft className="size-3.5" />
-          <span className="grid size-9 place-items-center rounded-[9px] border bg-card text-foreground"><GitHubDark size={19} className="theme-dark-surface-icon" /></span>
+    <main className="grid min-h-screen place-items-center bg-background p-4 text-foreground sm:p-6">
+      <Panel role="status" aria-live="polite" className="w-full max-w-[420px] overflow-hidden rounded-xl text-center motion-safe:animate-in fade-in-0 duration-300">
+        <div className="flex flex-col items-center gap-4 px-6 pt-6 pb-5">
+          <div className="flex items-center gap-2.5 text-muted-foreground" aria-hidden>
+            <span className="grid size-9 place-items-center rounded-lg border bg-background text-primary"><Zap className="size-[18px]" strokeWidth={1.75} /></span>
+            <ArrowLeft className="size-3.5" />
+            <span className="grid size-9 place-items-center rounded-lg border bg-background text-foreground"><GitHubDark size={18} className="theme-dark-surface-icon" /></span>
+          </div>
+
+          <span className={view.tone}>
+            {status === "loading" && <Loader2 className="size-7 animate-spin" aria-hidden />}
+            {status === "ok" && <CheckCircle2 className="size-7" aria-hidden />}
+            {status === "error" && <XCircle className="size-7" aria-hidden />}
+          </span>
+
+          <div className="space-y-1">
+            <h1 className="text-lg font-semibold break-words">{view.title}</h1>
+            <p className="text-[13px] leading-relaxed text-muted-foreground">{view.desc}</p>
+          </div>
+
+          {status === "error" && message && (
+            <code className="w-full rounded-lg border bg-muted/50 px-3 py-2 text-left font-mono text-xs break-words text-muted-foreground">{message}</code>
+          )}
         </div>
 
-        <span className={`grid size-11 place-items-center rounded-full ${view.tone}`}>
-          {status === "loading" && <Loader2 className="size-[22px] animate-spin" aria-hidden />}
-          {status === "ok" && <CheckCircle2 className="size-[22px]" aria-hidden />}
-          {status === "error" && <XCircle className="size-[22px]" aria-hidden />}
-        </span>
-
-        <div className="space-y-1.5">
-          <h1 className="text-lg font-semibold">{view.title}</h1>
-          <p className="text-[13px] leading-relaxed text-muted-foreground">{view.desc}</p>
-        </div>
-
-        {status === "error" && message && (
-          <code className="max-w-full rounded-lg border bg-muted/50 px-3 py-2 font-mono text-xs break-words text-muted-foreground">{message}</code>
-        )}
         {status !== "loading" && (
-          <>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t px-6 py-3 text-left">
             <p className="text-xs text-muted-foreground">Redirecting{status === "error" ? " to GitHub settings" : ""}…</p>
-            <Link href="/github" className="text-[13px] text-primary underline underline-offset-2">Go to GitHub settings now</Link>
-          </>
+            <Link href="/github" className="rounded-sm text-[13px] text-primary underline underline-offset-2 focus-visible:outline-2">Go to GitHub settings now</Link>
+          </div>
         )}
-      </div>
+      </Panel>
     </main>
   )
 }

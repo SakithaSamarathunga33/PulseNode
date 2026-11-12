@@ -322,7 +322,7 @@ export function DatabaseQueryEditor({
 
         {/* Body: terminal-surface editor */}
         <div
-          className="m-3 overflow-hidden rounded-xl border border-[var(--t-border)] bg-[var(--t-bg)] text-[var(--t-fg)]"
+          className="m-3 overflow-hidden rounded-lg border border-[var(--t-border)] bg-[var(--t-bg)] text-[var(--t-fg)]"
         >
           <div className="flex items-center gap-2 border-b border-[var(--t-border)] bg-[var(--t-bar)] px-3 py-1.5">
             <span className="font-mono text-xs text-[var(--t-muted)]">

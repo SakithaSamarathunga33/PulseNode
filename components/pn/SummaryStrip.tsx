@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import CountUp from "@/components/reactbits/CountUp"
 
 export type SummaryItem = {
   label: string
@@ -38,7 +39,12 @@ export function SummaryStrip({ items, className, "aria-label": ariaLabel = "Summ
             <span className="truncate">{item.label}</span>
           </span>
           <span className="flex items-baseline gap-1.5">
-            <span className="truncate text-[28px] leading-none font-semibold tracking-tight tabular-nums">{item.value}</span>
+            <span className="truncate text-[28px] leading-none font-semibold tracking-tight tabular-nums">
+              {/* React Bits CountUp for numeric values; strings / nodes render as given. */}
+              {typeof item.value === "number" && Number.isFinite(item.value)
+                ? <CountUp to={item.value} decimals={Number.isInteger(item.value) ? 0 : 1} duration={0.9} />
+                : item.value}
+            </span>
             {item.unit && <span className="text-sm text-muted-foreground">{item.unit}</span>}
           </span>
           {item.meta && (

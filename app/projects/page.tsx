@@ -98,7 +98,7 @@ function StatusPill({ status }: { status: string }) {
 function Meta({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] text-muted-foreground">{label}</dt>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="mt-0.5 flex min-w-0 items-center gap-1 truncate font-mono text-xs">{children}</dd>
     </div>
   )
@@ -497,11 +497,11 @@ export default function ProjectsPage() {
             )}
 
             {visible.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed px-4 py-12 text-center">
-                <FolderGit2 className="size-5 text-muted-foreground" aria-hidden />
-                <p className="text-sm font-semibold">No projects match this filter.</p>
-                <Button variant="outline" size="sm" onClick={() => { setFilter("all"); setQuery("") }}>Clear filter</Button>
-              </div>
+              <EmptyState
+                icon={FolderGit2}
+                title="No projects match this filter."
+                action={<Button variant="outline" size="sm" onClick={() => { setFilter("all"); setQuery("") }}>Clear filter</Button>}
+              />
             ) : (
               <section aria-label="Project list" className="grid items-start gap-3.5 md:grid-cols-2 xl:grid-cols-3">
                 {visible.map(e => (

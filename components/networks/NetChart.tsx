@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react"
 import { Card } from "@/components/ui/card"
-import { UPlotChart } from "@/components/dashboard/UPlotChart"
+import { TimeSeriesChart } from "@/components/dashboard/TimeSeriesChart"
 
 /** Live throughput chart (KB/s) for one direction. `color` is a CSS colour token, e.g. var(--chart-1). */
 export function NetChart({ data, color, title, icon: Icon, current }: {
@@ -15,7 +15,7 @@ export function NetChart({ data, color, title, icon: Icon, current }: {
             <span style={{ color }}><Icon className="size-4" /></span>{title}
           </h2>
           <p className="flex items-baseline gap-1.5">
-            <span className="text-[22px] font-semibold tracking-tight tabular-nums">{current}</span>
+            <span className="text-[28px] leading-none font-semibold tracking-tight tabular-nums">{current}</span>
             <span className="text-[13px] text-muted-foreground">KB/s</span>
           </p>
         </div>
@@ -23,11 +23,8 @@ export function NetChart({ data, color, title, icon: Icon, current }: {
           peak <b className="font-semibold text-foreground/80 tabular-nums">{peak}</b> KB/s<br />recent samples
         </p>
       </div>
-      <div className="px-2">
-        <UPlotChart
-          height={140}
-          series={[{ label: title, values: data, color, fill: `color-mix(in srgb, ${color} 16%, transparent)` }]}
-        />
+      <div aria-hidden className="px-2">
+        <TimeSeriesChart height={140} unit=" KB/s" decimals={0} series={[{ label: title, values: data, color }]} />
       </div>
     </Card>
   )

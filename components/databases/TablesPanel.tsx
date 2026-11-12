@@ -99,10 +99,13 @@ export function TablesPanel({ db }: { db: Database }) {
   useEffect(() => {
     nodeApi.get<DbSchemaResult>(`/api/database/${db.name}/schema`)
       .then(({ data }) => {
-        setDbs(data.databases)
-        const first = data.databases[0] || ""
+        // Go serialises empty slices as null; treat a missing list as empty.
+        const databases = Array.isArray(data?.databases) ? data.databases : []
+        const tableList = Array.isArray(data?.tables) ? data.tables : []
+        setDbs(databases)
+        const first = databases[0] || ""
         setSelectedDb(first)
-        if (data.tables.length) { setTables(data.tables); setLoading(false) }
+        if (tableList.length) { setTables(tableList); setLoading(false) }
         else if (!first) setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -113,7 +116,7 @@ export function TablesPanel({ db }: { db: Database }) {
     if (!selectedDb) return
     setLoading(true)
     nodeApi.get<DbSchemaResult>(`/api/database/${db.name}/schema?database=${encodeURIComponent(selectedDb)}`)
-      .then(({ data }) => setTables(data.tables))
+      .then(({ data }) => setTables(Array.isArray(data?.tables) ? data.tables : []))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [db.name, selectedDb])

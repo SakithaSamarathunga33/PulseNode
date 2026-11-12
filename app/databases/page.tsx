@@ -21,6 +21,7 @@ import { DatabaseCards, DatabaseTable, type Sort, type SortKey } from "@/compone
 import { BackupDialog } from "@/components/databases/BackupDialog"
 import { RestoreDialog } from "@/components/databases/RestoreDialog"
 import { DeleteDialog } from "@/components/databases/DeleteDialog"
+import { ConnectionsOverview } from "@/components/databases/ConnectionsOverview"
 import { statusTone } from "@/components/databases/shared"
 
 type StatusFilter = "all" | "ok" | "warn" | "bad"
@@ -66,7 +67,7 @@ export default function DatabasesPage() {
         data.forEach(db => {
           nodeApi.get<DbMetrics>(`/api/database/${db.name}/metrics`)
             .then(({ data: metrics }) => {
-              const get = (label: string) => metrics.metrics.find(x => x.label === label)?.value
+              const get = (label: string) => (Array.isArray(metrics?.metrics) ? metrics.metrics : []).find(x => x.label === label)?.value
               // Labels from Go metrics handler — must match exactly
               const size = get("DB Size") || get("Used Memory") || get("Resident Mem")
               const conns = Number(
@@ -114,7 +115,8 @@ export default function DatabasesPage() {
           // Separate, pure update — never call a setter inside another updater.
           setDatabases(dbs => dbs.map(db => {
             const found = data.find(d => d.name === db.name || d.name === db.host)
-            return found && found.conns > 0 ? { ...db, conns: found.conns } : db
+            // Apply 0 too, so a database that went idle stops showing its old count.
+            return found ? { ...db, conns: found.conns } : db
           }))
         })
         .catch(() => {})
@@ -184,7 +186,7 @@ export default function DatabasesPage() {
         description={`${databases.length} databases · ${totalConns} connections${totalQps > 0 ? ` · ${totalQps.toLocaleString()} QPS` : ""}`}
         actions={addActions}
       />
-      <PageBody className="motion-safe:animate-in motion-safe:fade-in-0 duration-300">
+      <PageBody>
         <SummaryStrip
           items={[
             { label: "Databases", icon: DatabaseIcon, value: databases.length, meta: `${databases.length - unhealthy} healthy${unhealthy > 0 ? ` · ${unhealthy} need attention` : ""}`, tone: unhealthy > 0 ? "warn" : undefined },
@@ -193,6 +195,8 @@ export default function DatabasesPage() {
             { label: "Slow queries", icon: Clock, value: totalSlow, meta: totalSlow === 0 ? "none reported" : "flagged by engines", tone: totalSlow > 0 ? "warn" : "ok" },
           ]}
         />
+
+        {loaded && databases.length > 0 && <ConnectionsOverview databases={databases} history={connHistory.slice(1)} />}
 
         {!loaded ? (
           <Card className="gap-3 p-4">

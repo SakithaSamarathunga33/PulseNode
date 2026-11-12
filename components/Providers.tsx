@@ -1,6 +1,7 @@
 "use client"
 
 import { ThemeProvider } from "next-themes"
+import { MotionConfig } from "motion/react"
 import { usePathname } from "next/navigation"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
@@ -18,7 +19,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
       forcedTheme={onLogin ? "dark" : undefined}
       disableTransitionOnChange
     >
-      <TooltipProvider delay={200}>{children}</TooltipProvider>
+      {/* Every motion-based library component (Magic UI, React Bits, Kokonut, interior.dev) honours reduced motion. */}
+      <MotionConfig reducedMotion="user">
+        <TooltipProvider delay={200}>{children}</TooltipProvider>
+      </MotionConfig>
       <Toaster position="bottom-right" richColors closeButton />
     </ThemeProvider>
   )

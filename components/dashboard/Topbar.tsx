@@ -18,8 +18,30 @@ import {
 import { ThemeSwitcher } from "@/components/ThemeSwitcher"
 import { useCommandMenu } from "@/components/CommandMenu"
 import { routeInfo } from "@/lib/nav"
+import { getSocket } from "@/lib/socket"
 
 const GO_API = API_BASE
+
+/**
+ * Pulse rail: the top bar's bottom hairline. Every live system:metrics frame re-keys the
+ * accent segment, restarting its sweep. Kept separate so only this span re-renders per frame.
+ */
+function PulseRail() {
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    try {
+      const socket = getSocket()
+      const onMetrics = () => setTick(t => t + 1)
+      socket.on("system:metrics", onMetrics)
+      return () => { socket.off("system:metrics", onMetrics) }
+    } catch { return undefined } // socket unavailable during SSR
+  }, [])
+  return (
+    <span aria-hidden className="pointer-events-none absolute inset-x-0 -bottom-px h-px overflow-hidden">
+      {tick > 0 && <span key={tick} className="pulse-rail-seg absolute inset-y-0 left-0 block" />}
+    </span>
+  )
+}
 
 export function Topbar() {
   const pathname = usePathname()
@@ -45,7 +67,8 @@ export function Topbar() {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:px-4">
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b bg-background/90 px-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/75 sm:px-4">
+      <PulseRail />
       <SidebarTrigger className="-ml-1 hidden md:inline-flex" />
       <Separator orientation="vertical" className="mx-1 hidden h-5 sm:block" />
       <Breadcrumb className="hidden sm:block">
@@ -71,15 +94,15 @@ export function Topbar() {
       <button
         type="button"
         onClick={openSearch}
-        className="mx-auto flex h-9 w-full max-w-sm items-center gap-2 rounded-lg border bg-muted/60 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="mx-auto flex h-9 w-full min-w-0 max-w-sm items-center gap-2 rounded-lg border bg-card px-3 text-sm text-muted-foreground shadow-card transition-colors hover:border-[var(--border-2)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label="Search pages and actions"
       >
         <Search className="size-4 shrink-0" />
         <span className="truncate">Search pages, containers, projects…</span>
-        <kbd className="ml-auto hidden rounded border bg-background px-1.5 font-mono text-[11px] sm:block">Ctrl K</kbd>
+        <kbd className="ml-auto hidden rounded-md border bg-muted px-1.5 py-px font-mono text-[11px] text-muted-foreground sm:block">Ctrl K</kbd>
       </button>
 
-      <div className="ml-auto flex items-center gap-0.5">
+      <div className="ml-auto flex shrink-0 items-center gap-0.5">
         <ThemeSwitcher />
         <Button variant="ghost" size="icon" aria-label="Refresh page" title="Refresh" onClick={() => window.location.reload()}>
           <RefreshCw className="size-4" />
@@ -91,7 +114,7 @@ export function Topbar() {
           <DropdownMenuTrigger
             render={<Button variant="ghost" size="icon" className="ml-1 rounded-full" aria-label="Account menu" />}
           >
-            <span className="grid size-7 place-items-center rounded-full border border-primary/30 bg-primary/12 text-[11px] font-semibold text-primary">
+            <span className="grid size-7 place-items-center rounded-full border bg-[linear-gradient(140deg,var(--muted),var(--card))] text-[11px] font-semibold text-foreground shadow-card">
               {username.trim().slice(0, 2).toUpperCase() || "?"}
             </span>
           </DropdownMenuTrigger>

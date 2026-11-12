@@ -134,7 +134,8 @@ export const wildcardFixText = (ip: string) =>
 export function WildcardFix({ expectedIp, className }: { expectedIp: string; className?: string }) {
   const text = wildcardFixText(expectedIp)
   return (
-    <div className={cn("flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/8 px-3 py-2", className)}>
+    <div className={cn("flex items-start gap-2 rounded-lg border bg-muted/40 px-3 py-2", className)}>
+      <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden />
       <p className="min-w-0 flex-1 text-xs whitespace-pre-wrap break-words">
         Add an A record <code className="rounded bg-muted px-1 font-mono">*</code> →{" "}
         <code className="rounded bg-muted px-1 font-mono tabular-nums">{expectedIp || "<this server's IP>"}</code>{" "}
@@ -168,7 +169,7 @@ export function WildcardInline({ host }: { host: string }) {
   return (
     <div className="flex basis-full flex-col gap-1.5">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Wildcard DNS</span>
+        <span className="text-xs text-muted-foreground">Wildcard DNS</span>
         <WildcardChip loading={w.loading} data={w.data} error={w.error} />
         <Tooltip>
           <TooltipTrigger

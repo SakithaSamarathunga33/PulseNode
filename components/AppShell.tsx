@@ -7,6 +7,7 @@ import { CommandMenuProvider } from "@/components/CommandMenu"
 import { MobileNav } from "@/components/MobileNav"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { areaOf } from "@/lib/nav"
+import { DotPattern } from "@/components/magicui/dot-pattern"
 
 // The login page is a standalone full-screen view — it must not render the
 // dashboard chrome. Every other route gets the shell, and the content area is
@@ -26,10 +27,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </a>
       <SidebarProvider>
         <AppSidebar />
-        <SidebarInset id="main" tabIndex={-1} className="h-svh min-w-0 overflow-hidden outline-none">
+        <SidebarInset id="main" tabIndex={-1} className="h-svh min-w-0 overflow-hidden outline-none md:h-[calc(100svh-1rem)] md:border md:shadow-pop">
           <Topbar />
-          <div data-area={areaOf(pathname)} className="min-h-0 flex-1 overflow-y-auto pb-16 md:pb-0">
-            {children}
+          <div data-area={areaOf(pathname)} className="relative min-h-0 flex-1 overflow-y-auto pb-16 md:pb-0">
+            {/* Magic UI DotPattern: a faint dot field at the top of the panel, fading out downwards. */}
+            <DotPattern
+              width={18} height={18} cr={1}
+              className="pointer-events-none absolute inset-x-0 top-0 !h-80 text-foreground/[0.09] [mask-image:radial-gradient(ellipse_75%_100%_at_50%_0%,black,transparent)]"
+            />
+            <div className="relative">{children}</div>
           </div>
         </SidebarInset>
         <MobileNav />
