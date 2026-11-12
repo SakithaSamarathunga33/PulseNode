@@ -1,9 +1,6 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.png">
-  <img src="docs/images/logo-light.png" alt="PulseNode" width="420">
-</picture>
+<img src="docs/images/pulsenode-cover.png" alt="PulseNode — VPS control panel: monitor &amp; alert, Docker management, deploy from GitHub, databases, security (Trivy &amp; SBOM), backups and automatic HTTPS, shown beside the PulseNode dashboard" width="100%">
 
 **Open-source VPS control panel — monitor your server, manage Docker, deploy GitHub projects with automatic HTTPS, back up everything, and secure containers from one dashboard.**
 
@@ -16,8 +13,6 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 [Install](#one-command-install) · [Features](#features) · [Architecture](#how-it-works) · [Deploying projects](#deploying-projects) · [Configuration](#configuration) · [Roadmap](#roadmap) · [Contributing](#contributing)
-
-![PulseNode dashboard](docs/images/pulsenode-dashboard.png)
 
 </div>
 
