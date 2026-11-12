@@ -2,6 +2,8 @@
 
 <img src="docs/images/pulsenode-cover.png" alt="PulseNode — VPS control panel: monitor &amp; alert, Docker management, deploy from GitHub, databases, security (Trivy &amp; SBOM), backups and automatic HTTPS, shown beside the PulseNode dashboard" width="100%">
 
+# PulseNode: open-source, self-hosted VPS control panel and Docker dashboard
+
 **Open-source VPS control panel — monitor your server, manage Docker, deploy GitHub projects with automatic HTTPS, back up everything, and secure containers from one dashboard.**
 
 [![Release](https://img.shields.io/github/v/release/SakithaSamarathunga33/PulseNode?color=2563eb&label=release)](https://github.com/SakithaSamarathunga33/PulseNode/releases/latest)
@@ -12,7 +14,7 @@
 [![Images](https://img.shields.io/badge/images-amd64%20%7C%20arm64-2496ED?logo=docker&logoColor=white)](https://github.com/SakithaSamarathunga33?tab=packages&repo_name=PulseNode)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Install](#one-command-install) · [Features](#features) · [Architecture](#how-it-works) · [Deploying projects](#deploying-projects) · [Configuration](#configuration) · [Roadmap](#roadmap) · [Contributing](#contributing)
+[Website](https://sakithasamarathunga33.github.io/PulseNode/) · [Install](#one-command-install) · [Features](#features) · [Architecture](#how-it-works) · [Deploying projects](#deploying-projects) · [Configuration](#configuration) · [Roadmap](#roadmap) · [FAQ](#faq) · [Contributing](#contributing)
 
 </div>
 
@@ -349,6 +351,34 @@ docker compose -f docker-compose.yml -f docker-compose.standalone.yml up -d --bu
 - [ ] Metrics history retention settings
 
 Have an idea? [Open an issue](https://github.com/SakithaSamarathunga33/PulseNode/issues/new/choose) — roadmap priorities follow community demand.
+
+---
+
+## FAQ
+
+### What is PulseNode?
+
+A free, open-source control panel for a Linux VPS. One self-hosted dashboard shows live server metrics, manages Docker containers, deploys apps from GitHub with automatic HTTPS, provisions and backs up databases, scans images for vulnerabilities and sends alerts.
+
+### How do I install PulseNode on my VPS?
+
+Run the [one-command installer](#one-command-install) on any Linux server with Docker and Docker Compose v2. It asks you to confirm the server's IP, creates your admin login, and prints the dashboard URL when it's ready.
+
+### Is PulseNode an alternative to Coolify or Portainer?
+
+For one or two servers, yes. It combines what you'd otherwise get from a Docker manager (like Portainer), a metrics dashboard (like Netdata) and a git-push deploy platform (like Coolify), plus vulnerability scanning and scheduled backups. See [Why PulseNode?](#why-pulsenode) for a side-by-side table. It isn't built to manage large fleets.
+
+### Does it deploy apps with automatic HTTPS?
+
+Yes. Connect GitHub, pick a repo and a domain, and PulseNode builds it (Dockerfile, Docker Compose or Nixpacks) and routes it through Traefik with Let's Encrypt certificates. Pushes redeploy automatically, with zero-downtime swaps and one-click rollback.
+
+### What server do I need?
+
+Any Linux VPS that runs Docker, on amd64 or arm64, with 2 GB of RAM or more recommended. Port 80 serves the dashboard, and ports 80 and 443 must be free if you deploy projects.
+
+### Is PulseNode free?
+
+Yes. It's open source under the MIT license, with no paid tier.
 
 ---
 
