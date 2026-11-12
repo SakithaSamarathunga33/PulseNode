@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowDownRight, ArrowUpRight, CircleCheck, Clock, Cpu, Globe, HardDrive, MapPin, MemoryStick, Monitor, Network, OctagonAlert, Server, SquareTerminal, TriangleAlert } from "lucide-react"
+import { ArrowDownRight, ArrowUpRight, Clock, Cpu, Globe, HardDrive, MapPin, MemoryStick, Monitor, Network, Server, SquareTerminal } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { LiveLineChart } from "@/components/charts/live-line-chart"
@@ -8,18 +8,14 @@ import { LiveLine } from "@/components/charts/live-line"
 import { appendLive, type LivePoint } from "@/lib/live-buffer"
 import { getSocket } from "@/lib/socket"
 import type { HostInfo, SystemMetrics } from "@/lib/types"
-import { cn } from "@/lib/utils"
 import { Truncate } from "@/components/pn/Truncate"
-import { toneFor, trendOf, TONE_TEXT, type Tone } from "./utils"
+import { Pill } from "@/components/dashboard/Pill"
+import { toneFor, trendOf, type Tone } from "./utils"
 import { Panel } from "@/components/pn/Panel"
 import { AnimatedCircularProgressBar } from "@/components/magicui/animated-circular-progress-bar"
 import { ValueFlash } from "@/components/interior/value-flash"
 
-const STATUS: Record<Tone, { label: string; icon: LucideIcon }> = {
-  ok: { label: "Normal", icon: CircleCheck },
-  warn: { label: "Elevated", icon: TriangleAlert },
-  bad: { label: "High", icon: OctagonAlert },
-}
+const STATUS_LABEL: Record<Tone, string> = { ok: "Normal", warn: "Elevated", bad: "High" }
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
 
@@ -63,7 +59,7 @@ function NetworkLive({ color }: { color: string }) {
   }, [])
 
   if (data.length < 2) {
-    return <p className="grid place-items-center text-[11px] text-muted-foreground" style={{ height: LIVE_H }}>Waiting for live traffic…</p>
+    return <p className="grid place-items-center text-2xs text-muted-foreground" style={{ height: LIVE_H }}>Waiting for live traffic…</p>
   }
   return (
     <div aria-hidden className="-mx-1">
@@ -80,14 +76,11 @@ function NetworkLive({ color }: { color: string }) {
   )
 }
 
-const PILL: Record<Tone, string> = { ok: "bg-success/12", warn: "bg-warning/12", bad: "bg-danger/12" }
 const GAUGE: Record<Tone, string> = { ok: "var(--success)", warn: "var(--warning)", bad: "var(--danger)" }
 
 function HostCell({ cell }: { cell: Cell }) {
   const hasPct = cell.pct !== undefined
   const tone: Tone = hasPct ? toneFor(cell.pct!) : "ok"
-  const status = STATUS[tone]
-  const StatusIcon = status.icon
   const trend = trendOf(cell.hist, cell.unitTrend)
   const TrendIcon = trend.up ? ArrowUpRight : ArrowDownRight
   const numeric = Number(cell.value)
@@ -95,23 +88,19 @@ function HostCell({ cell }: { cell: Cell }) {
   return (
     <Panel className="flex min-w-0 flex-col gap-3 rounded-xl p-4">
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
+        <span className="inline-flex items-center gap-2 text-ui font-medium text-muted-foreground">
           <cell.icon className="size-4" style={{ color: cell.color }} strokeWidth={1.75} />
           {cell.label}
         </span>
-        {hasPct && (
-          <span className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-current/15 ring-inset", TONE_TEXT[tone], PILL[tone])}>
-            <StatusIcon className="size-3" /> {status.label}
-          </span>
-        )}
+        {hasPct && <Pill tone={tone} dot>{STATUS_LABEL[tone]}</Pill>}
       </div>
 
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 space-y-1.5">
           <div className="flex flex-wrap items-baseline gap-x-1">
             {Number.isFinite(numeric)
-              ? <ValueFlash value={numeric} label={cell.label} className="-ml-1.5 text-[28px] leading-none font-semibold tracking-tight" />
-              : <span className="text-[28px] leading-none font-semibold tracking-tight tabular-nums">{cell.value}</span>}
+              ? <ValueFlash value={numeric} label={cell.label} className="-ml-1.5 text-metric leading-none font-semibold tracking-tight" />
+              : <span className="text-metric leading-none font-semibold tracking-tight tabular-nums">{cell.value}</span>}
             <span className="text-sm text-muted-foreground">{cell.unit}</span>
           </div>
           <span className="inline-flex items-center gap-0.5 text-xs font-medium tabular-nums text-muted-foreground">
@@ -179,10 +168,10 @@ export function HostHealth({
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {cells.map(c => <HostCell key={c.key} cell={c} />)}
       </div>
-      <div className="flex flex-wrap gap-x-6 gap-y-1.5 rounded-lg border bg-card/60 px-4 py-2.5 text-xs text-muted-foreground">
+      <div className="flex flex-wrap gap-x-6 gap-y-1.5 rounded-lg border bg-card/60 px-4 py-3 text-xs text-muted-foreground">
         {info.filter(([, v]) => v).map(([k, v, mono, Icon]) => (
           <span key={k} className="inline-flex min-w-0 max-w-full items-center gap-1.5 whitespace-nowrap">
-            <Icon className="size-3.5 shrink-0" aria-hidden />{k}:<Truncate text={v} mono={mono} className="font-medium text-foreground/85" />
+            <Icon className="size-3.5 shrink-0" aria-hidden />{k}:<Truncate text={v} mono={mono} className="font-medium text-foreground" />
           </span>
         ))}
       </div>

@@ -31,7 +31,7 @@ export function Segmented<T extends string>({
         label: o.count === undefined ? o.label : (
           <>
             {o.label}
-            <span className="ml-1.5 rounded-md bg-background/60 px-1.5 font-mono text-[11px] tabular-nums text-muted-foreground">{o.count}</span>
+            <span className="ml-1.5 rounded-md bg-background/60 px-1.5 font-mono text-2xs tabular-nums text-muted-foreground">{o.count}</span>
           </>
         ),
       }))}

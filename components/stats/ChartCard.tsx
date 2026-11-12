@@ -19,17 +19,19 @@ export function ChartCard({
 }) {
   return (
     <Card className="gap-3 py-4">
-      <div className="space-y-2.5 px-4">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          {Icon && <Icon className="size-4 text-[var(--hue)]" strokeWidth={1.75} />}
-          {title}
+      <div className="space-y-2 px-4">
+        <div className="flex items-center gap-2">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            {Icon && <Icon className="size-4 text-[var(--hue)]" strokeWidth={1.75} />}
+            {title}
+          </h2>
           {live && <LiveBadge>Live</LiveBadge>}
-        </h2>
+        </div>
         <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
-          <span className="text-[28px] leading-none font-semibold tracking-tight tabular-nums">{value}</span>
-          {unit && <span className="text-[13px] text-muted-foreground">{unit}</span>}
+          <span className="text-metric leading-none font-semibold tracking-tight tabular-nums">{value}</span>
+          {unit && <span className="text-ui text-muted-foreground">{unit}</span>}
           {legend && legend.length > 1 && legend.map(l => (
-            <span key={l.label} className="ml-2.5 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span key={l.label} className="ml-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className="h-0.5 w-2.5 rounded-full" style={{ background: l.color }} />
               {l.label}
             </span>

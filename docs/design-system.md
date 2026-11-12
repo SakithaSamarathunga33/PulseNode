@@ -15,6 +15,12 @@ Tokens live in `app/theme.css`; the app shell is `components/AppShell.tsx`; prod
 5. **Every list has four states:** loading (Skeleton), empty (EmptyState), error (Alert), populated.
 6. **Keyboard + screen reader friendly.** Icon-only buttons need `aria-label`; inputs need a `Label`; focus rings stay visible.
 
+## Astryx rules (applied without the Astryx package)
+- **Spacing:** 4px scale steps only — 0.5, 1, 1.5, 2, 3, 4, 5, 6, 8, 10. No `2.5`/`3.5`/`4.5`, no `p-[18px]`. Tight gaps inside an item (1–2), generous between sections (4–6).
+- **Type:** `text-2xs` 11 · `text-xs` 12 · `text-ui` 13 · `text-sm` 14 · `text-base` 16 · `text-lg` 18 · `text-title` 22 · `text-metric` 28. No arbitrary `text-[Npx]`.
+- **Colour of text:** foreground and muted-foreground only; no `/50` or `opacity-*` on content.
+- **Structure:** one content line per region (container owns padding; tables bleed to the card edge); rows for dense data; weakest container that groups; one primary action per region; badges only for status.
+
 ## Tokens (Tailwind classes)
 Surfaces `bg-background` `bg-card` `bg-muted` `bg-accent` (hover) `bg-popover` · text `text-foreground` `text-muted-foreground` ·
 borders `border` (hairline) · stronger hairlines `border-[var(--border-2)]` / `--border-3` · primary `bg-primary text-primary-foreground` ·

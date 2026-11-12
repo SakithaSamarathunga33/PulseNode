@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronUp, ChevronsUpDown, ShieldOff } from "lucide-react"
 import type { DockerNetwork } from "@/lib/types"
-import { Pill } from "@/components/dashboard/Pill"
+import { Card } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import { Truncate } from "@/components/pn/Truncate"
@@ -18,10 +18,11 @@ export const sortValue: Record<SortKey, (n: DockerNetwork) => string | number> =
 }
 
 const Tag = ({ children }: { children: React.ReactNode }) => (
-  <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-px text-[11px] text-muted-foreground">{children}</span>
+  <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-px text-2xs text-muted-foreground">{children}</span>
 )
 
-const Driver = ({ d }: { d: string }) => <Pill className="font-mono">{d}</Pill>
+// Plain metadata, so muted text rather than a badge.
+const Driver = ({ d }: { d: string }) => <span className="font-mono text-xs text-muted-foreground">{d}</span>
 
 function Flags({ net }: { net: DockerNetwork }) {
   return (
@@ -84,9 +85,10 @@ export function NetworkTable({ rows, sort, onSort }: { rows: DockerNetwork[]; so
 
 export function NetworkCards({ rows }: { rows: DockerNetwork[] }) {
   return (
-    <ul className="space-y-3" aria-label="Networks">
+    <Card className="gap-0 overflow-hidden py-0">
+    <ul className="divide-y" aria-label="Networks">
       {rows.map(net => (
-        <li key={net.name} className="space-y-2.5 rounded-xl border bg-card p-3.5 shadow-card">
+        <li key={net.name} className="space-y-2 p-4">
           <div className="flex items-center gap-2">
             <Truncate mono text={net.name} className="flex-1 text-xs font-medium" />
             <Driver d={net.driver} />
@@ -101,5 +103,6 @@ export function NetworkCards({ rows }: { rows: DockerNetwork[] }) {
         </li>
       ))}
     </ul>
+    </Card>
   )
 }

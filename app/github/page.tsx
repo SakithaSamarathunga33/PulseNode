@@ -198,7 +198,7 @@ export default function GitHubPage() {
               </span>
               <div className="min-w-[200px] flex-1 space-y-0.5">
                 <p className="font-mono text-base font-semibold break-all">{account.login}</p>
-                <p className="text-[13px] text-muted-foreground">
+                <p className="text-ui text-muted-foreground">
                   Authenticated via{" "}
                   <span className="font-medium text-foreground">{account.tokenType === "pat" ? "Personal access token" : "OAuth app"}</span>
                 </p>
@@ -214,7 +214,7 @@ export default function GitHubPage() {
             </div>
           ) : (
             <>
-              <p className="px-4 pt-3.5 text-[13px] text-muted-foreground">
+              <p className="px-4 pt-4 text-ui text-muted-foreground">
                 PulseNode reads repositories, clones on deploy, and registers push webhooks. Choose how it authenticates.
               </p>
               <div className="grid max-md:divide-y md:grid-cols-2 md:divide-x">
@@ -223,7 +223,7 @@ export default function GitHubPage() {
                     <h3 className="text-sm font-semibold">OAuth app</h3>
                     <Pill tone="acc">Recommended</Pill>
                   </div>
-                  <p className="text-[13px] leading-relaxed text-muted-foreground">
+                  <p className="text-ui leading-relaxed text-muted-foreground">
                     Sign in with GitHub and grant access to selected organizations. Tokens refresh automatically.
                   </p>
                   <Button className="w-fit" onClick={connectOAuth} disabled={!oauthSettings?.configured}>
@@ -245,16 +245,16 @@ export default function GitHubPage() {
                     options={[{ value: "classic", label: "Classic" }, { value: "fine", label: "Fine-grained" }]}
                     className="w-fit"
                   />
-                  <div className="rounded-lg border">
-                    <p className="border-b px-3 py-2 text-[13px] text-muted-foreground">Required permissions</p>
-                    <dl className="divide-y">
+                  <div className="space-y-2">
+                    <p className="text-ui text-muted-foreground">Required permissions</p>
+                    <dl className="divide-y border-y">
                       {scopes.map(([k, v]) => (
-                        <div key={k} className="flex justify-between gap-2.5 px-3 py-1.5 font-mono text-xs">
+                        <div key={k} className="flex justify-between gap-2 py-1.5 font-mono text-xs">
                           <dt>{k}</dt><dd className="text-muted-foreground">{v}</dd>
                         </div>
                       ))}
                     </dl>
-                    <p className="border-t px-3 py-2 text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Create one at{" "}
                       <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-primary underline underline-offset-2">
@@ -301,7 +301,7 @@ export default function GitHubPage() {
             <h2 id="gh-wh" className="flex items-center gap-2 text-sm font-semibold">
               <Webhook className="size-4 text-[var(--hue)]" strokeWidth={1.75} aria-hidden /> Manual webhook
             </h2>
-            <p className="text-[13px] text-muted-foreground">
+            <p className="text-ui text-muted-foreground">
               PulseNode installs the webhook itself when you create a project. Use this only when automatic registration is not possible,
               e.g. repositories you do not administer: <span className="font-mono text-xs">Settings, Webhooks, Add webhook</span>.
             </p>
@@ -321,18 +321,20 @@ export default function GitHubPage() {
 
         {/* OAuth App Settings */}
         <Collapsible>
-          <Panel role="region" aria-label="OAuth settings" className="rounded-xl">
-            <CollapsibleTrigger className="group flex w-full flex-wrap items-center gap-2.5 rounded-xl px-4 py-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-              <ChevronRight className="size-4 text-muted-foreground transition-transform group-data-[panel-open]:rotate-90" aria-hidden />
-              <KeyRound className="size-4 text-[var(--hue)]" strokeWidth={1.75} aria-hidden />
-              <span className="flex-1 text-sm font-semibold">OAuth settings</span>
-              {oauthSettings?.configured ? <Pill tone="ok" dot>Configured</Pill> : <Pill dot>Not configured</Pill>}
-              <span className="text-xs text-muted-foreground">Advanced</span>
-            </CollapsibleTrigger>
+          <Panel role="region" aria-labelledby="gh-oauth" className="rounded-xl">
+            <h2>
+              <CollapsibleTrigger className="group flex w-full flex-wrap items-center gap-2 rounded-xl px-4 py-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+                <ChevronRight className="size-4 text-muted-foreground transition-transform group-data-[panel-open]:rotate-90" aria-hidden />
+                <KeyRound className="size-4 text-[var(--hue)]" strokeWidth={1.75} aria-hidden />
+                <span id="gh-oauth" className="flex-1 text-sm font-semibold">OAuth settings</span>
+                {oauthSettings?.configured ? <Pill tone="ok" dot>Configured</Pill> : <Pill dot>Not configured</Pill>}
+                <span className="text-xs text-muted-foreground">Advanced</span>
+              </CollapsibleTrigger>
+            </h2>
             <CollapsibleContent>
               <div className="grid gap-6 border-t p-4 md:grid-cols-2">
                 <div className="space-y-3">
-                  <p className="text-[13px] text-muted-foreground">
+                  <p className="text-ui text-muted-foreground">
                     Create an OAuth App at{" "}
                     <a href="https://github.com/settings/developers" target="_blank" rel="noopener noreferrer"
                       className="text-primary underline underline-offset-2">github.com/settings/developers</a>{" "}
@@ -363,12 +365,12 @@ export default function GitHubPage() {
                     {oauthSaved ? "Saved" : oauthSaving ? "Saving…" : "Save settings"}
                   </Button>
                 </div>
-                <div className="space-y-2.5 md:border-l md:pl-6">
-                  <h3 className="text-[13px] font-medium text-muted-foreground">How OAuth works</h3>
-                  <ol className="space-y-2.5">
+                <div className="space-y-2 md:border-l md:pl-6">
+                  <h3 className="text-ui font-semibold">How OAuth works</h3>
+                  <ol className="space-y-2">
                     {OAUTH_STEPS.map((t, i) => (
-                      <li key={t} className="flex gap-2.5 text-[13px] leading-relaxed text-muted-foreground">
-                        <span className="grid size-5 shrink-0 place-items-center rounded-md border font-mono text-[11px] font-semibold text-foreground tabular-nums">{i + 1}</span>
+                      <li key={t} className="flex gap-2 text-ui leading-relaxed text-muted-foreground">
+                        <span className="grid size-5 shrink-0 place-items-center rounded-md border font-mono text-2xs font-semibold text-foreground tabular-nums">{i + 1}</span>
                         <span>{t}</span>
                       </li>
                     ))}

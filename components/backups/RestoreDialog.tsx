@@ -30,7 +30,7 @@ export function RestoreDialog({ entry, busy, onConfirm, onClose }: {
         </AlertDialogHeader>
         <ul className="divide-y rounded-lg border bg-muted/40 py-1">
           <li className="flex flex-col gap-px px-3 py-1.5 font-mono">
-            <span className="text-[13px] font-medium break-all">{targetText(entry.target, entry.targetName)}</span>
+            <span className="text-ui font-medium break-all">{targetText(entry.target, entry.targetName)}</span>
             <span className="text-xs break-all text-muted-foreground">{entry.scheduleName} · {absTime(entry.startedAt)} · {fmtSize(entry.sizeBytes)}{entry.encrypted ? " · encrypted" : ""}</span>
           </li>
         </ul>

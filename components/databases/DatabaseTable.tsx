@@ -200,7 +200,7 @@ export function DatabaseTable({
           <SortHead label="Slow" k="slow" sort={sort} onSort={onSort} className="text-right" />
           <TableHead>Endpoint</TableHead>
           <TableHead>Activity</TableHead>
-          <TableHead className={cn(STICKY, "border-l pr-3.5 text-right")}>Actions</TableHead>
+          <TableHead className={cn(STICKY, "border-l pr-4 text-right")}>Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -212,11 +212,11 @@ export function DatabaseTable({
               <TableRow className={cn("h-[54px]", expanded && "bg-muted/40")}>
                 <TableCell className="w-10 pl-2"><ExpandButton db={db} expanded={expanded} onExpand={() => onExpand(db.name)} /></TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2">
                     <EngineBadge db={db} />
                     <div className="flex min-w-0 flex-col">
                       <Truncate text={db.name} className="max-w-[220px] font-semibold" />
-                      <Truncate text={db.host} className="max-w-[220px] text-[11px] text-muted-foreground" />
+                      <Truncate text={db.host} className="max-w-[220px] text-2xs text-muted-foreground" />
                     </div>
                   </div>
                 </TableCell>
@@ -251,23 +251,23 @@ export function DatabaseTable({
   )
 }
 
-/** Phone layout: one card per database with the essentials; expanding shows the workspace. */
+/** Phone layout: one divided row per database with the essentials; expanding shows the workspace. */
 export function DatabaseCards({ databases, connHist, expandedDb, onExpand, handlers }: Common & { databases: Database[] }) {
   const { tabOf, setTab } = useTabs()
   return (
-    <div className="flex flex-col gap-2 p-3">
+    <div className="flex flex-col divide-y">
       {databases.map(db => {
         const expanded = expandedDb === db.name
         const open = (t: WorkspaceTab) => { setTab(db.name, t); if (!expanded) onExpand(db.name) }
         return (
-          <article key={db.name} className="flex flex-col overflow-hidden rounded-xl border bg-card shadow-card">
-            <div className="flex flex-col gap-3 p-3.5">
-              <div className="flex items-start justify-between gap-2.5">
-                <div className="flex min-w-0 items-center gap-2.5">
+          <article key={db.name} className="flex flex-col">
+            <div className="flex flex-col gap-3 p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
                   <EngineBadge db={db} />
                   <div className="flex min-w-0 flex-col">
                     <Truncate text={db.name} className="text-sm font-semibold" />
-                    <Truncate mono text={`${db.engine} ${db.version}`} className="text-[11px] text-muted-foreground" />
+                    <Truncate mono text={`${db.engine} ${db.version}`} className="text-2xs text-muted-foreground" />
                   </div>
                 </div>
                 <Pill tone={statusTone(db.state)} dot>{statusLabel(db.state)}</Pill>
@@ -275,7 +275,7 @@ export function DatabaseCards({ databases, connHist, expandedDb, onExpand, handl
               <dl className="m-0 grid grid-cols-3 gap-2">
                 {[["Size", db.size], ["QPS", db.qps > 0 ? db.qps.toLocaleString() : "—"], ["Conns", `${db.conns > 0 ? db.conns : "—"} / ${db.maxConns}`]].map(([k, v]) => (
                   <div key={k}>
-                    <dt className="text-[11px] text-muted-foreground">{k}</dt>
+                    <dt className="text-2xs text-muted-foreground">{k}</dt>
                     <dd className="m-0 text-sm font-medium tabular-nums">{v}</dd>
                   </div>
                 ))}

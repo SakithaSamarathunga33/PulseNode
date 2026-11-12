@@ -14,7 +14,7 @@ export type WorkspaceTab = "overview" | "query" | "metrics"
 /** Expanded row content: Overview / Query / Metrics tabs for one database. */
 export function DatabaseWorkspace({ db, tab, onTab }: { db: Database; tab: WorkspaceTab; onTab: (t: WorkspaceTab) => void }) {
   return (
-    <div className="flex flex-col gap-3.5 bg-muted/30 px-4 pt-3.5 pb-5 motion-safe:animate-in motion-safe:fade-in-0 duration-200">
+    <div className="flex flex-col gap-3 bg-muted/30 px-4 pt-4 pb-5 motion-safe:animate-in motion-safe:fade-in-0 duration-200">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Segmented
           aria-label="Database workspace"

@@ -545,7 +545,7 @@ export default function ProjectDetailPage() {
             >
               <dl className="grid grid-cols-1 gap-px bg-border sm:grid-cols-2">
                 {identity.map(row => (
-                  <div key={row.label} className="flex min-w-0 items-center gap-2.5 bg-card px-4.5 py-3">
+                  <div key={row.label} className="flex min-w-0 items-center gap-2 bg-card px-4 py-3">
                     <div className="min-w-0 flex-1">
                       <dt className="text-xs text-muted-foreground">{row.label}</dt>
                       <dd className="mt-0.5 text-xs"><Truncate mono text={row.value === "—" ? "" : row.value} /></dd>
@@ -567,7 +567,7 @@ export default function ProjectDetailPage() {
                 </div>
               )}
               {webhook?.supported && !webhook.installed && (
-                <div className="flex flex-wrap items-center gap-2.5 border-t px-4.5 py-3 text-[13px] text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3 text-ui text-muted-foreground">
                   <TriangleAlert className="size-3.5 shrink-0 text-warning" aria-hidden />
                   <span className="min-w-0 flex-1">Push events are picked up by the 60s branch poller until the webhook is installed.</span>
                   <Button variant="outline" size="sm" onClick={installHook} disabled={installingHook}>
@@ -577,7 +577,7 @@ export default function ProjectDetailPage() {
                 </div>
               )}
               {webhook && !webhook.supported && !webhook.error && (
-                <p className="border-t px-4.5 py-3 text-xs text-muted-foreground">
+                <p className="border-t px-4 py-3 text-xs text-muted-foreground">
                   Connect GitHub (and set NEXT_PUBLIC_ORIGIN) to auto-install a push webhook for instant deploys.
                 </p>
               )}
@@ -588,7 +588,7 @@ export default function ProjectDetailPage() {
               title="Deployment configuration"
               description="Changes apply on the next deployment."
               aside={
-                <div className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
+                <div className="flex items-center gap-2 text-ui text-muted-foreground">
                   <Label htmlFor="auto-deploy" className="flex items-center gap-1.5 font-normal">
                     <Zap className="size-3.5" aria-hidden />Auto deploy on push
                   </Label>
@@ -596,8 +596,8 @@ export default function ProjectDetailPage() {
                 </div>
               }
             >
-              <div className="space-y-5 p-4.5">
-                <div className="grid gap-3.5 sm:grid-cols-2">
+              <div className="space-y-5 p-4">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <FormField label="Project name" htmlFor="ps-name">
                     <Input id="ps-name" value={form.name} onChange={e => setF("name", e.target.value)} spellCheck={false} className="h-9 font-mono text-xs" />
                   </FormField>
@@ -613,7 +613,7 @@ export default function ProjectDetailPage() {
                   </FormField>
                 </div>
                 <div className="space-y-1.5">
-                  <p className="text-xs leading-none font-medium text-muted-foreground">Build method</p>
+                  <p className="text-sm leading-none font-medium">Build method</p>
                   <ChoiceGroup label="Build method" value={form.buildMethod} onChange={v => setF("buildMethod", v)} options={[...BUILD_METHODS]} columns={3} />
                 </div>
               </div>
@@ -632,7 +632,7 @@ export default function ProjectDetailPage() {
                 </span>
               )}
             >
-              <div className={cn("grid gap-3.5 p-4.5")}>
+              <div className={cn("grid gap-3 p-4")}>
                 <EnvEditor
                   title={monorepo ? "Frontend env" : "Environment variables"}
                   description={monorepo ? "Frontend container only" : undefined}
@@ -651,7 +651,7 @@ export default function ProjectDetailPage() {
                 )}
               </div>
               {envErr && (
-                <p role="alert" className="flex items-center gap-1.5 border-t px-4.5 py-3 text-xs text-danger">
+                <p role="alert" className="flex items-center gap-1.5 border-t px-4 py-3 text-xs text-danger">
                   <AlertCircle className="size-3.5" aria-hidden />{envErr}
                 </p>
               )}
@@ -667,7 +667,7 @@ export default function ProjectDetailPage() {
             {/* Save bar: sticks to the bottom while there are unsaved changes */}
             <div
               className={cn(
-                "z-10 flex flex-wrap items-center justify-end gap-2.5 rounded-xl border bg-popover px-3 py-2.5",
+                "z-10 flex flex-wrap items-center justify-end gap-2 rounded-xl border bg-popover px-3 py-3",
                 dirty ? "sticky bottom-3 shadow-pop" : "shadow-none",
               )}
             >
@@ -684,9 +684,9 @@ export default function ProjectDetailPage() {
             </div>
 
             {/* Danger zone */}
-            <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-danger/30 bg-card px-4.5 py-3.5 shadow-card">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-danger/30 bg-card px-4 py-4 shadow-card">
               <div className="space-y-0.5">
-                <p className="text-[13px] font-semibold text-danger">Delete project</p>
+                <p className="text-ui font-semibold text-danger">Delete project</p>
                 <p className="text-xs text-muted-foreground">Stops containers, removes images and routes. The repository is untouched.</p>
               </div>
               <Button variant="destructive" onClick={() => setConfirmDelete(true)} disabled={deleting}>

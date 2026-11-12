@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { EmptyState } from "@/components/pn/EmptyState"
@@ -118,7 +117,7 @@ function CardFooter({ sha, note, when, status, busy, redeployLabel, onRedeploy, 
   return (
     <div className="mt-auto flex items-center gap-2 border-t bg-muted/30 py-2 pr-2 pl-4">
       <span className="flex min-w-0 flex-1 items-center gap-2 text-xs text-muted-foreground">
-        {sha && <span className="shrink-0 font-mono text-primary">{sha}</span>}
+        {sha && <span className="shrink-0 font-mono text-foreground">{sha}</span>}
         <span className="truncate">{note}</span>
         {when && <span className="shrink-0">· {when}</span>}
       </span>
@@ -165,16 +164,16 @@ function ProjectCard({ proj, busy, onRedeploy }: { proj: Project; busy: boolean;
         <div className="min-w-0 flex-1">
           <Link
             href={`/projects/${proj.ID}`}
-            className="flex items-center gap-1.5 rounded-sm text-[15px] font-semibold outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="flex items-center gap-1.5 rounded-sm text-sm font-semibold outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <span className="truncate">{proj.Name}</span>
-            {proj.External && <Badge variant="secondary" className="shrink-0 text-[11px]">Hosted on VPS</Badge>}
+            {proj.External && <span className="shrink-0 text-xs font-normal text-muted-foreground">· Hosted on VPS</span>}
           </Link>
           <Truncate mono text={source ?? ""} className="mt-0.5 text-xs text-muted-foreground" />
         </div>
         <StatusPill status={status} />
       </div>
-      <dl className="grid grid-cols-3 gap-2.5 px-4 pb-3.5">
+      <dl className="grid grid-cols-3 gap-2 px-4 pb-4">
         <Meta label="Branch">
           {proj.External ? "image" : <><GitBranch className="size-3 shrink-0" aria-hidden /><Truncate text={proj.Branch} /></>}
         </Meta>
@@ -193,7 +192,7 @@ function ProjectCard({ proj, busy, onRedeploy }: { proj: Project; busy: boolean;
         </Meta>
       </dl>
       {status === "failed" && (
-        <p className="mx-4 mb-3 flex items-center gap-2 rounded-md bg-danger/10 px-2.5 py-2 text-xs">
+        <p className="mx-4 mb-3 flex items-center gap-2 rounded-md bg-danger/10 px-3 py-2 text-xs">
           <CircleX className="size-3.5 shrink-0 text-danger" aria-hidden />
           The last deployment failed. Open the project to read its log.
         </p>
@@ -247,22 +246,22 @@ function RepoGroup({ repoUrl, members, busy, onRedeploy }: {
           <Boxes className="size-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-semibold">{repoName.split("/").pop() ?? repoName}</p>
+          <p className="truncate text-sm font-semibold">{repoName.split("/").pop() ?? repoName}</p>
           <Truncate mono text={repoName} className="mt-0.5 text-xs text-muted-foreground" />
         </div>
         <span className="shrink-0 text-xs text-muted-foreground">
           Deployed separately · <span className="tabular-nums">{members.length}</span> of 2 services
         </span>
       </div>
-      <div className="grid gap-2 px-4 pb-3.5 sm:grid-cols-2">
+      <div className="grid gap-2 px-4 pb-4 sm:grid-cols-2">
         {sorted.map(m => (
           <Link
             key={m.ID}
             href={`/projects/${m.ID}`}
-            className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3 outline-none transition-colors hover:border-input focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="flex flex-col gap-2 rounded-lg bg-muted/40 p-3 outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <span className="flex items-center gap-2">
-              <span className="flex-1 truncate text-[13px] font-semibold capitalize">{m.BaseDir || m.Name}</span>
+              <span className="flex-1 truncate text-ui font-semibold capitalize">{m.BaseDir || m.Name}</span>
               <StatusPill status={m.Status} />
             </span>
             <span className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-xs text-muted-foreground">
@@ -434,7 +433,7 @@ export default function ProjectsPage() {
       />
       <PageBody>
         {loading ? (
-          <div className="grid gap-3.5 md:grid-cols-2 xl:grid-cols-3" aria-busy="true">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" aria-busy="true">
             {[0, 1, 2].map(i => <Skeleton key={i} className="h-44 rounded-xl" />)}
           </div>
         ) : error && projects.length === 0 ? (
@@ -462,7 +461,7 @@ export default function ProjectsPage() {
           />
         ) : (
           <>
-            <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2">
               <Segmented<Filter>
                 aria-label="Filter by status"
                 value={filter}
@@ -485,7 +484,7 @@ export default function ProjectsPage() {
                   onChange={e => setQuery(e.target.value)}
                   className="max-w-none"
                 />
-                <kbd className="pointer-events-none absolute top-1/2 right-2 hidden h-[18px] min-w-[18px] -translate-y-1/2 items-center justify-center rounded border bg-muted px-1 font-mono text-[11px] text-muted-foreground sm:inline-flex">/</kbd>
+                <kbd className="pointer-events-none absolute top-1/2 right-2 hidden h-[18px] min-w-[18px] -translate-y-1/2 items-center justify-center rounded border bg-muted px-1 font-mono text-2xs text-muted-foreground sm:inline-flex">/</kbd>
               </div>
             </div>
 
@@ -503,7 +502,7 @@ export default function ProjectsPage() {
                 action={<Button variant="outline" size="sm" onClick={() => { setFilter("all"); setQuery("") }}>Clear filter</Button>}
               />
             ) : (
-              <section aria-label="Project list" className="grid items-start gap-3.5 md:grid-cols-2 xl:grid-cols-3">
+              <section aria-label="Project list" className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {visible.map(e => (
                   <div key={e.key} className={cn(e.group && "md:col-span-2 xl:col-span-3")}>
                     {e.group ? (

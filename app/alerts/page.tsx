@@ -17,7 +17,7 @@ import { SummaryStrip } from "@/components/pn/SummaryStrip"
 import { ConfirmDialog } from "@/components/pn/ConfirmDialog"
 import { Pill } from "@/components/dashboard/Pill"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -303,7 +303,7 @@ export default function AlertsPage() {
                   placeholder="Search title or target"
                   aria-label="Search alerts"
                 />
-                <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border bg-muted px-1.5 font-mono text-[11px] text-muted-foreground sm:block">/</kbd>
+                <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border bg-muted px-1.5 font-mono text-2xs text-muted-foreground sm:block">/</kbd>
               </div>
               <Segmented<StateFilter>
                 aria-label="Filter by state"
@@ -315,11 +315,11 @@ export default function AlertsPage() {
                 ]}
               />
               <Select value={sevFilter} onValueChange={v => setSevFilter(v as SevFilter)} items={SEV_FILTERS}>
-                <SelectTrigger size="sm" aria-label="Severity" className="w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Severity" className="w-[150px]"><SelectValue /></SelectTrigger>
                 <SelectContent>{SEV_FILTERS.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}</SelectContent>
               </Select>
               <Select value={rangeFilter} onValueChange={v => setRangeFilter(v as RangeFilter)} items={RANGE_FILTERS}>
-                <SelectTrigger size="sm" aria-label="Time range" className="w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Time range" className="w-[150px]"><SelectValue /></SelectTrigger>
                 <SelectContent>{RANGE_FILTERS.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}</SelectContent>
               </Select>
               <span className="ml-auto text-xs text-muted-foreground tabular-nums">{filtered.length} of {list.length}</span>
@@ -340,9 +340,10 @@ export default function AlertsPage() {
               />
             ) : (
               <>
-                <ul className="space-y-3 md:hidden" aria-label="Alerts">
+                <Card className="gap-0 py-0 md:hidden">
+                <ul className="divide-y" aria-label="Alerts">
                   {filtered.map(alert => (
-                    <li key={alert.id} className={cn("space-y-2.5 rounded-xl border bg-card p-3.5 shadow-card", alert.state === "firing" && "bg-danger/5")}>
+                    <li key={alert.id} className={cn("space-y-2 p-4", alert.state === "firing" && "bg-danger/5")}>
                       <div className="flex items-center gap-2">
                         <SevLabel severity={alert.severity} />
                         <span className="ml-auto"><StatePill state={alert.state} /></span>
@@ -365,6 +366,7 @@ export default function AlertsPage() {
                     </li>
                   ))}
                 </ul>
+                </Card>
 
                 <Card className="hidden gap-0 overflow-hidden py-0 md:block">
                   <div className="overflow-x-auto">
@@ -410,8 +412,9 @@ export default function AlertsPage() {
 
         {tab === "rules" && (
           <>
-            <div className="flex justify-end">
-              <Button onClick={() => setRuleDialog("new")}><Plus className="size-4" /> New rule</Button>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold">Rules</h2>
+              {rules?.length !== 0 && <Button onClick={() => setRuleDialog("new")}><Plus className="size-4" /> New rule</Button>}
             </div>
             {rules === null ? (
               <Skeleton className="h-40 rounded-xl" />
@@ -423,20 +426,18 @@ export default function AlertsPage() {
               />
             ) : (
               <>
-              <ul className="space-y-3 md:hidden" aria-label="Rules">
+              <Card className="gap-0 py-0 md:hidden">
+              <ul className="divide-y" aria-label="Rules">
                 {rules.map(rule => (
-                  <li key={rule.id} className="space-y-2.5 rounded-xl border bg-card p-3.5 shadow-card">
+                  <li key={rule.id} className="space-y-2 p-4">
                     <div className="flex items-center gap-2">
                       <Truncate text={rule.name} className="flex-1 text-sm font-medium" />
                       <Pill tone={SEV[rule.severity]?.tone ?? "info"}>{SEV[rule.severity]?.label ?? rule.severity}</Pill>
                     </div>
                     <code className="block overflow-x-auto rounded bg-muted px-2 py-1 font-mono text-xs">{ruleExpr(rule)}</code>
-                    <div className="flex flex-wrap items-center gap-1">
-                      <span className="mr-1 text-xs text-muted-foreground">Notifies</span>
-                      {rule.channelIds.length === 0
-                        ? <Pill tone="outline">all channels</Pill>
-                        : rule.channelIds.map(id => <Pill key={id} tone="outline">{channelName(id)}</Pill>)}
-                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Notifies {rule.channelIds.length === 0 ? "all channels" : rule.channelIds.map(channelName).join(", ")}
+                    </p>
                     <div className="flex items-center justify-between">
                       <Switch checked={rule.enabled} onCheckedChange={v => toggleRule(rule, v)} aria-label={`Enable rule ${rule.name}`} />
                       <div className="flex gap-1">
@@ -447,6 +448,7 @@ export default function AlertsPage() {
                   </li>
                 ))}
               </ul>
+              </Card>
               <Card className="hidden gap-0 overflow-x-auto py-0 md:block">
                 <Table className="min-w-[860px]">
                   <TableHeader>
@@ -466,17 +468,15 @@ export default function AlertsPage() {
                         <TableCell className="max-w-[16rem]">
                           <Truncate text={rule.name} className="font-medium" />
                           {metricOf(rule.metric)?.percent && rule.duration > 0 && (
-                            <span className="text-[11px] text-muted-foreground">for {rule.duration >= 60 ? `${Math.round(rule.duration / 60)}m` : `${rule.duration}s`}</span>
+                            <span className="text-2xs text-muted-foreground">for {rule.duration >= 60 ? `${Math.round(rule.duration / 60)}m` : `${rule.duration}s`}</span>
                           )}
                         </TableCell>
                         <TableCell className="max-w-[18rem]"><Truncate mono text={ruleExpr(rule)} className="w-fit max-w-full rounded bg-muted px-2 py-0.5 text-xs" /></TableCell>
                         <TableCell><Pill tone={SEV[rule.severity]?.tone ?? "info"}>{SEV[rule.severity]?.label ?? rule.severity}</Pill></TableCell>
                         <TableCell>
-                          <div className="flex flex-wrap items-center gap-1">
-                            {rule.channelIds.length === 0
-                              ? <Pill tone="outline">all channels</Pill>
-                              : rule.channelIds.map(id => <Pill key={id} tone="outline">{channelName(id)}</Pill>)}
-                          </div>
+                          <span className="text-ui text-muted-foreground">
+                            {rule.channelIds.length === 0 ? "all channels" : rule.channelIds.map(channelName).join(", ")}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <div className="flex justify-end gap-1">
@@ -496,8 +496,9 @@ export default function AlertsPage() {
 
         {tab === "channels" && (
           <>
-            <div className="flex justify-end">
-              <Button onClick={() => setChannelDialog("new")}><Plus className="size-4" /> Add channel</Button>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold">Notification channels</h2>
+              {channels?.length !== 0 && <Button onClick={() => setChannelDialog("new")}><Plus className="size-4" /> Add channel</Button>}
             </div>
             {channels === null ? (
               <Skeleton className="h-40 rounded-xl" />
@@ -508,30 +509,28 @@ export default function AlertsPage() {
                 action={<Button onClick={() => setChannelDialog("new")}><Plus className="size-4" /> Add channel</Button>}
               />
             ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {channels.map(ch => {
-                  const meta = CHANNEL_META[ch.type] ?? CHANNEL_META.webhook
-                  return (
-                    <Card key={ch.id}>
-                      <CardContent className="space-y-3">
-                        <div className="flex items-start gap-2.5">
-                          <meta.icon className="mt-0.5 size-4 shrink-0 text-[var(--hue)]" aria-hidden />
-                          <div className="min-w-0 flex-1">
-                            <Truncate text={ch.name} className="text-sm font-medium" />
-                            <Truncate text={`${meta.label}${ch.summary ? ` · ${ch.summary}` : ""}`} className="mt-0.5 text-xs text-muted-foreground" />
-                          </div>
-                          <Switch checked={ch.enabled} onCheckedChange={v => toggleChannel(ch, v)} aria-label={`Enable channel ${ch.name}`} />
+              <Card className="gap-0 py-0">
+                <ul className="divide-y" aria-label="Notification channels">
+                  {channels.map(ch => {
+                    const meta = CHANNEL_META[ch.type] ?? CHANNEL_META.webhook
+                    return (
+                      <li key={ch.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+                        <Switch checked={ch.enabled} onCheckedChange={v => toggleChannel(ch, v)} aria-label={`Enable channel ${ch.name}`} />
+                        <meta.icon className="size-4 shrink-0 text-[var(--hue)]" aria-hidden />
+                        <div className="min-w-0 flex-1 basis-48">
+                          <Truncate text={ch.name} className="text-sm font-medium" />
+                          <Truncate text={`${meta.label}${ch.summary ? ` · ${ch.summary}` : ""}`} className="text-xs text-muted-foreground" />
                         </div>
-                        <div className="flex gap-1 border-t pt-2">
+                        <div className="flex items-center gap-1">
                           <Button variant="outline" size="xs" onClick={() => testChannel(ch)}><Send className="size-3" /> Test</Button>
                           <Button variant="ghost" size="xs" onClick={() => setChannelDialog(ch)}><Pencil className="size-3" /> Edit</Button>
-                          <Button variant="ghost" size="xs" className="ml-auto text-danger" onClick={() => setConfirm({ kind: "channel", id: ch.id, name: ch.name })}><Trash2 className="size-3" /> Delete</Button>
+                          <Button variant="ghost" size="xs" className="text-danger" onClick={() => setConfirm({ kind: "channel", id: ch.id, name: ch.name })}><Trash2 className="size-3" /> Delete</Button>
                         </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </Card>
             )}
           </>
         )}

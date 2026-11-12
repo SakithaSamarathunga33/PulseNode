@@ -99,7 +99,7 @@ export function Topbar() {
       >
         <Search className="size-4 shrink-0" />
         <span className="truncate">Search pages, containers, projects…</span>
-        <kbd className="ml-auto hidden rounded-md border bg-muted px-1.5 py-px font-mono text-[11px] text-muted-foreground sm:block">Ctrl K</kbd>
+        <kbd className="ml-auto hidden rounded-md border bg-muted px-1.5 py-px font-mono text-2xs text-muted-foreground sm:block">Ctrl K</kbd>
       </button>
 
       <div className="ml-auto flex shrink-0 items-center gap-0.5">
@@ -114,7 +114,7 @@ export function Topbar() {
           <DropdownMenuTrigger
             render={<Button variant="ghost" size="icon" className="ml-1 rounded-full" aria-label="Account menu" />}
           >
-            <span className="grid size-7 place-items-center rounded-full border bg-[linear-gradient(140deg,var(--muted),var(--card))] text-[11px] font-semibold text-foreground shadow-card">
+            <span className="grid size-7 place-items-center rounded-full border bg-[linear-gradient(140deg,var(--muted),var(--card))] text-2xs font-semibold text-foreground shadow-card">
               {username.trim().slice(0, 2).toUpperCase() || "?"}
             </span>
           </DropdownMenuTrigger>

@@ -7,6 +7,17 @@
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
+  /* Semantic type steps (Astryx rule: no ad-hoc font sizes; line heights snap to the 4px grid).
+     Tailwind's own text-xs (12) / text-sm (14) / text-base (16) / text-lg (18) cover the rest. */
+  --text-2xs: 0.6875rem;        /* 11px — counts, chips, micro labels */
+  --text-2xs--line-height: 1rem;
+  --text-ui: 0.8125rem;         /* 13px — dense UI labels, card labels, table meta */
+  --text-ui--line-height: 1.25rem;
+  --text-title: 1.375rem;       /* 22px — page titles */
+  --text-title--line-height: 1.75rem;
+  --text-metric: 1.75rem;       /* 28px — headline numbers */
+  --text-metric--line-height: 2.25rem;
+
   --animate-border-beam: border-beam calc(var(--duration) * 1s) infinite linear;
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;

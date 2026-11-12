@@ -41,7 +41,7 @@ export function Fleet({ containers }: { containers: Container[] }) {
               <RingCenter defaultLabel="Containers" />
             </RingChart>
           </div>
-          <ul className="min-w-0 flex-1 space-y-1.5 text-[13px]">
+          <ul className="min-w-0 flex-1 space-y-1.5 text-ui">
             {rings.map(r => (
               <li key={r.label} className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-2 text-muted-foreground">
@@ -55,14 +55,14 @@ export function Fleet({ containers }: { containers: Container[] }) {
       </div>
 
       <div className="min-w-0 space-y-3 border-t pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5">
-        <h3 className="text-xs font-medium text-muted-foreground">Top CPU · running containers</h3>
+        <h3 className="text-sm font-medium text-muted-foreground">Top CPU · running containers</h3>
         {top.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No running containers.</p>
+          <p className="text-sm text-muted-foreground">No running containers.</p>
         ) : (
           <ol className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
             {top.map(c => (
               <li key={c.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
-                <Truncate text={c.name} className="text-[13px] font-medium" />
+                <Truncate text={c.name} className="text-ui font-medium" />
                 <span className="font-mono text-xs tabular-nums text-muted-foreground">{c.cpu.toFixed(1)}%</span>
                 <ProgressBar value={c.cpu} label={`${c.name} CPU`} className="col-span-2 h-1" />
               </li>

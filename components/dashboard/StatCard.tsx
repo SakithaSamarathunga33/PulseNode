@@ -57,14 +57,14 @@ export function StatCard({
       className="group/stat relative min-w-0 overflow-hidden rounded-xl border bg-card p-4 shadow-card transition-colors hover:border-[var(--border-2)]"
     >
       <div className="mb-3 flex items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-muted-foreground">
+        <span className="flex min-w-0 items-center gap-2 text-ui font-medium text-muted-foreground">
           {Icon && <Icon className="size-4 shrink-0 text-[var(--tone)]" strokeWidth={1.75} />}
           <span className="truncate">{label}</span>
         </span>
         {delta && (
           <span
             className={cn(
-              "shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[11px] tabular-nums",
+              "shrink-0 rounded-md px-1.5 py-0.5 font-mono text-2xs tabular-nums",
               deltaTone === "up" && "bg-success/12 text-success",
               deltaTone === "down" && "bg-danger/12 text-danger",
               (!deltaTone || deltaTone === "flat") && "bg-muted text-muted-foreground",
@@ -77,8 +77,8 @@ export function StatCard({
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-baseline gap-1">
-            <span className="text-[28px] leading-none font-semibold tracking-tight tabular-nums">
-              {isNum && animate ? <NumberTicker value={value as number} className="text-[28px] leading-none font-semibold" /> : value}
+            <span className="text-metric leading-none font-semibold tracking-tight tabular-nums">
+              {isNum && animate ? <NumberTicker value={value as number} className="text-metric leading-none font-semibold" /> : value}
             </span>
             {unit && <span className="text-sm text-muted-foreground">{unit}</span>}
           </div>

@@ -13,7 +13,7 @@ import {
 const CELL = { type: "spring", stiffness: 520, damping: 34, mass: 0.45 } as const;
 
 const SEG =
-  "px-3 py-[7px] text-center text-[13px] font-medium leading-[18px] tracking-[-0.01em] whitespace-nowrap";
+  "px-3 py-0.5 text-center text-ui font-medium tracking-[-0.01em] whitespace-nowrap";
 
 export type SegmentedOption = {
   value: string;

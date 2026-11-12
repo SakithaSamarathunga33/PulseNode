@@ -90,7 +90,7 @@ function CommandCell({ proc, flagged, max = "max-w-[420px]" }: { proc: Process; 
       )}
       <Truncate mono text={proc.cmd} className={cn("text-xs", max)} />
       {proc.type === "pm2" && (
-        <span className="shrink-0 rounded bg-primary/12 px-1.5 py-px text-[11px] font-semibold text-primary">pm2 · {procName(proc)}</span>
+        <span className="shrink-0 rounded bg-primary/12 px-1.5 py-px text-2xs font-semibold text-primary">pm2 · {procName(proc)}</span>
       )}
     </div>
   )
@@ -274,11 +274,11 @@ export default function ProcessesPage() {
             Processes
             {loaded && suspicious.length > 0 && (
               <a href="#suspicious" className="rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
-                <Pill tone="bad" className="h-6 px-2.5 text-xs"><ShieldAlert className="size-3.5" />{suspicious.length} suspicious</Pill>
+                <Pill tone="bad" className="h-6 px-3 text-xs"><ShieldAlert className="size-3.5" />{suspicious.length} suspicious</Pill>
               </a>
             )}
             {loaded && suspicious.length === 0 && (
-              <Pill tone="ok" className="h-6 px-2.5 text-xs"><ShieldCheck className="size-3.5" />No suspicious activity</Pill>
+              <Pill tone="ok" className="h-6 px-3 text-xs"><ShieldCheck className="size-3.5" />No suspicious activity</Pill>
             )}
           </span>
         }
@@ -320,11 +320,11 @@ export default function ProcessesPage() {
             />
           ) : (
             <div className="overflow-hidden rounded-xl border border-danger/30 bg-card shadow-card">
-              <div role="alert" className="flex items-start gap-3 border-b border-danger/20 bg-danger/10 px-4 py-3.5">
+              <div role="alert" className="flex items-start gap-3 border-b border-danger/20 bg-danger/10 px-4 py-4">
                 <ShieldAlert className="mt-0.5 size-[18px] shrink-0 text-danger" />
                 <div className="min-w-0 flex-1 space-y-1">
                   <p className="text-sm font-semibold">{suspicious.length} process{suspicious.length !== 1 ? "es" : ""} matched detection rules</p>
-                  <p className="text-[13px] text-muted-foreground">These are rule matches, not confirmed malware. Inspect before acting. Kill confirmed threats, or release a false positive.</p>
+                  <p className="text-ui text-muted-foreground">These are rule matches, not confirmed malware. Inspect before acting. Kill confirmed threats, or release a false positive.</p>
                   <div className="flex flex-wrap items-center gap-3 pt-1">
                     {riskCounts.map(({ r, n }) => (
                       <span key={r} className="flex items-center gap-1.5"><RiskPill risk={r} /><span className="font-mono text-xs tabular-nums">{n}</span></span>
@@ -336,7 +336,7 @@ export default function ProcessesPage() {
                 {suspicious.map(({ proc, result }) => {
                   const open = inspecting.has(proc.pid)
                   return (
-                    <li key={proc.pid} className="space-y-2.5 px-4 py-3.5">
+                    <li key={proc.pid} className="space-y-2 px-4 py-4">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                         <RiskPill risk={result.risk} />
                         <span className="font-mono text-xs text-muted-foreground">PID <b className="font-semibold text-foreground">{proc.pid}</b></span>
@@ -357,7 +357,7 @@ export default function ProcessesPage() {
                           <Button variant="destructive" size="sm" onClick={() => requestAction("kill", proc)}>Kill</Button>
                         </div>
                       </div>
-                      <code className="block rounded-md border bg-muted/60 px-2.5 py-2 font-mono text-xs break-all">{proc.cmd}</code>
+                      <code className="block rounded-md border bg-muted/60 px-3 py-2 font-mono text-xs break-all">{proc.cmd}</code>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-xs font-medium text-muted-foreground">Flagged because</span>
                         {result.reasons.map(r => (
@@ -365,7 +365,7 @@ export default function ProcessesPage() {
                         ))}
                       </div>
                       {open && (
-                        <dl className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-x-5 gap-y-2.5 rounded-lg border bg-muted/40 p-3 motion-safe:animate-in motion-safe:fade-in-0">
+                        <dl className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-x-5 gap-y-2 border-t pt-3 motion-safe:animate-in motion-safe:fade-in-0">
                           {([
                             ["Process", proc.name || procName(proc)],
                             ["User", proc.user],
@@ -374,7 +374,7 @@ export default function ProcessesPage() {
                             ["Managed by", proc.type === "pm2" ? "PM2" : "Host (system)"],
                           ] as const).map(([k, v]) => (
                             <div key={k} className="space-y-0.5">
-                              <dt className="text-[11px] text-muted-foreground">{k}</dt>
+                              <dt className="text-2xs text-muted-foreground">{k}</dt>
                               <dd className="font-mono text-xs break-all">{v}</dd>
                             </div>
                           ))}
@@ -391,7 +391,7 @@ export default function ProcessesPage() {
             <Panel className="flex flex-wrap items-center gap-2 rounded-xl px-4 py-3">
               <ShieldCheck className="size-4 text-success" />
               <span className="text-sm font-medium">Released (false positives)</span>
-              <span className="rounded-full bg-muted px-1.5 font-mono text-[11px] tabular-nums text-muted-foreground">{released.size}</span>
+              <span className="font-mono text-sm tabular-nums text-muted-foreground">{released.size}</span>
               <div className="flex flex-wrap gap-2">
                 {Array.from(released).map(pid => {
                   const p = processes.find(pr => pr.pid === pid)
@@ -420,13 +420,13 @@ export default function ProcessesPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 id="blocked-title" className="flex items-center gap-2 text-lg font-semibold">
                 <Ban className="size-[18px] text-warning" />Suspended processes
-                <span className="rounded-full bg-muted px-1.5 font-mono text-[11px] tabular-nums text-muted-foreground">{blocked.length}</span>
+                <span className="font-mono text-sm font-normal tabular-nums text-muted-foreground">{blocked.length}</span>
               </h2>
               <span className="text-xs text-muted-foreground">Unblock a process to let it run again</span>
             </div>
             <Card className="gap-0 overflow-hidden border-warning/30 py-0">
               <div className="overflow-x-auto">
-                <Table className="min-w-[640px]">
+                <Table className="min-w-[640px] [&_tr>*:first-child]:pl-4 [&_tr>*:last-child]:pr-4">
                   <TableHeader>
                     <TableRow>
                       <TableHead>PID</TableHead>
@@ -478,7 +478,7 @@ export default function ProcessesPage() {
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                 />
-                <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border bg-muted px-1.5 font-mono text-[11px] text-muted-foreground sm:block">/</kbd>
+                <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border bg-muted px-1.5 font-mono text-2xs text-muted-foreground sm:block">/</kbd>
               </div>
             </div>
           </div>
@@ -491,12 +491,13 @@ export default function ProcessesPage() {
               description={processes.length === 0 ? "The host did not return any processes." : "Try a different command, user or PID."} />
           ) : (
             <>
-              <ul className="space-y-3 md:hidden" aria-label="Processes">
+              <Card className="gap-0 overflow-hidden py-0 md:hidden">
+              <ul className="divide-y" aria-label="Processes">
                 {sorted.map(proc => (
                   <li
                     key={proc.pid}
                     className={cn(
-                      "space-y-2.5 rounded-xl border bg-card p-3.5 shadow-card",
+                      "space-y-2 p-4",
                       flagged.has(proc.pid) && "bg-danger/5",
                     )}
                   >
@@ -515,10 +516,11 @@ export default function ProcessesPage() {
                   </li>
                 ))}
               </ul>
+              </Card>
 
               <Card className="hidden gap-0 overflow-hidden py-0 md:block">
                 <div className="max-h-[640px] overflow-auto">
-                  <Table className="min-w-[980px]">
+                  <Table className="min-w-[980px] [&_tr>*:first-child]:pl-4">
                     <TableHeader>
                       <TableRow>
                         <SortHead k="pid" sortKey={sortKey} dir={sortDir} onSort={handleSort} />
@@ -547,7 +549,7 @@ export default function ProcessesPage() {
                     </TableBody>
                   </Table>
                 </div>
-                <div className="flex items-center justify-between border-t px-4 py-2.5 text-xs text-muted-foreground">
+                <div className="flex items-center justify-between border-t px-4 py-3 text-xs text-muted-foreground">
                   <span>Showing {sorted.length} of {processes.length} processes</span>
                   <span className="inline-flex items-center gap-1 tabular-nums">
                     Sorted by {SORT_LABEL[sortKey]} {sortDir === "desc" ? <ArrowDown className="size-3" /> : <ArrowUp className="size-3" />}

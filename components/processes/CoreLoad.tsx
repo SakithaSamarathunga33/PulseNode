@@ -43,7 +43,7 @@ export function CoreLoad({ cores }: { cores: number[] }) {
         />
       </div>
 
-      <ul className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-x-4 gap-y-1 border-t pt-3 text-xs">
+      <ul className="-mx-1 grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-x-4 gap-y-1 border-t pt-3 text-xs">
         {cores.map((pct, i) => (
           <li key={i} className={cn("flex items-baseline justify-between gap-2 rounded px-1 py-0.5", hover === i && "bg-accent")}>
             <span className="text-muted-foreground">CPU {i + 1}</span>

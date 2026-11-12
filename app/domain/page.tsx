@@ -64,12 +64,12 @@ function Panel({ id, icon: Icon, title, subtitle, right, children }: {
   return (
     <section aria-labelledby={id}>
       <Card className="gap-0 overflow-hidden py-0">
-        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
           <div className="min-w-0 space-y-0.5">
             <h2 id={id} className="inline-flex items-center gap-2 text-sm font-semibold">
               <Icon className="size-4 text-[var(--hue)]" strokeWidth={1.75} aria-hidden />{title}
             </h2>
-            {subtitle && <p className="text-[13px] text-muted-foreground">{subtitle}</p>}
+            {subtitle && <p className="text-ui text-muted-foreground">{subtitle}</p>}
           </div>
           {right}
         </div>
@@ -258,7 +258,7 @@ export default function DomainPage() {
         title="Domains"
         description="Save the domains you use, verify their DNS, and see what each container is serving."
         actions={
-          <span className="inline-flex h-8 items-center gap-2 rounded-lg border bg-card px-3 text-[13px] text-muted-foreground shadow-card">
+          <span className="inline-flex h-8 items-center gap-2 rounded-lg border bg-card px-3 text-ui text-muted-foreground shadow-card">
             VPS IP
             <code className="font-mono font-medium text-foreground">{expectedIp || "unknown"}</code>
             {expectedIp && (
@@ -309,7 +309,7 @@ export default function DomainPage() {
             <Panel
               id="dm-saved"
               icon={Globe}
-              title={<>Saved domains <span className="font-mono text-[13px] font-medium text-muted-foreground tabular-nums">{domains.length}</span></>}
+              title={<>Saved domains <span className="font-mono text-ui font-medium text-muted-foreground tabular-nums">{domains.length}</span></>}
               right={
                 <form
                   onSubmit={e => { e.preventDefault(); void save(newDomain) }}
@@ -321,9 +321,9 @@ export default function DomainPage() {
                     aria-label="Domain to save"
                     placeholder="example.com"
                     spellCheck={false}
-                    className="h-8 w-[200px] font-mono text-xs"
+                    className="w-[200px] font-mono text-xs"
                   />
-                  <Button type="submit" size="sm" disabled={saving || !newDomain.trim()}>
+                  <Button type="submit" disabled={saving || !newDomain.trim()}>
                     {saving ? <Loader2 className="animate-spin" /> : <Plus />}Save
                   </Button>
                 </form>
@@ -340,10 +340,10 @@ export default function DomainPage() {
                     const busy = busyHost === d.host
                     const ips = d.records?.length ? d.records.join(", ") : d.error ? "SERVFAIL" : "—"
                     return (
-                      <li key={d.host} className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 py-2.5 pr-2.5 pl-4 transition-colors hover:bg-accent/40">
+                      <li key={d.host} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 transition-colors hover:bg-accent/40">
                         <div className="flex min-w-0 flex-1 basis-56 flex-col gap-0.5">
                           <div className="flex min-w-0 flex-wrap items-center gap-2">
-                            <code className="font-mono text-[13px] font-medium break-all">{d.host}</code>
+                            <code className="font-mono text-ui font-medium break-all">{d.host}</code>
                             {d.isPrimary && (
                               <Pill tone="acc"><Star className="size-3" aria-hidden />Primary</Pill>
                             )}
@@ -392,16 +392,16 @@ export default function DomainPage() {
               {loading ? (
                 <div className="space-y-2 p-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>
               ) : inUse.length === 0 ? (
-                <p className="p-4 text-sm text-muted-foreground">No domains discovered from containers, projects, or Caddy.</p>
+                <EmptyState icon={Boxes} title="No domains in use" description="No domains discovered from containers, projects, or Caddy." className="m-4 py-8" />
               ) : (
                 <ul className="divide-y">
                   {inUse.map(h => (
-                    <li key={h.host} className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 py-2.5 pr-3.5 pl-4 transition-colors hover:bg-accent/40">
+                    <li key={h.host} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 transition-colors hover:bg-accent/40">
                       <div className="flex min-w-0 flex-1 basis-56 flex-col gap-0.5">
-                        <code className="font-mono text-[13px] break-all">{h.host}</code>
+                        <code className="font-mono text-ui break-all">{h.host}</code>
                         <p className="text-xs break-all text-muted-foreground">
                           source:{" "}
-                          <span className="font-mono text-foreground/80">
+                          <span className="font-mono text-foreground">
                             {(Array.isArray(h.usedBy) ? h.usedBy : []).map(u => `${u.source}:${u.ref}${u.status ? ` (${u.status})` : ""}`).join(", ") || "—"}
                           </span>
                         </p>
@@ -435,7 +435,7 @@ export default function DomainPage() {
                     aria-label="Hostname to check"
                     placeholder="api.example.com"
                     spellCheck={false}
-                    className="h-9 pl-8 font-mono text-[13px]"
+                    className="h-9 pl-8 font-mono text-ui"
                   />
                 </div>
                 <Button type="submit" disabled={checking || !checkDomain.trim()} className="h-9">
@@ -446,8 +446,8 @@ export default function DomainPage() {
                 const R = RESULT[resultStatus]
                 const ips = result.records?.length ? result.records : []
                 return (
-                  <div role="status" className="mx-4 mb-4 overflow-hidden rounded-lg border motion-safe:animate-in fade-in-0 duration-200">
-                    <div className="flex items-center gap-2.5 px-4 py-3">
+                  <div role="status" className="border-t motion-safe:animate-in fade-in-0 duration-200">
+                    <div className="flex items-center gap-2 px-4 py-3">
                       <R.Icon className={cn("size-5 shrink-0", R.tone)} aria-hidden />
                       <div className="flex min-w-0 flex-col gap-0.5">
                         <span className="text-sm font-semibold">{R.title}</span>
@@ -456,18 +456,18 @@ export default function DomainPage() {
                     </div>
                     <dl className="grid grid-cols-1 border-t max-sm:divide-y sm:grid-cols-2 sm:divide-x">
                       <div className="px-4 py-3">
-                        <dt className="text-[13px] text-muted-foreground">Expected IP</dt>
+                        <dt className="text-ui text-muted-foreground">Expected IP</dt>
                         <dd className="mt-1 font-mono text-sm font-medium tabular-nums">{result.expectedIp || "Unknown"}</dd>
                       </div>
                       <div className="px-4 py-3">
-                        <dt className="text-[13px] text-muted-foreground">Resolved IPs</dt>
+                        <dt className="text-ui text-muted-foreground">Resolved IPs</dt>
                         {ips.length ? ips.map(ip => (
                           <dd key={ip} className={cn("mt-1 font-mono text-sm font-medium tabular-nums", ip === result.expectedIp ? "text-success" : resultStatus === "not" ? "text-danger" : "")}>{ip}</dd>
                         )) : <dd className="mt-1 font-mono text-sm text-muted-foreground">—</dd>}
                       </div>
                     </dl>
                     {(result.message || result.error) && (
-                      <p className="border-t px-4 py-2.5 text-xs text-muted-foreground">{result.error || result.message}</p>
+                      <p className="border-t px-4 py-3 text-xs text-muted-foreground">{result.error || result.message}</p>
                     )}
                   </div>
                 )
@@ -479,12 +479,12 @@ export default function DomainPage() {
               {loading ? (
                 <div className="p-4"><Skeleton className="h-10 w-full" /></div>
               ) : aliases.length === 0 ? (
-                <p className="p-4 text-sm text-muted-foreground">Save a domain to see the records to create for it.</p>
+                <EmptyState icon={ListTree} title="No records yet" description="Save a domain to see the records to create for it." className="m-4 py-8" />
               ) : (
                 <>
                   <ul className="divide-y md:hidden" aria-label="DNS records">
                     {aliases.map(alias => (
-                      <li key={alias} className="flex items-center gap-3 px-4 py-2.5">
+                      <li key={alias} className="flex items-center gap-3 px-4 py-3">
                         <div className="min-w-0 flex-1 space-y-0.5">
                           <p className="font-mono text-xs break-all">{alias}</p>
                           <p className="font-mono text-xs text-muted-foreground tabular-nums">A · {expectedIp || "Unknown"} · TTL Auto</p>
@@ -508,7 +508,7 @@ export default function DomainPage() {
                       <TableBody>
                         {aliases.map(alias => (
                           <TableRow key={alias}>
-                            <TableCell className="pl-4"><span className="rounded-md border px-1.5 py-0.5 font-mono text-xs font-semibold">A</span></TableCell>
+                            <TableCell className="pl-4"><span className="font-mono text-xs font-semibold">A</span></TableCell>
                             <TableCell className="max-w-[20rem]">
                               <Tooltip>
                                 <TooltipTrigger
@@ -532,7 +532,7 @@ export default function DomainPage() {
                   </div>
                 </>
               )}
-              <p className="flex items-start gap-2 border-t px-4 py-2.5 text-xs text-muted-foreground">
+              <p className="flex items-start gap-2 border-t px-4 py-3 text-xs text-muted-foreground">
                 <InfoIcon className="mt-px size-3.5 shrink-0" />
                 <span>
                   Using a Cloudflare proxy? Keep the record orange-clouded; the status shows{" "}

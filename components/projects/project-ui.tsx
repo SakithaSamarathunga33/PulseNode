@@ -101,7 +101,7 @@ export function Panel({ title, description, aside, children, className }: {
 }) {
   return (
     <section aria-label={title} className={cn("overflow-hidden rounded-xl border bg-card shadow-card", className)}>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4.5 py-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-4">
         <div className="space-y-0.5">
           <h2 className="text-sm font-semibold">{title}</h2>
           {description && <p className="text-xs text-muted-foreground">{description}</p>}

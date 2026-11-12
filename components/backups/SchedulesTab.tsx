@@ -98,7 +98,7 @@ export function SchedulesTab({ schedules, destinations, runningIds, onNew, onEdi
                       <p className="text-xs text-muted-foreground">keep {s.retention} · {s.encrypt ? "encrypted" : "not encrypted"}</p>
                     </TableCell>
                     <TableCell className="max-w-[14rem] text-sm">
-                      {isPanel(s.target) ? "Panel" : <Truncate mono text={targetText(s.target, s.targetName)} className="text-[13px]" />}
+                      {isPanel(s.target) ? "Panel" : <Truncate mono text={targetText(s.target, s.targetName)} className="text-ui" />}
                     </TableCell>
                     <TableCell className="text-sm whitespace-nowrap">{frequencyText(s)}</TableCell>
                     <TableCell className="max-w-[200px] text-sm text-muted-foreground"><Truncate text={destNames(s, destinations)} /></TableCell>
@@ -116,12 +116,11 @@ export function SchedulesTab({ schedules, destinations, runningIds, onNew, onEdi
         </div>
       </Card>
 
-      <ul className="space-y-3 md:hidden">
+      <ul className="divide-y overflow-hidden rounded-xl border bg-card shadow-card md:hidden">
         {schedules.map(s => {
           const running = runningIds.has(s.id)
           return (
-            <li key={s.id}>
-              <Card className="gap-3 py-4">
+            <li key={s.id} className="flex flex-col gap-3 py-4">
                 <div className="flex items-start justify-between gap-3 px-4">
                   <div className="min-w-0">
                     <Truncate text={s.name} className="text-sm font-medium" />
@@ -137,7 +136,6 @@ export function SchedulesTab({ schedules, destinations, runningIds, onNew, onEdi
                   <div className="col-span-2"><dt className="text-muted-foreground">Stored in</dt><dd className="text-sm break-words">{destNames(s, destinations)}</dd></div>
                 </dl>
                 <div className="px-3"><RowActions s={s} running={running} onEdit={onEdit} onDelete={onDelete} onRun={onRun} /></div>
-              </Card>
             </li>
           )
         })}

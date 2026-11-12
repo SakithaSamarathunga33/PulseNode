@@ -255,11 +255,11 @@ export function CreateDatabaseModal({ onClose, onCreated }: { onClose: () => voi
             <CopyField label="Connection string" value={creds.connection_string} />
             <CopyField label="Password" value={creds.password} />
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg border bg-muted/40 p-2.5">
+              <div className="rounded-lg border bg-muted/40 p-3">
                 <div className="mb-1 text-xs text-muted-foreground">User</div>
                 <div className="font-mono text-sm">{creds.username}</div>
               </div>
-              <div className="rounded-lg border bg-muted/40 p-2.5">
+              <div className="rounded-lg border bg-muted/40 p-3">
                 <div className="mb-1 text-xs text-muted-foreground">Port</div>
                 <div className="font-mono text-sm tabular-nums">{creds.host_port}</div>
               </div>

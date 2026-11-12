@@ -51,7 +51,7 @@ const lineKey = (l: LogLine) => `${l.ts}|${l.stream}|${l.line}`
 
 function Section({ title, aside, children }: { title: string; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">{title}</h2>
         {aside}
@@ -71,7 +71,7 @@ function OptionCard({ on, onClick, title, lines, note }: {
       aria-checked={on}
       onClick={onClick}
       className={cn(
-        "flex flex-col gap-2 rounded-lg border bg-background p-3.5 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-3 focus-visible:ring-ring/50",
+        "flex flex-col gap-2 rounded-lg border bg-background p-4 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-3 focus-visible:ring-ring/50",
         on && "border-primary bg-primary/8",
       )}
     >
@@ -350,13 +350,13 @@ function NewProjectForm() {
       />
       <PageBody className="max-w-[960px] space-y-5">
         {/* Step indicator */}
-        <ol className="flex items-center gap-2.5" aria-label="Progress">
+        <ol className="flex items-center gap-2" aria-label="Progress">
           {STEPS.map((label, i) => {
             const n = i + 1
             const done = step > n || (n === 3 && finished && dep?.status === "success")
             const active = step === n
             return (
-              <li key={label} className={cn("flex items-center gap-2.5", i < STEPS.length - 1 ? "flex-1" : "flex-none")} aria-current={active ? "step" : undefined}>
+              <li key={label} className={cn("flex items-center gap-2", i < STEPS.length - 1 ? "flex-1" : "flex-none")} aria-current={active ? "step" : undefined}>
                 <span
                   className={cn(
                     "grid size-6 shrink-0 place-items-center rounded-md border text-xs font-bold tabular-nums",
@@ -367,7 +367,7 @@ function NewProjectForm() {
                 >
                   {done ? <Check className="size-3.5" aria-hidden /> : n}
                 </span>
-                <span className={cn("text-[13px] whitespace-nowrap", active ? "font-semibold" : "text-muted-foreground")}>
+                <span className={cn("text-ui whitespace-nowrap", active ? "font-semibold" : "text-muted-foreground")}>
                   {label}
                   <span className="sr-only">{done ? " (completed)" : active ? " (current step)" : ""}</span>
                 </span>
@@ -380,7 +380,7 @@ function NewProjectForm() {
         {/* Step 1 — Select repository */}
         {step === 1 && (
           <Panel role="region" aria-label="Choose repository" className="overflow-hidden rounded-xl motion-safe:animate-in fade-in-0 duration-300">
-            <div className="flex items-center gap-2.5 border-b p-3">
+            <div className="flex items-center gap-2 border-b px-4 py-3">
               <SearchInput
                 aria-label="Search repositories"
                 placeholder="Search repositories"
@@ -394,7 +394,7 @@ function NewProjectForm() {
             </div>
             <div role="radiogroup" aria-label="Repositories" className="max-h-96 overflow-y-auto">
               {reposLoading ? (
-                <div className="space-y-2 p-3" aria-busy="true">
+                <div className="space-y-2 px-4 py-3" aria-busy="true">
                   {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-12" />)}
                 </div>
               ) : reposError ? (
@@ -418,13 +418,13 @@ function NewProjectForm() {
                       aria-checked={on}
                       onClick={() => selectRepo(repo)}
                       className={cn(
-                        "flex min-h-14 w-full items-center gap-3 border-b px-3.5 py-2 text-left outline-none transition-colors last:border-b-0 hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
+                        "flex min-h-14 w-full items-center gap-3 border-b px-4 py-2 text-left outline-none transition-colors last:border-b-0 hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
                         on && "bg-primary/8",
                       )}
                     >
                       <GitFork className="size-[17px] shrink-0 text-muted-foreground" aria-hidden />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate font-mono text-[13px] font-medium">{repo.full_name}</span>
+                        <span className="block truncate font-mono text-ui font-medium">{repo.full_name}</span>
                         <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
                           {repo.private ? <Lock className="size-3" aria-hidden /> : <Globe className="size-3" aria-hidden />}
                           {repo.private ? "Private" : "Public"} · default <span className="font-mono">{repo.default_branch}</span>
@@ -439,8 +439,8 @@ function NewProjectForm() {
               )}
             </div>
             {selectedRepo && (
-              <div className="flex flex-wrap items-center gap-3 border-t bg-muted/30 px-3.5 py-3">
-                <span className="text-[13px] text-muted-foreground">Branch</span>
+              <div className="flex flex-wrap items-center gap-3 border-t bg-muted/30 px-4 py-3">
+                <span className="text-ui text-muted-foreground">Branch</span>
                 <Select
                   value={selectedBranch}
                   onValueChange={v => setSelectedBranch(v as string)}
@@ -470,10 +470,10 @@ function NewProjectForm() {
 
         {/* Step 2 — Configure */}
         {step === 2 && (
-          <Panel role="region" aria-label="Configure" className="divide-y overflow-hidden rounded-xl motion-safe:animate-in fade-in-0 duration-300 [&>*]:p-4.5">
+          <Panel role="region" aria-label="Configure" className="divide-y overflow-hidden rounded-xl motion-safe:animate-in fade-in-0 duration-300 [&>*]:p-4">
             {monorepo && (
               <Section title="Project structure">
-                <div role="radiogroup" aria-label="Project structure" className="grid gap-2.5 sm:grid-cols-2">
+                <div role="radiogroup" aria-label="Project structure" className="grid gap-2 sm:grid-cols-2">
                   <OptionCard
                     on={deployMode === "combined"}
                     onClick={() => setDeployMode("combined")}
@@ -503,11 +503,11 @@ function NewProjectForm() {
               </Section>
             )}
 
-            <div className="grid gap-3.5 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2">
               <FormField label="Project name" htmlFor="np-name">
                 <Input id="np-name" value={name} onChange={e => setName(e.target.value)} spellCheck={false} className="h-9 font-mono" />
               </FormField>
-              <div className={cn("grid gap-3.5", combined && "grid-cols-2")}>
+              <div className={cn("grid gap-3", combined && "grid-cols-2")}>
                 <FormField label={combined ? "Frontend port" : "Container port"} htmlFor="np-port">
                   <Input id="np-port" type="number" inputMode="numeric" value={port} onChange={e => setPort(e.target.value)} className="h-9 font-mono tabular-nums" />
                 </FormField>
@@ -595,12 +595,12 @@ function NewProjectForm() {
 
         {/* Step 3 — Review & deploy */}
         {step === 3 && (
-          <section aria-label="Deploy" className="space-y-3.5 motion-safe:animate-in fade-in-0 duration-300">
+          <section aria-label="Deploy" className="space-y-3 motion-safe:animate-in fade-in-0 duration-300">
             <dl aria-label="Review" className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border bg-border shadow-card sm:grid-cols-2 lg:grid-cols-3">
               {summary.map(row => (
                 <div key={row.label} className="bg-card px-4 py-3">
                   <dt className="text-xs text-muted-foreground">{row.label}</dt>
-                  <dd className="mt-1 font-mono text-[13px] break-all">{row.value || "—"}</dd>
+                  <dd className="mt-1 font-mono text-ui break-all">{row.value || "—"}</dd>
                 </div>
               ))}
             </dl>
@@ -631,9 +631,9 @@ function NewProjectForm() {
             )}
 
             {finished && dep.status === "success" && (
-              <Panel role="status" className="flex flex-wrap items-center gap-3 rounded-xl px-4 py-3.5">
+              <Panel role="status" className="flex flex-wrap items-center gap-3 rounded-xl px-4 py-4">
                 <CircleCheck className="size-[18px] text-success" aria-hidden />
-                <span className="flex-1 text-[13px]">
+                <span className="flex-1 text-ui">
                   <b className="font-semibold">{name}</b> is live at{" "}
                   <a href={`https://${domain}`} target="_blank" rel="noopener noreferrer" className="rounded-sm font-mono text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50">{domain}<span className="sr-only"> (opens in a new tab)</span></a>
                 </span>
@@ -649,7 +649,7 @@ function NewProjectForm() {
         )}
 
         {/* Navigation */}
-        <div className="flex justify-between gap-2.5 border-t pt-4">
+        <div className="flex justify-between gap-2 border-t pt-4">
           <Button
             variant="ghost"
             onClick={() => setStep(s => s - 1)}

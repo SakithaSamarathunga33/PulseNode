@@ -15,7 +15,7 @@ export function VulnBar({ v }: { v: Vulns }) {
   return (
     <div className="flex items-center gap-1">
       {CHIPS.filter(c => v[c.key] > 0).map(c => (
-        <span key={c.key} title={`${v[c.key]} ${c.name}`} aria-label={`${v[c.key]} ${c.name}`} className={cn("rounded px-1.5 py-0.5 font-mono text-[11px] font-bold tabular-nums", c.cls)}>
+        <span key={c.key} title={`${v[c.key]} ${c.name}`} aria-label={`${v[c.key]} ${c.name}`} className={cn("rounded px-1.5 py-0.5 font-mono text-2xs font-bold tabular-nums", c.cls)}>
           {c.letter}:{v[c.key]}
         </span>
       ))}

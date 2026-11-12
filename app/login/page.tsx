@@ -123,15 +123,15 @@ function LoginForm() {
       </div>
 
       <div className="relative z-10 w-full max-w-[380px] overflow-hidden rounded-xl border bg-card shadow-pop motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 duration-500">
-        <div className="space-y-1 px-[22px] pt-[22px] pb-1.5">
+        <div className="space-y-1 px-5 pt-5 pb-1.5">
           <h1 className="text-lg font-semibold">{setup ? "Create your admin account" : "Sign in"}</h1>
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-ui text-muted-foreground">
             {setup ? "First-run setup. This account becomes the administrator." : "Sign in to your PulseNode dashboard."}
           </p>
         </div>
 
         {unreachable ? (
-          <div className="space-y-4 px-[22px] pt-3.5 pb-5">
+          <div className="space-y-4 px-5 pt-4 pb-5">
             <Alert variant="destructive" role="alert">
               <AlertCircle />
               <AlertDescription>Server unreachable. Check that PulseNode is running, then try again.</AlertDescription>
@@ -141,7 +141,7 @@ function LoginForm() {
             </Button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-3 px-[22px] pt-3.5 pb-5">
+          <form onSubmit={handleSubmit} className="space-y-3 px-5 pt-4 pb-5">
             {error && (
               <Alert variant="destructive" role="alert">
                 <AlertCircle />
@@ -228,7 +228,7 @@ function LoginForm() {
           </form>
         )}
 
-        <div className="flex items-center gap-1.5 border-t bg-muted/40 px-[22px] py-2.5 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5 border-t bg-muted/40 px-5 py-3 text-xs text-muted-foreground">
           <Lock className="size-3" aria-hidden />
           {setup ? "Login protection turns on as soon as the account exists." : "Login protection is enabled on this dashboard."}
         </div>

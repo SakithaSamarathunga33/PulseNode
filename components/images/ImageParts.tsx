@@ -66,7 +66,7 @@ export function VulnCell({ v }: { v: DockerImage["vulns"] }) {
           <span key={s.key} className={s.bar} style={{ width: `${(v[s.key] / t) * 100}%` }} />
         ))}
       </div>
-      <div className="flex gap-2 text-[11px] tabular-nums">
+      <div className="flex gap-2 text-2xs tabular-nums">
         {SEG.filter(s => v[s.key] > 0).map(s => (
           <span key={s.key} className={cn("font-semibold", s.text)}>{v[s.key]}<span className="font-medium text-muted-foreground"> {s.letter}</span></span>
         ))}
@@ -77,7 +77,7 @@ export function VulnCell({ v }: { v: DockerImage["vulns"] }) {
 
 export function UsedBy({ used }: { used: number }) {
   return used > 0 ? (
-    <span className="inline-flex items-center gap-1.5 text-xs text-foreground/80">
+    <span className="inline-flex items-center gap-1.5 text-xs text-foreground">
       <span className="text-success"><StatusDot tone="ok" /></span>{used} container{used > 1 ? "s" : ""}
     </span>
   ) : (
@@ -141,7 +141,7 @@ export function ImageTable({ rows, copied, onCopy, sort, onSort }: Common & { so
               </div>
             </TableCell>
             <TableCell>
-              <Truncate mono text={img.tag} className="w-fit max-w-[10rem] rounded border bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground" />
+              <Truncate mono text={img.tag} className="max-w-[10rem] text-xs text-muted-foreground" />
             </TableCell>
             <TableCell>
               <CopyDigest id={img.id} copied={copied === img.id} onCopy={onCopy} label={`Copy digest of ${img.repo}:${img.tag}`} />
@@ -160,13 +160,13 @@ export function ImageTable({ rows, copied, onCopy, sort, onSort }: Common & { so
 
 export function ImageCards({ rows, copied, onCopy }: Common) {
   return (
-    <ul className="space-y-3" aria-label="Images">
+    <ul className="divide-y overflow-hidden rounded-xl border bg-card shadow-card" aria-label="Images">
       {rows.map((img, i) => (
-        <li key={imageKey(img, i)} className="space-y-3 rounded-xl border bg-card p-3.5 shadow-card">
+        <li key={imageKey(img, i)} className="space-y-3 p-4">
           <div className="flex items-center gap-2">
             <RegistryIcon repo={img.repo} />
             <Truncate mono text={img.repo} className="flex-1 text-xs font-medium" />
-            <Truncate mono text={img.tag} className="max-w-[40%] rounded border bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground" />
+            <Truncate mono text={img.tag} className="max-w-[40%] text-xs text-muted-foreground" />
           </div>
           <VulnCell v={img.vulns} />
           <dl className="grid grid-cols-3 gap-2 text-xs">

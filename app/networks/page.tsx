@@ -111,9 +111,9 @@ export default function NetworksPage() {
         <section aria-labelledby="nw-list" className="space-y-3">
           <h2 id="nw-list" className="text-lg font-semibold">Docker networks</h2>
           {!loaded ? (
-            <div className="space-y-3 rounded-xl border bg-card p-4">
+            <Card className="gap-3 p-4">
               {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
-            </div>
+            </Card>
           ) : rows.length === 0 ? (
             <EmptyState icon={Network} title="No networks found" description="Docker did not report any networks." />
           ) : (

@@ -145,7 +145,7 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t border-sidebar-border">
         <div className="space-y-2 group-data-[collapsible=icon]:hidden">
-          <div className="space-y-2.5 rounded-lg border bg-card p-3 shadow-card">
+          <div className="space-y-2 rounded-lg border bg-card p-3 shadow-card">
             <div className="flex items-baseline justify-between">
               <span className="text-xs font-medium text-muted-foreground">Host CPU</span>
               <span className="font-mono text-sm font-medium tabular-nums">{cpu === null ? "—" : <><NumberTicker value={cpu} decimals={1} />%</>}</span>
@@ -162,12 +162,12 @@ export function AppSidebar() {
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 flex-col">
                 <span className="truncate text-sm font-medium">{host?.name ?? "—"}</span>
-                <span className="truncate font-mono text-[11px] text-muted-foreground">{host?.ip ?? ""}</span>
+                <span className="truncate font-mono text-2xs text-muted-foreground">{host?.ip ?? ""}</span>
               </div>
-              <LiveBadge className="text-[11px]">Live</LiveBadge>
+              <LiveBadge className="text-2xs">Live</LiveBadge>
             </div>
           </div>
-          <p className="px-1 text-[11px] text-muted-foreground">Infrastructure at a glance.</p>
+          <p className="px-1 text-2xs text-muted-foreground">Infrastructure at a glance.</p>
         </div>
         <SidebarMenu>
           <SidebarMenuItem data-area="neutral">
@@ -180,7 +180,7 @@ export function AppSidebar() {
               <SETTINGS_ITEM.icon />
               <span>Settings</span>
               {hasUpdate && (
-                <span className="ml-auto flex items-center gap-1 rounded-full bg-warning/15 px-1.5 py-0.5 text-[11px] font-medium text-warning group-data-[collapsible=icon]:hidden">
+                <span className="ml-auto flex items-center gap-1 rounded-full bg-warning/15 px-1.5 py-0.5 text-2xs font-medium text-warning group-data-[collapsible=icon]:hidden">
                   <span className="size-1.5 rounded-full bg-warning" /> Update
                 </span>
               )}

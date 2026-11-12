@@ -47,7 +47,7 @@ export function StatusChip({ status, checking }: { status: DomainStatus; checkin
 
 export function StatusLegend() {
   return (
-    <ul className="flex flex-wrap gap-x-4 gap-y-1.5 border-t px-4 py-2.5 text-xs text-muted-foreground" aria-label="Status legend">
+    <ul className="flex flex-wrap gap-x-4 gap-y-1.5 border-t px-4 py-3 text-xs text-muted-foreground" aria-label="Status legend">
       {(Object.keys(STATUS) as DomainStatus[]).map(k => (
         <li key={k} className="inline-flex items-center gap-1.5">
           <span className={cn("inline-flex", STATUS[k].text)}><StatusDot tone={STATUS[k].shape} /></span>

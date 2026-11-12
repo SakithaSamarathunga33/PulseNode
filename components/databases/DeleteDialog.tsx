@@ -29,7 +29,7 @@ export function DeleteDialog({ db, onConfirm, onClose }: {
         </AlertDialogHeader>
         <ul className="divide-y rounded-lg border bg-muted/40 py-1">
           <li className="flex flex-col gap-px px-3 py-1.5 font-mono">
-            <span className="text-[13px] font-medium break-all">{db.name}</span>
+            <span className="text-ui font-medium break-all">{db.name}</span>
             <span className="text-xs break-all text-muted-foreground">
               {db.engine}{db.version ? ` ${db.version}` : ""} · {db.size} · {db.host}:{db.port}
             </span>

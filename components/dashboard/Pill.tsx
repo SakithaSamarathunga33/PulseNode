@@ -21,7 +21,7 @@ const TONE: Record<NonNullable<PillProps["tone"]>, string> = {
 /** Status badge. Tone carries meaning (ok/warn/bad/info), so pair it with text — never colour alone. */
 export function Pill({ children, tone = "outline", dot, className }: PillProps) {
   return (
-    <Badge variant="ghost" className={cn("h-5 gap-1.5 text-[11px] font-medium ring-1 ring-current/15 ring-inset", TONE[tone], className)}>
+    <Badge variant="ghost" className={cn("h-5 gap-1.5 text-2xs font-medium ring-1 ring-current/15 ring-inset", TONE[tone], className)}>
       {dot && <StatusDot tone={tone === "outline" ? "off" : (tone as StatusShape)} />}
       {children}
     </Badge>

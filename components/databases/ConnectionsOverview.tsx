@@ -46,11 +46,11 @@ export function ConnectionsOverview({ databases, history }: { databases: Databas
               <RingCenter defaultLabel={databases.length > TOP_N ? `Top ${TOP_N}` : "Open"} />
             </RingChart>
           </div>
-          <ul className="min-w-0 flex-1 space-y-1.5 text-[13px]" aria-label="Connections used of the engine default limit">
+          <ul className="min-w-0 flex-1 space-y-1.5 text-ui" aria-label="Connections used of the engine default limit">
             {busiest.map((db, i) => {
               const pct = usage(db)
               return (
-                <li key={db.name} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2.5">
+                <li key={db.name} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2">
                   <span className="inline-flex min-w-0 items-center gap-2 text-muted-foreground">
                     <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: RING_COLORS[i] }} />
                     <Truncate text={db.name} />
@@ -67,7 +67,7 @@ export function ConnectionsOverview({ databases, history }: { databases: Databas
 
       <div className="min-w-0 space-y-2 border-t pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-          <h3 className="text-xs font-medium text-muted-foreground">Open connections · this session</h3>
+          <h2 className="text-sm font-semibold">Open connections · this session</h2>
           <span className="font-mono text-xs tabular-nums text-muted-foreground">now {now} · peak {peak}</span>
         </div>
         <div role="img" aria-label={history.length < 2 ? "Collecting connection samples…" : `Total open connections over the last ${minutes} minutes: now ${now}, peak ${peak}.`}>

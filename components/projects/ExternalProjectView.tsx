@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Box, Play, RotateCw, Server, Square } from "lucide-react"
 import { toast } from "sonner"
 import { API_BASE, nodeApi } from "@/lib/api"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { Truncate } from "@/components/pn/Truncate"
@@ -76,7 +75,7 @@ export function ExternalProjectView({ project }: { project: Project }) {
         title={
           <span className="flex flex-wrap items-center gap-2">
             {project.Name}<StatusPill status={status} />
-            <Badge variant="secondary" className="text-xs font-medium">External · read-only</Badge>
+            <span className="text-sm font-normal text-muted-foreground">External · read-only</span>
           </span>
         }
         description={<span className="flex flex-wrap items-center gap-x-3 gap-y-1"><BackLink /><DomainLink domain={project.Domain} /></span>}
@@ -101,14 +100,14 @@ export function ExternalProjectView({ project }: { project: Project }) {
         }
       />
       <PageBody className="max-w-[1200px]">
-        <p className="text-[13px] text-muted-foreground">
+        <p className="text-ui text-muted-foreground">
           Hosted on this VPS behind a domain, but not deployed through PulseNode — read-only details, pulled live from Docker.
         </p>
         <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border shadow-card lg:grid-cols-4">
           {info.map(row => (
-            <div key={row.label} className="min-w-0 bg-card px-4.5 py-3">
+            <div key={row.label} className="min-w-0 bg-card px-4 py-3">
               <dt className="text-xs text-muted-foreground">{row.label}</dt>
-              <dd className="mt-1 flex items-center gap-1 text-[13px]">
+              <dd className="mt-1 flex items-center gap-1 text-ui">
                 {row.label === "Container" && <Box className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
                 <Truncate mono text={row.value ?? ""} />
               </dd>

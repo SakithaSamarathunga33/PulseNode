@@ -39,7 +39,7 @@ export function SummaryStrip({ items, className, "aria-label": ariaLabel = "Summ
             <span className="truncate">{item.label}</span>
           </span>
           <span className="flex items-baseline gap-1.5">
-            <span className="truncate text-[28px] leading-none font-semibold tracking-tight tabular-nums">
+            <span className="truncate text-metric leading-none font-semibold tracking-tight tabular-nums">
               {/* React Bits CountUp for numeric values; strings / nodes render as given. */}
               {typeof item.value === "number" && Number.isFinite(item.value)
                 ? <CountUp to={item.value} decimals={Number.isInteger(item.value) ? 0 : 1} duration={0.9} />

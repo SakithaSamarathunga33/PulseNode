@@ -32,7 +32,7 @@ export function DeleteProjectDialog({ name, detail, loading, onConfirm, onClose 
         </AlertDialogHeader>
         <ul className="divide-y rounded-lg border bg-muted/40 py-1">
           <li className="flex flex-col gap-px px-3 py-1.5 font-mono">
-            <span className="text-[13px] font-medium break-all">{name}</span>
+            <span className="text-ui font-medium break-all">{name}</span>
             {detail && <span className="text-xs break-all text-muted-foreground">{detail}</span>}
           </li>
         </ul>

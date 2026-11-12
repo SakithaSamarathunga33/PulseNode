@@ -59,11 +59,11 @@ const SEVERITIES = [
 
 function SevTile({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className="rounded-lg border px-3 py-2.5">
-      <p className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
+    <div className="rounded-lg border p-3">
+      <p className="inline-flex items-center gap-1.5 text-ui text-muted-foreground">
         <span aria-hidden className="size-2 rounded-full" style={{ background: color }} />{label}
       </p>
-      <p className="mt-0.5 text-[28px] leading-tight font-semibold tabular-nums">{value}</p>
+      <p className="mt-0.5 text-metric leading-tight font-semibold tabular-nums">{value}</p>
     </div>
   )
 }
@@ -96,7 +96,7 @@ function FindingsByImage({ rows }: { rows: ScanRow[] }) {
         <h2 id="sh-chart" className="inline-flex items-center gap-2 text-sm font-semibold">
           <BarChart3 className="size-4 text-[var(--hue)]" strokeWidth={1.75} aria-hidden />Open findings by image
         </h2>
-        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted-foreground" aria-label="Legend">
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-ui text-muted-foreground" aria-label="Legend">
           {SEVERITIES.map(s => (
             <li key={s.key} className="inline-flex items-center gap-1.5">
               <span aria-hidden className="size-2 rounded-[2px]" style={{ background: s.color }} />{s.label}
@@ -308,7 +308,7 @@ export default function ScanHistoryPage() {
                 placeholder="Search image or scan ID"
                 aria-label="Search scans"
               />
-              <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border bg-muted px-1.5 font-mono text-[11px] text-muted-foreground sm:block">/</kbd>
+              <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border bg-muted px-1.5 font-mono text-2xs text-muted-foreground sm:block">/</kbd>
             </div>
           </div>
 
@@ -323,36 +323,38 @@ export default function ScanHistoryPage() {
             />
           ) : (
             <>
-              <ul className="space-y-3 md:hidden" aria-label="Scans">
-                {runningRow && (
-                  <li className="space-y-2 rounded-xl border bg-card p-3.5 shadow-card">
-                    <div className="flex items-center gap-2">
-                      <Package className="size-3.5 shrink-0 text-muted-foreground" />
-                      <Truncate mono text={runningRow} className="flex-1 text-xs" />
-                      <StatusPill status="running" />
-                    </div>
-                    <p className="text-xs text-muted-foreground">Scanning…</p>
-                  </li>
-                )}
-                {filteredScans.map(scan => (
-                  <li key={scan.id} className="space-y-3 rounded-xl border bg-card p-3.5 shadow-card">
-                    <div className="flex items-center gap-2">
-                      <Package className="size-3.5 shrink-0 text-muted-foreground" />
-                      <Truncate mono text={scan.image} className="flex-1 text-xs" />
-                      <StatusPill status={scan.status} />
-                    </div>
-                    {total(scan) > 0
-                      ? <VulnBar v={{ crit: scan.crit, high: scan.high, med: scan.med, low: scan.low }} />
-                      : <p className="text-xs text-muted-foreground">{scan.status === "done" ? "No findings" : scan.message ?? "—"}</p>}
-                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      <span className="font-mono">{scan.id}</span>
-                      <span>{scan.started} · <span className="font-mono tabular-nums">{scan.duration}</span></span>
-                    </div>
-                    <RowActions scan={scan} busy={!!scanning}
-                      onView={() => openSheet(scan)} onDownload={() => download(scan)} onRescan={() => void runScan(scan.image, false)} />
-                  </li>
-                ))}
-              </ul>
+              <Card className="gap-0 py-0 md:hidden">
+                <ul className="divide-y" aria-label="Scans">
+                  {runningRow && (
+                    <li className="space-y-2 p-4">
+                      <div className="flex items-center gap-2">
+                        <Package className="size-3.5 shrink-0 text-muted-foreground" />
+                        <Truncate mono text={runningRow} className="flex-1 text-xs" />
+                        <StatusPill status="running" />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Scanning…</p>
+                    </li>
+                  )}
+                  {filteredScans.map(scan => (
+                    <li key={scan.id} className="space-y-3 p-4">
+                      <div className="flex items-center gap-2">
+                        <Package className="size-3.5 shrink-0 text-muted-foreground" />
+                        <Truncate mono text={scan.image} className="flex-1 text-xs" />
+                        <StatusPill status={scan.status} />
+                      </div>
+                      {total(scan) > 0
+                        ? <VulnBar v={{ crit: scan.crit, high: scan.high, med: scan.med, low: scan.low }} />
+                        : <p className="text-xs text-muted-foreground">{scan.status === "done" ? "No findings" : scan.message ?? "—"}</p>}
+                      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <span className="font-mono">{scan.id}</span>
+                        <span>{scan.started} · <span className="font-mono tabular-nums">{scan.duration}</span></span>
+                      </div>
+                      <RowActions scan={scan} busy={!!scanning}
+                        onView={() => openSheet(scan)} onDownload={() => download(scan)} onRescan={() => void runScan(scan.image, false)} />
+                    </li>
+                  ))}
+                </ul>
+              </Card>
 
               <Card className="hidden gap-0 overflow-hidden py-0 md:block">
                 <div className="overflow-x-auto">

@@ -19,14 +19,14 @@ export function PageHeader({
 }) {
   return (
     <header className={cn("mx-auto w-full max-w-[1600px] px-4 pt-6 sm:px-6 sm:pt-8", className)}>
-      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
         {Icon && (
           <span className="grid size-9 shrink-0 place-items-center rounded-lg border bg-card text-[var(--hue)] shadow-card">
-            <Icon className="size-[18px]" strokeWidth={1.75} />
+            <Icon className="size-5" strokeWidth={1.75} />
           </span>
         )}
         <div className="min-w-0 flex-1 basis-56">
-          <h1 className="min-w-0 text-[22px] leading-tight font-semibold break-words">{title}</h1>
+          <h1 className="min-w-0 text-title leading-tight font-semibold break-words">{title}</h1>
           {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
         </div>
         {actions && <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}

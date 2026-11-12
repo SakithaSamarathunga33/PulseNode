@@ -35,7 +35,7 @@ export function AlertsChart({ events }: { events: AlertEvent[] }) {
         <h2 id="alerts-chart-title" className="inline-flex items-center gap-2 text-sm font-semibold">
           <BarChart3 className="size-4 text-[var(--hue)]" strokeWidth={1.75} aria-hidden />Alerts fired · last {DAYS} days
         </h2>
-        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[13px]" aria-label="Severity totals">
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-ui" aria-label="Severity totals">
           {totals.map(s => (
             <li key={s.key} className="inline-flex items-center gap-1.5 text-muted-foreground">
               <span aria-hidden className="size-2 rounded-[2px]" style={{ background: s.color }} />
@@ -49,7 +49,7 @@ export function AlertsChart({ events }: { events: AlertEvent[] }) {
         <p className="text-xs text-muted-foreground">Counted from the latest {HISTORY_LIMIT} alerts; older days may be incomplete.</p>
       )}
       {total === 0 ? (
-        <p className="text-[13px] text-muted-foreground">No alerts fired in the last {DAYS} days.</p>
+        <p className="text-ui text-muted-foreground">No alerts fired in the last {DAYS} days.</p>
       ) : (
         <div aria-hidden>
           <BarChart data={rows} xDataKey="name" stacked aspectRatio="auto" className="h-[180px]" margin={MARGIN} barGap={0.35} animationDuration={600}>

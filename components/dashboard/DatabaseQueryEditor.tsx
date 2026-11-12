@@ -267,7 +267,7 @@ export function DatabaseQueryEditor({
     <>
       <div className="overflow-hidden rounded-lg border bg-card">
         {/* Header / control bar — database + table pickers */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-3">
           <span className="text-sm font-semibold">{db.name}</span>
 
           {!isRedis && !isMongo && schema.databases.length > 0 && (
@@ -311,7 +311,7 @@ export function DatabaseQueryEditor({
           <Pill tone={error && !result ? "bad" : "ok"} dot>{error && !result ? "Error" : "Connected"}</Pill>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             onClick={onClose}
             aria-label="Close query editor"
             className="ml-auto"
@@ -340,7 +340,7 @@ export function DatabaseQueryEditor({
             <Button size="sm" onClick={() => runQuery()} disabled={loading || !hasQuery}>
               {loading ? <Loader2 className="animate-spin" /> : <Play />}
               {loading ? "Running…" : "Run"}
-              <kbd className="ml-1 rounded border border-current/30 px-1 font-mono text-[11px] opacity-80">
+              <kbd className="ml-1 rounded border border-current/30 px-1 font-mono text-2xs">
                 Ctrl ↵
               </kbd>
             </Button>
@@ -353,11 +353,11 @@ export function DatabaseQueryEditor({
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="block min-h-36 w-full resize-y rounded-none border-0 bg-transparent px-3.5 py-3 font-mono text-[13px] leading-relaxed text-[var(--t-fg)] shadow-none placeholder:text-[var(--t-muted)] focus-visible:ring-0 dark:bg-transparent"
+            className="block min-h-36 w-full resize-y rounded-none border-0 bg-transparent px-4 py-3 font-mono text-ui leading-relaxed text-[var(--t-fg)] shadow-none placeholder:text-[var(--t-muted)] focus-visible:ring-0 dark:bg-transparent"
             rows={7}
             spellCheck={false}
           />
-          <div className="border-t border-[var(--t-border)] px-3.5 py-1.5 font-mono text-[11px] text-[var(--t-muted)]">
+          <div className="border-t border-[var(--t-border)] px-4 py-1.5 font-mono text-2xs text-[var(--t-muted)]">
             {isRedis ? "Redis command" : isMongo ? "collection {filter}" : "SQL"}
           </div>
         </div>
@@ -369,7 +369,7 @@ export function DatabaseQueryEditor({
               {isWarn ? <AlertTriangle /> : <XCircle />}
               <AlertDescription className={cn("break-all font-mono text-xs", isWarn && "text-warning")}>
                 {error}
-                {isWarn && <span className="ml-2 opacity-80">(other statements in the batch may have succeeded)</span>}
+                {isWarn && <span className="ml-2">(other statements in the batch may have succeeded)</span>}
               </AlertDescription>
             </Alert>
           </div>

@@ -63,7 +63,7 @@ function LogLine({ line }: { line: string }) {
   if (line.startsWith("✓"))  return <p className="font-mono text-xs text-[var(--t-ok)]">{line}</p>
   if (line.startsWith("⚠"))  return <p className="font-mono text-xs text-[var(--t-warn)]">{line}</p>
   if (line.startsWith("✕"))  return <p className="font-mono text-xs text-[var(--t-err)]">{line}</p>
-  if (/^\[.*\]/.test(line))  return <p className="font-mono text-[11px] leading-tight text-[var(--t-dim)]">{line}</p>
+  if (/^\[.*\]/.test(line))  return <p className="font-mono text-2xs leading-tight text-[var(--t-dim)]">{line}</p>
   if (/^(web|go-api|caddy)\s+(Pull|Push|Build|Pulling|Pushing|Building)/.test(line))
     return <p className="font-mono text-xs text-[var(--t-sys)]">{line}</p>
   return <p className="font-mono text-xs text-[var(--t-fg)]">{line}</p>
@@ -72,7 +72,7 @@ function LogLine({ line }: { line: string }) {
 /** Dark log well (terminal tokens), shared by the live update log and the last updater log. */
 function LogWell({ lines, label, className, endRef }: { lines: string[]; label: string; className?: string; endRef?: React.Ref<HTMLDivElement> }) {
   return (
-    <div role="log" aria-label={label} className={`space-y-0.5 overflow-y-auto rounded-lg border border-[var(--t-border)] bg-[var(--t-bg)] px-3 py-2.5 ${className ?? "max-h-72"}`}>
+    <div role="log" aria-label={label} className={`space-y-0.5 overflow-y-auto rounded-lg border border-[var(--t-border)] bg-[var(--t-bg)] px-3 py-3 ${className ?? "max-h-72"}`}>
       {lines.map((l, i) => <LogLine key={i} line={l} />)}
       {endRef && <div ref={endRef} />}
     </div>
@@ -334,15 +334,16 @@ export default function SettingsPage() {
         <div className="grid items-start gap-5 xl:grid-cols-2">
           {/* Left column: Version + Updates */}
           <div className="min-w-0 space-y-4">
-            <section
+            <Panel
+              role="region"
               aria-labelledby="st-ver"
-              className={`overflow-hidden rounded-xl border bg-card shadow-card ${updating ? "border-warning/40" : ""}`}
+              className={`overflow-hidden rounded-xl ${updating ? "border-warning/40" : ""}`}
             >
-              <div className="flex items-center justify-between gap-2.5 border-b px-[18px] py-3.5">
-                <h2 id="st-ver" className="flex items-center gap-2 text-[15px] font-semibold">
+              <div className="flex items-center justify-between gap-2 border-b p-4">
+                <h2 id="st-ver" className="flex items-center gap-2 text-sm font-semibold">
                   {updating
-                    ? <Loader2 className="size-[17px] animate-spin text-[var(--hue)]" aria-hidden />
-                    : <Zap className="size-[17px] text-[var(--hue)]" aria-hidden />}
+                    ? <Loader2 className="size-4 animate-spin text-[var(--hue)]" aria-hidden />
+                    : <Zap className="size-4 text-[var(--hue)]" aria-hidden />}
                   {updating ? (reconnecting ? "Reconnecting…" : "Updating PulseNode") : "Version"}
                 </h2>
                 {!updating && (
@@ -356,12 +357,12 @@ export default function SettingsPage() {
               {!updating && (
                 <>
                   <div className="grid grid-cols-2 gap-px bg-border">
-                    <div className="bg-card px-[18px] py-3.5">
-                      <p className="text-[13px] text-muted-foreground">Installed</p>
+                    <div className="bg-card p-4">
+                      <p className="text-ui text-muted-foreground">Installed</p>
                       <Truncate mono text={version ? `v${version.current}` : ""} className="mt-1 text-xl font-semibold tabular-nums" />
                     </div>
-                    <div className="bg-card px-[18px] py-3.5">
-                      <p className="text-[13px] text-muted-foreground">Latest</p>
+                    <div className="bg-card p-4">
+                      <p className="text-ui text-muted-foreground">Latest</p>
                       {version?.latest ? (
                         <Truncate mono text={`v${version.latest}`} className={`mt-1 text-xl font-semibold tabular-nums ${version.hasUpdate ? "text-warning" : "text-success"}`} />
                       ) : (
@@ -371,35 +372,35 @@ export default function SettingsPage() {
                   </div>
 
                   {version && !version.hasUpdate && (
-                    <div role="status" className="flex items-center gap-2.5 bg-success/10 px-[18px] py-3.5">
-                      <CheckCircle2 className="size-[17px] text-success" aria-hidden />
-                      <span className="text-[13px] font-medium">You&apos;re on the latest version.</span>
+                    <div role="status" className="flex items-center gap-2 bg-success/10 p-4">
+                      <CheckCircle2 className="size-4 text-success" aria-hidden />
+                      <span className="text-ui font-medium">You&apos;re on the latest version.</span>
                       {checkedAgo && <span className="ml-auto text-xs text-muted-foreground">checked {checkedAgo}</span>}
                     </div>
                   )}
 
                   {version?.hasUpdate && (
                     <>
-                      <div role="status" className="flex items-center gap-2.5 border-b bg-warning/10 px-[18px] py-3">
+                      <div role="status" className="flex items-center gap-2 border-b bg-warning/10 p-4">
                         <ArrowUpRight className="size-4 text-warning" aria-hidden />
-                        <span className="text-[13px] font-semibold">Update available: v{version.latest}</span>
+                        <span className="text-ui font-semibold">Update available: v{version.latest}</span>
                         {checkedAgo && <span className="ml-auto text-xs text-muted-foreground">checked {checkedAgo}</span>}
                       </div>
                       {version.changelog && (
-                        <div className="space-y-2.5 px-[18px] py-3.5">
-                          <p className="text-[13px] font-semibold">What&apos;s new</p>
-                          <pre className="max-h-48 overflow-y-auto font-sans text-[13px] leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                        <div className="space-y-2 p-4">
+                          <p className="text-ui font-semibold">What&apos;s new</p>
+                          <pre className="max-h-48 overflow-y-auto font-sans text-ui leading-relaxed whitespace-pre-wrap text-muted-foreground">
                             {version.changelog}
                           </pre>
                           {version.releaseUrl && (
                             <a href={version.releaseUrl} target="_blank" rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 text-[13px] text-primary underline underline-offset-2">
+                              className="inline-flex items-center gap-1.5 text-ui text-primary underline underline-offset-2">
                               Release notes <ExternalLink className="size-3" />
                             </a>
                           )}
                         </div>
                       )}
-                      <div className="flex justify-end border-t bg-muted/40 px-[18px] py-3">
+                      <div className="flex justify-end border-t bg-muted/40 px-4 py-3">
                         <Button onClick={handleUpdate}><Download /> Update to v{version.latest}</Button>
                       </div>
                     </>
@@ -408,9 +409,9 @@ export default function SettingsPage() {
               )}
 
               {updating && (
-                <div className="space-y-3 px-[18px] py-4" aria-live="polite">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2.5">
-                    <span className="text-[15px] font-semibold">{reconnecting ? "Restarting dashboard" : "Updating PulseNode"}</span>
+                <div className="space-y-3 p-4" aria-live="polite">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-sm font-semibold">{reconnecting ? "Restarting dashboard" : "Updating PulseNode"}</span>
                     {!reconnecting && countdown > 0 && (
                       <span className="text-xs text-muted-foreground tabular-nums">Restart expected in ~{countdown}s</span>
                     )}
@@ -432,14 +433,14 @@ export default function SettingsPage() {
                       Waiting for the dashboard to come back online… This may take up to 2 minutes while Docker rebuilds images.
                     </p>
                   ) : !status?.error && (
-                    <div role="alert" className="flex items-center gap-2.5 rounded-lg bg-warning/10 px-3 py-2.5 text-[13px] font-medium">
-                      <Loader2 className="size-[15px] animate-spin text-warning" aria-hidden />
+                    <div role="alert" className="flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-3 text-ui font-medium">
+                      <Loader2 className="size-4 animate-spin text-warning" aria-hidden />
                       The dashboard is restarting. Do not close this tab.
                     </div>
                   )}
                 </div>
               )}
-            </section>
+            </Panel>
 
             {verifying && (
               <Alert>
@@ -461,15 +462,15 @@ export default function SettingsPage() {
 
             {!updating && status && (status.phase === "done" || status.phase === "rolled_back" || status.phase === "failed") && (
               <Panel role="region" aria-labelledby="st-last" className="overflow-hidden rounded-xl">
-                <div className="flex items-center justify-between gap-2.5 border-b px-[18px] py-3.5">
-                  <h2 id="st-last" className="flex items-center gap-2 text-[15px] font-semibold">
+                <div className="flex items-center justify-between gap-2 border-b p-4">
+                  <h2 id="st-last" className="flex items-center gap-2 text-sm font-semibold">
                     <Undo2 className="size-4 text-[var(--hue)]" aria-hidden /> Last update
                   </h2>
                   {status.finishedAt && (
                     <span className="text-xs text-muted-foreground">{new Date(status.finishedAt).toLocaleString()}</span>
                   )}
                 </div>
-                <div className="space-y-3 px-[18px] py-4">
+                <div className="space-y-3 p-4">
                   {status.phase === "done" && (
                     <Alert>
                       <CheckCircle2 className="text-success" />
@@ -512,7 +513,7 @@ export default function SettingsPage() {
                     </p>
                   )}
                   {status.log && status.log.length > 0 && (
-                    <details className="rounded-lg border bg-muted/40 p-3">
+                    <details>
                       <summary className="cursor-pointer text-sm font-medium">Updater log</summary>
                       <LogWell lines={status.log} label="Updater log" className="mt-2 max-h-72" />
                     </details>
@@ -523,15 +524,15 @@ export default function SettingsPage() {
 
             {!updating && status?.snapshots && status.snapshots.length > 0 && (
               <Panel role="region" aria-labelledby="st-snap" className="overflow-hidden rounded-xl">
-                <div className="space-y-0.5 border-b px-[18px] py-3.5">
-                  <h2 id="st-snap" className="flex items-center gap-2 text-[15px] font-semibold">
+                <div className="space-y-1 border-b p-4">
+                  <h2 id="st-snap" className="flex items-center gap-2 text-sm font-semibold">
                     <DatabaseBackup className="size-4 text-[var(--hue)]" aria-hidden /> Database snapshots
                   </h2>
-                  <p className="text-xs text-muted-foreground">Taken automatically before every update; the newest {status.snapshots.length} are kept.</p>
+                  <p className="text-sm text-muted-foreground">Taken automatically before every update; the newest {status.snapshots.length} are kept.</p>
                 </div>
                 <ul className="divide-y">
                   {status.snapshots.map(sn => (
-                    <li key={sn.name} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-[18px] py-2.5">
+                    <li key={sn.name} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium">{new Date(sn.createdAt).toLocaleString()}</p>
                         <Truncate mono text={`${sn.name} · ${fmtBytes(sn.size)}`} className="text-xs text-muted-foreground" />
@@ -546,9 +547,9 @@ export default function SettingsPage() {
             )}
 
             {!updating && (
-              <Panel role="region" aria-labelledby="st-how" className="space-y-3 rounded-xl px-[18px] py-3.5">
+              <section aria-labelledby="st-how" className="space-y-3 pt-1">
                 <h2 id="st-how" className="text-sm font-semibold">How updates work</h2>
-                <ol className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2.5">
+                <ol className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-x-4 gap-y-3">
                   {[
                     ["01", "Check and snapshot", "Confirms the release's images are published and saves a database snapshot."],
                     ["02", "Pull", "git pull, then the pinned images, or a source build."],
@@ -556,31 +557,31 @@ export default function SettingsPage() {
                     ["04", "Verify", "The new version must pass its health check, or the previous one is put back."],
                     ["05", "Reconnect", "The dashboard reloads when the new version is up."],
                   ].map(([n, t, d]) => (
-                    <li key={n} className="flex flex-col gap-1 rounded-lg border bg-muted/40 p-2.5">
+                    <li key={n} className="flex flex-col gap-1 border-t pt-3">
                       <span className="font-mono text-xs text-muted-foreground tabular-nums">{n}</span>
-                      <span className="text-[13px] font-medium">{t}</span>
-                      <span className="text-xs leading-snug text-muted-foreground">{d}</span>
+                      <span className="text-ui font-medium">{t}</span>
+                      <span className="text-ui leading-snug text-muted-foreground">{d}</span>
                     </li>
                   ))}
                 </ol>
                 <p className="text-xs text-muted-foreground">
                   Only available when installed via <code className="font-mono">install.sh</code> (git clone required).
                 </p>
-              </Panel>
+              </section>
             )}
           </div>
 
           {/* Right column: Security */}
           <Panel role="region" aria-labelledby="st-sec" className="min-w-0 overflow-hidden rounded-xl">
-            <div className="flex items-center justify-between gap-2.5 border-b px-[18px] py-3.5">
-              <h2 id="st-sec" className="flex items-center gap-2 text-[15px] font-semibold">
+            <div className="flex items-center justify-between gap-2 border-b p-4">
+              <h2 id="st-sec" className="flex items-center gap-2 text-sm font-semibold">
                 <Shield className="size-4 text-[var(--hue)]" aria-hidden /> Security
               </h2>
               {authStatus?.enabled && <Pill tone="ok" dot>Protected · {authStatus.username}</Pill>}
               {authStatus && !authStatus.enabled && <Pill tone="outline" dot>Off</Pill>}
             </div>
 
-            <div className="space-y-5 px-[18px] py-4">
+            <div className="space-y-5 p-4">
               {secError && (
                 <Alert variant="destructive"><AlertTriangle /><AlertDescription>{secError}</AlertDescription></Alert>
               )}
@@ -589,7 +590,7 @@ export default function SettingsPage() {
               )}
 
               {authStatus && !authStatus.enabled && (
-                <form onSubmit={handleEnableLogin} className="space-y-3.5">
+                <form onSubmit={handleEnableLogin} className="space-y-3">
                   <Alert variant="destructive">
                     <AlertTriangle />
                     <AlertDescription>Anyone who can reach this URL can access the dashboard. Set a username and password to lock it down.</AlertDescription>
@@ -605,8 +606,8 @@ export default function SettingsPage() {
               )}
 
               {authStatus?.enabled && (
-                <form onSubmit={handleChangePassword} className="space-y-3.5">
-                  <h3 className="text-[13px] font-semibold">Change password</h3>
+                <form onSubmit={handleChangePassword} className="space-y-3">
+                  <h3 className="text-ui font-semibold">Change password</h3>
                   <Field id="cur-password" label="Current password" type="password" autoComplete="current-password" value={curPassword} onChange={e => setCurPassword(e.target.value)} required />
                   <Field id="chg-password" label="New password" type="password" autoComplete="new-password" value={chgPassword} onChange={e => setChgPassword(e.target.value)} required minLength={8} />
                   <Field id="chg-confirm" label="Confirm new password" type="password" autoComplete="new-password" value={chgConfirm} onChange={e => setChgConfirm(e.target.value)} required minLength={8} />

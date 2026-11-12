@@ -73,7 +73,7 @@ export function LogPane({ title, lines, state, transport, emptyText = "Waiting f
           aria-pressed={paused}
           onClick={() => setFrozen(f => (f === null ? lines.length : null))}
           className={cn(
-            "inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
+            "inline-flex h-7 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
             paused ? "border-primary/40 bg-primary/10 text-primary" : "text-muted-foreground",
           )}
         >
@@ -97,7 +97,7 @@ export function LogPane({ title, lines, state, transport, emptyText = "Waiting f
           ))
         )}
       </TerminalWindow>
-      <p className="flex items-center gap-2 text-[11px] text-muted-foreground">
+      <p className="flex items-center gap-2 text-2xs text-muted-foreground">
         <span className="tabular-nums">{shown.length}{query.trim() ? ` of ${lines.length}` : ""} lines</span>
         <span aria-hidden>·</span>
         <span>{transport}</span>

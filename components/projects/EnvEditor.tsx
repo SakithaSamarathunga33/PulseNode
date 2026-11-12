@@ -77,8 +77,8 @@ export function EnvEditor({ title, description, rows, onChange, idPrefix, classN
     onChange(rows.map(r => (r.id === id ? { ...r, ...patch } : r)))
 
   return (
-    <div className={cn("overflow-hidden rounded-xl border bg-card", className)}>
-      <div className="flex items-center justify-between gap-2 border-b py-1.5 pr-2 pl-3.5">
+    <div className={cn("overflow-hidden rounded-lg border", className)}>
+      <div className="flex items-center justify-between gap-2 border-b py-1.5 pr-2 pl-4">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold">{title}</h3>
           {description && <p className="truncate text-xs text-muted-foreground">{description}</p>}
@@ -87,8 +87,8 @@ export function EnvEditor({ title, description, rows, onChange, idPrefix, classN
           <Plus className="size-3.5" />Add
         </Button>
       </div>
-      <div className="space-y-1.5 p-2.5">
-        {rows.length === 0 && <p className="px-0.5 py-1.5 text-xs text-muted-foreground">No variables.</p>}
+      <div className="space-y-1.5 px-4 py-3">
+        {rows.length === 0 && <p className="py-1.5 text-xs text-muted-foreground">No variables.</p>}
         {rows.map((r, i) => {
           const problem = envRowProblem(r)
           return (
@@ -118,7 +118,7 @@ export function EnvEditor({ title, description, rows, onChange, idPrefix, classN
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   aria-label={`Remove ${r.key || `variable ${i + 1}`}`}
                   onClick={() => onChange(rows.filter(x => x.id !== r.id))}
                 >

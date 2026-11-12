@@ -120,7 +120,7 @@ export function RestoreDialog({ db, onClose }: { db: Database; onClose: () => vo
             <CheckCircle2 />
             <AlertDescription className="space-y-1 text-success">
               <p className="font-medium">Restore complete</p>
-              {output && <pre className="max-h-24 overflow-y-auto whitespace-pre-wrap font-mono text-xs opacity-80">{output.slice(0, 400)}</pre>}
+              {output && <pre className="max-h-24 overflow-y-auto whitespace-pre-wrap font-mono text-xs text-muted-foreground">{output.slice(0, 400)}</pre>}
             </AlertDescription>
           </Alert>
         )}

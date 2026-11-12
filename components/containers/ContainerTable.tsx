@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { ImageIcon } from "./ImageIcon"
 import { StatusDot, type StatusShape } from "@/components/pn/StatusDot"
 import { Truncate } from "@/components/pn/Truncate"
+import { Panel } from "@/components/pn/Panel"
 import { shortId, splitImage, toneFor, TONE_BG } from "./utils"
 
 export type SortKey = "name" | "image" | "state" | "cpu" | "ram"
@@ -149,7 +150,7 @@ export function ContainerTable({
     <Table className="min-w-[1120px]">
       <TableHeader>
         <TableRow className="hover:bg-transparent">
-          <TableHead className="w-10 pl-3.5">
+          <TableHead className="w-10 pl-4">
             <Checkbox checked={allChecked} onCheckedChange={v => onToggleAll(!!v)} aria-label="Select all visible containers" />
           </TableHead>
           <SortHead label="Name" k="name" sort={sort} onSort={onSort} />
@@ -160,7 +161,7 @@ export function ContainerTable({
           <TableHead>Created</TableHead>
           <SortHead label="CPU" k="cpu" sort={sort} onSort={onSort} className="border-l text-right" />
           <SortHead label="RAM" k="ram" sort={sort} onSort={onSort} className="text-right" />
-          <TableHead className={cn(STICKY, "pr-3.5 text-right")}>Actions</TableHead>
+          <TableHead className={cn(STICKY, "pr-4 text-right")}>Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -170,20 +171,20 @@ export function ContainerTable({
           const checked = !!selected[c.id]
           return (
             <TableRow key={c.id} data-state={checked ? "selected" : undefined} className="h-[50px]">
-              <TableCell className="w-10 pl-3.5">
+              <TableCell className="w-10 pl-4">
                 <Checkbox checked={checked} onCheckedChange={v => onToggle(c.id, !!v)} aria-label={`Select ${c.name}`} />
               </TableCell>
               <TableCell>
                 <div className="flex flex-col">
                   <Truncate text={c.name} className="max-w-[200px] font-medium" />
-                  <span className="font-mono text-[11px] text-muted-foreground">{shortId(c.id)}</span>
+                  <span className="font-mono text-2xs text-muted-foreground">{shortId(c.id)}</span>
                 </div>
               </TableCell>
               <TableCell className="max-w-[300px]">
                 <div className="flex min-w-0 items-center gap-1.5">
                   <ImageIcon image={c.image} />
                   <Truncate mono text={repo} tip={c.image} className="text-xs text-muted-foreground" />
-                  <span className="shrink-0 rounded border bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">{tag}</span>
+                  <span className="shrink-0 rounded border bg-muted px-1.5 py-0.5 font-mono text-2xs text-muted-foreground">{tag}</span>
                 </div>
               </TableCell>
               <TableCell className="max-w-[11rem] text-xs text-muted-foreground">
@@ -207,29 +208,30 @@ export function ContainerTable({
   )
 }
 
-/** Phone layout: one card per container with the essentials and touch-sized actions. */
+/** Phone layout: one panel of divided rows (not a card per container) with the essentials and touch-sized actions. */
 export function ContainerCards({
   rows, busy, handlers,
 }: { rows: Container[]; busy: Busy; handlers: RowHandlers }) {
   return (
-    <div className="flex flex-col gap-2">
+    <Panel className="overflow-hidden rounded-xl">
+      <ul className="divide-y" aria-label="Containers">
       {rows.map(c => {
         const { repo, tag } = splitImage(c.image)
         const running = c.state === "running"
         const working = isBusy(busy, c.id)
         return (
-          <article key={c.id} className="flex flex-col gap-3 rounded-xl border bg-card p-3.5 shadow-card">
-            <div className="flex items-start justify-between gap-2.5">
+          <li key={c.id} className="flex flex-col gap-3 p-4">
+            <div className="flex items-start justify-between gap-2">
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="text-sm font-semibold">{c.name}</span>
-                <Truncate mono text={`${repo}:${tag}`} tip={c.image} className="text-[11px] text-muted-foreground" />
+                <Truncate mono text={`${repo}:${tag}`} tip={c.image} className="text-2xs text-muted-foreground" />
               </div>
               <StatePill state={c.state} busy={working} />
             </div>
             <dl className="m-0 grid grid-cols-3 gap-2">
               {[["CPU", running ? `${c.cpu.toFixed(1)}%` : "—"], ["RAM", running ? `${c.ram.toFixed(1)}%` : "—"], ["Uptime", c.uptime]].map(([k, v]) => (
                 <div key={k}>
-                  <dt className="text-[11px] text-muted-foreground">{k}</dt>
+                  <dt className="text-2xs text-muted-foreground">{k}</dt>
                   <dd className="m-0 text-sm font-medium tabular-nums">{v}</dd>
                 </div>
               ))}
@@ -250,9 +252,10 @@ export function ContainerCards({
                 <Trash2 className="size-4" />
               </Button>
             </div>
-          </article>
+          </li>
         )
       })}
-    </div>
+      </ul>
+    </Panel>
   )
 }

@@ -9,7 +9,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { nodeApi } from "@/lib/api"
 import type { Database, DbQueryResult } from "@/lib/types"
 import { ResultTable } from "@/components/dashboard/DatabaseQueryEditor"
-import { Pill } from "@/components/dashboard/Pill"
 import { Truncate } from "@/components/pn/Truncate"
 
 // Read-only data viewer with pagination (100 rows / page)
@@ -73,9 +72,9 @@ export function TableDataDialog({ db, database, table, onClose }: {
           <DialogDescription className="flex flex-wrap items-center gap-2">
             <Truncate text={`${database ? `${database} · ` : ""}${db.name}`} className="max-w-full" />
             {result && (
-              <Pill tone="outline" className="font-mono tabular-nums">
+              <span className="font-mono text-xs tabular-nums">
                 {result.rowCount} row{result.rowCount !== 1 ? "s" : ""} · {result.columns.length} col{result.columns.length !== 1 ? "s" : ""} · {result.durationMs}ms
-              </Pill>
+              </span>
             )}
             {result && result.columns.length > 0 && (
               <Button size="xs" variant="outline" className="ml-auto" onClick={() => exportResultCsv(result, table)}>

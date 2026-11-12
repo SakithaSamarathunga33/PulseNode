@@ -95,9 +95,9 @@ function CallbackInner() {
   return (
     <main className="grid min-h-screen place-items-center bg-background p-4 text-foreground sm:p-6">
       <Panel role="status" aria-live="polite" className="w-full max-w-[420px] overflow-hidden rounded-xl text-center motion-safe:animate-in fade-in-0 duration-300">
-        <div className="flex flex-col items-center gap-4 px-6 pt-6 pb-5">
-          <div className="flex items-center gap-2.5 text-muted-foreground" aria-hidden>
-            <span className="grid size-9 place-items-center rounded-lg border bg-background text-primary"><Zap className="size-[18px]" strokeWidth={1.75} /></span>
+        <div className="flex flex-col items-center gap-4 p-6">
+          <div className="flex items-center gap-2 text-muted-foreground" aria-hidden>
+            <span className="grid size-9 place-items-center rounded-lg border bg-background text-primary"><Zap className="size-5" strokeWidth={1.75} /></span>
             <ArrowLeft className="size-3.5" />
             <span className="grid size-9 place-items-center rounded-lg border bg-background text-foreground"><GitHubDark size={18} className="theme-dark-surface-icon" /></span>
           </div>
@@ -110,7 +110,7 @@ function CallbackInner() {
 
           <div className="space-y-1">
             <h1 className="text-lg font-semibold break-words">{view.title}</h1>
-            <p className="text-[13px] leading-relaxed text-muted-foreground">{view.desc}</p>
+            <p className="text-ui leading-relaxed text-muted-foreground">{view.desc}</p>
           </div>
 
           {status === "error" && message && (
@@ -121,7 +121,7 @@ function CallbackInner() {
         {status !== "loading" && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t px-6 py-3 text-left">
             <p className="text-xs text-muted-foreground">Redirecting{status === "error" ? " to GitHub settings" : ""}…</p>
-            <Link href="/github" className="rounded-sm text-[13px] text-primary underline underline-offset-2 focus-visible:outline-2">Go to GitHub settings now</Link>
+            <Link href="/github" className="rounded-sm text-ui text-primary underline underline-offset-2 focus-visible:outline-2">Go to GitHub settings now</Link>
           </div>
         )}
       </Panel>

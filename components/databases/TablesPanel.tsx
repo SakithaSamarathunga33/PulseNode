@@ -4,7 +4,6 @@ import { useTimeouts } from "@/lib/use-timeouts"
 import { useEffect, useState } from "react"
 import { Check, ChevronRight, Copy, PlugZap, Table2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -55,13 +54,11 @@ function ConnectionStringPanel({ dbName, database }: { dbName: string; database?
   }
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <PlugZap className="size-4 text-[var(--hue)]" /> Connection string
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex items-center gap-2">
+    <section className="space-y-2" aria-labelledby={`conn-${dbName}`}>
+      <h3 id={`conn-${dbName}`} className="flex items-center gap-2 text-sm font-semibold">
+        <PlugZap className="size-4 text-[var(--hue)]" /> Connection string
+      </h3>
+      <div className="flex items-center gap-2">
         {loading && <Skeleton className="h-8 w-full" />}
         {!loading && uri && (
           <>
@@ -81,8 +78,8 @@ function ConnectionStringPanel({ dbName, database }: { dbName: string; database?
           </>
         )}
         {!loading && !uri && <span className="text-sm text-danger">Could not build connection string.</span>}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   )
 }
 
@@ -133,127 +130,121 @@ export function TablesPanel({ db }: { db: Database }) {
     : displayTables
 
   return (
-    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,380px)]">
-      <Card size="sm" className="min-w-0">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm">
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,380px)]">
+      <section className="min-w-0 space-y-2" aria-labelledby={`tables-${db.name}`}>
+        <div className="flex min-h-8 flex-wrap items-center justify-between gap-2">
+          <h3 id={`tables-${db.name}`} className="flex items-center gap-2 text-sm font-semibold">
             <Table2 className="size-4 text-[var(--hue)]" /> Tables
             <span className="font-mono text-xs font-normal tabular-nums text-muted-foreground">{displayTables.length} objects</span>
-          </CardTitle>
+          </h3>
           {dbs.length > 1 && (
-            <CardAction>
-              <Select
-                value={selectedDb}
-                onValueChange={v => setSelectedDb(v as string)}
-                items={dbs.map(d => ({ value: d, label: d }))}
-              >
-                <SelectTrigger size="sm" aria-label="Database" className="min-w-[120px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {dbs.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </CardAction>
+            <Select
+              value={selectedDb}
+              onValueChange={v => setSelectedDb(v as string)}
+              items={dbs.map(d => ({ value: d, label: d }))}
+            >
+              <SelectTrigger aria-label="Database" className="min-w-[120px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {dbs.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+              </SelectContent>
+            </Select>
           )}
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {!loading && displayTables.length > 0 && (
-            <SearchInput
-              value={filter}
-              onChange={e => setFilter(e.target.value)}
-              placeholder="Filter tables…"
-              aria-label="Filter tables"
-              className="max-w-none"
-            />
-          )}
+        </div>
+        {!loading && displayTables.length > 0 && (
+          <SearchInput
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            placeholder="Filter tables…"
+            aria-label="Filter tables"
+            className="max-w-none"
+          />
+        )}
 
-          {loading && (
-            <div className="space-y-2">
-              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
-            </div>
-          )}
+        {loading && (
+          <div className="space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+          </div>
+        )}
 
-          {!loading && visibleTables.length > 0 && (
-            <div className="max-h-80 overflow-auto rounded-lg border">
+        {!loading && visibleTables.length > 0 && (
+          <div className="max-h-80 overflow-auto rounded-lg border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead className="text-right">Rows</TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">Size</TableHead>
+                  <TableHead className="w-8"><span className="sr-only">Open</span></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibleTables.map(t => (
+                  <TableRow key={t.name} className="cursor-pointer" onClick={() => setOpenTable(t.name)}>
+                    <TableCell className="max-w-[260px]">
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); setOpenTable(t.name) }}
+                        title={`View data · SELECT * FROM ${t.name} LIMIT 100`}
+                        className="block max-w-full truncate rounded-sm text-left font-mono text-xs outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                      >
+                        {t.name}
+                      </button>
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs tabular-nums">{t.rows.toLocaleString()}</TableCell>
+                    <TableCell className="hidden text-right font-mono text-xs tabular-nums text-muted-foreground sm:table-cell">{t.totalSize ?? "-"}</TableCell>
+                    <TableCell><ChevronRight className="size-3.5 text-muted-foreground" aria-hidden /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {!loading && displayTables.length > 0 && visibleTables.length === 0 && (
+          <p className="py-3 text-sm text-muted-foreground">No tables match “{filter}”.</p>
+        )}
+
+        {!loading && displayTables.length === 0 && (
+          <p className="py-3 text-sm text-muted-foreground">
+            {db.engine === "redis" ? "Redis has no tables." : "No tables found in this database."}
+          </p>
+        )}
+      </section>
+
+      <div className="min-w-0 space-y-5">
+        <ConnectionStringPanel dbName={db.name} database={selectedDb} />
+        <section className="space-y-2" aria-labelledby={`slow-${db.name}`}>
+          <div className="flex items-center justify-between gap-2">
+            <h3 id={`slow-${db.name}`} className="text-sm font-semibold">Slow queries</h3>
+            {db.slow > 0
+              ? <Pill tone="warn" dot>{db.slow} flagged</Pill>
+              : <span className="text-xs tabular-nums text-muted-foreground">0 flagged</span>}
+          </div>
+          {db.slowQueries && db.slowQueries.length > 0 ? (
+            <div className="max-h-40 overflow-auto rounded-lg border bg-card">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead className="text-right">Rows</TableHead>
-                    <TableHead className="hidden text-right sm:table-cell">Size</TableHead>
-                    <TableHead className="w-8"><span className="sr-only">Open</span></TableHead>
+                    <TableHead>Query</TableHead>
+                    <TableHead className="text-right">Duration</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visibleTables.map(t => (
-                    <TableRow key={t.name} className="cursor-pointer" onClick={() => setOpenTable(t.name)}>
-                      <TableCell className="max-w-[260px]">
-                        <button
-                          type="button"
-                          onClick={e => { e.stopPropagation(); setOpenTable(t.name) }}
-                          title={`View data · SELECT * FROM ${t.name} LIMIT 100`}
-                          className="block max-w-full truncate rounded-sm text-left font-mono text-xs outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                        >
-                          {t.name}
-                        </button>
+                  {db.slowQueries.map((query, i) => (
+                    <TableRow key={`${query.timestamp}-${i}`}>
+                      <TableCell className="max-w-[220px] text-xs">
+                        <Truncate mono text={query.query} />
                       </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">{t.rows.toLocaleString()}</TableCell>
-                      <TableCell className="hidden text-right font-mono text-xs tabular-nums text-muted-foreground sm:table-cell">{t.totalSize ?? "-"}</TableCell>
-                      <TableCell><ChevronRight className="size-3.5 text-muted-foreground" aria-hidden /></TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">{query.duration}ms</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No slow queries reported.</p>
           )}
-
-          {!loading && displayTables.length > 0 && visibleTables.length === 0 && (
-            <p className="py-3 text-sm text-muted-foreground">No tables match “{filter}”.</p>
-          )}
-
-          {!loading && displayTables.length === 0 && (
-            <p className="py-3 text-sm text-muted-foreground">
-              {db.engine === "redis" ? "Redis has no tables." : "No tables found in this database."}
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="min-w-0 space-y-3">
-        <ConnectionStringPanel dbName={db.name} database={selectedDb} />
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="text-sm">Slow queries</CardTitle>
-            <CardAction>
-              <Pill tone={db.slow > 0 ? "warn" : "outline"}>{db.slow} flagged</Pill>
-            </CardAction>
-          </CardHeader>
-          <CardContent>
-            {db.slowQueries && db.slowQueries.length > 0 ? (
-              <div className="max-h-40 overflow-auto rounded-lg border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Query</TableHead>
-                      <TableHead className="text-right">Duration</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {db.slowQueries.map((query, i) => (
-                      <TableRow key={`${query.timestamp}-${i}`}>
-                        <TableCell className="max-w-[220px] text-xs">
-                          <Truncate mono text={query.query} />
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">{query.duration}ms</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No slow queries reported.</p>
-            )}
-          </CardContent>
-        </Card>
+        </section>
       </div>
 
       {openTable && (

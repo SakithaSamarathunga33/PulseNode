@@ -32,12 +32,12 @@ export function RecentRuns({ history }: { history: HistoryEntry[] }) {
           <History className="size-4 text-[var(--hue)]" strokeWidth={1.75} />Last {history.length} runs
         </h2>
         <p className="flex items-baseline gap-1.5">
-          <span className="text-[28px] leading-none font-semibold tracking-tight tabular-nums">
+          <span className="text-metric leading-none font-semibold tracking-tight tabular-nums">
             {done ? Math.round((counts[0].n / done) * 100) : 0}%
           </span>
           <span className="text-sm text-muted-foreground">succeeded</span>
         </p>
-        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-ui">
           {counts.map(c => (
             <li key={c.status} className="inline-flex items-center gap-1.5 text-muted-foreground">
               <span className={c.cls}><StatusDot tone={c.tone} /></span>{c.label}
@@ -48,7 +48,7 @@ export function RecentRuns({ history }: { history: HistoryEntry[] }) {
       </div>
 
       <div className="min-w-0 space-y-2 border-t pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-5">
-        <h3 className="text-xs font-medium text-muted-foreground">Backup size per run</h3>
+        <h2 className="text-sm font-semibold">Backup size per run</h2>
         <div aria-hidden>
           <BarSparkline
             data={runs} dataKey={h => h.sizeBytes || 0} height={56} color="var(--chart-1)"

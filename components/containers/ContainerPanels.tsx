@@ -34,11 +34,11 @@ const LEVEL_STYLE: Record<Level, string> = {
 }
 
 function PanelFooter({ children }: { children: React.ReactNode }) {
-  return <div className="flex h-9 shrink-0 items-center gap-3 border-t px-4 text-[11px] text-muted-foreground">{children}</div>
+  return <div className="flex h-9 shrink-0 items-center gap-3 border-t px-4 text-2xs text-muted-foreground">{children}</div>
 }
 
 const Kbd = ({ children }: { children: React.ReactNode }) => (
-  <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border bg-muted px-1 font-mono text-[11px] text-foreground/80">{children}</kbd>
+  <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border bg-muted px-1 font-mono text-2xs text-foreground">{children}</kbd>
 )
 
 /** Body of the Logs drawer: polls `docker logs` every 5s; filter, pause, clear and level colouring are client-side. */
@@ -100,7 +100,7 @@ export function LogsPanel({ container }: { container: Container }) {
           <FileText className="size-4 text-[var(--hue,var(--primary))]" />
           <Truncate text={container.name} />
         </SheetTitle>
-        <SheetDescription className="font-mono text-[11px]">docker logs --follow --tail {tail}</SheetDescription>
+        <SheetDescription className="font-mono text-2xs">docker logs --follow --tail {tail}</SheetDescription>
       </SheetHeader>
 
       <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
@@ -253,7 +253,7 @@ export function TerminalPanel({ container }: { container: Container }) {
           autoComplete="off"
           spellCheck={false}
         />
-        <Button size="sm" onClick={run} disabled={running || !cmd.trim()}>Run</Button>
+        <Button onClick={run} disabled={running || !cmd.trim()}>Run</Button>
       </div>
 
       <PanelFooter>

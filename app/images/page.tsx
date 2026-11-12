@@ -195,7 +195,7 @@ export default function ImagesPage() {
               className="max-w-[320px]"
             />
             <Button
-              variant={unusedOnly ? "secondary" : "outline"} size="sm" aria-pressed={unusedOnly}
+              variant={unusedOnly ? "secondary" : "outline"} aria-pressed={unusedOnly}
               onClick={() => setUnusedOnly(v => !v)}
             >
               {unusedOnly && <Check className="size-3.5" />}Unused only

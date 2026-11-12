@@ -20,7 +20,7 @@ export function MobileNav() {
   const current = routeInfo(pathname)?.href
   const moreActive = !!current && !PRIMARY.includes(current)
 
-  const tab = "relative flex flex-col items-center justify-center gap-1 rounded-md text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+  const tab = "relative flex flex-col items-center justify-center gap-1 rounded-md text-2xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
   return (
     <>
       <nav
@@ -52,7 +52,7 @@ export function MobileNav() {
               <Link
                 key={item.href} href={item.href} onClick={() => setMore(false)}
                 aria-current={current === item.href ? "page" : undefined}
-                className="flex min-h-[72px] flex-col items-start gap-2.5 rounded-xl border bg-card p-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex min-h-[72px] flex-col items-start gap-2 rounded-xl border bg-card p-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <item.icon className="size-[18px] text-muted-foreground" />
                 {item.label}

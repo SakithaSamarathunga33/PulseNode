@@ -45,7 +45,7 @@ export function ConfirmDialog({
           <ul className="max-h-48 divide-y overflow-auto rounded-lg border bg-muted/40 py-1">
             {items.map(it => (
               <li key={it.primary + (it.secondary ?? "")} className="flex flex-col gap-px px-3 py-1.5 font-mono">
-                <span className="text-[13px] font-medium break-all">{it.primary}</span>
+                <span className="text-ui font-medium break-all">{it.primary}</span>
                 {it.secondary && <span className="text-xs break-all text-muted-foreground">{it.secondary}</span>}
               </li>
             ))}

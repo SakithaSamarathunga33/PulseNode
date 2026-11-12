@@ -288,11 +288,11 @@ export default function ContainersPage() {
           netInHist={netHist} netRx={netRx} netTx={netTx}
         />}
 
-        {loaded && <Fleet containers={containers} />}
+        {loaded ? <Fleet containers={containers} /> : <Skeleton className="h-44 rounded-xl" />}
 
         <section aria-labelledby="ct-title" className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-3.5">
+            <div className="flex flex-wrap items-center gap-3">
               <h2 id="ct-title" className="text-lg font-semibold">Containers</h2>
               <div className="max-w-full overflow-x-auto">
                 <Segmented
@@ -308,7 +308,7 @@ export default function ContainersPage() {
                 />
               </div>
             </div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground" title="Container stats are polled every 5 seconds">
                 <RefreshCw className="size-3" /> Auto · 5s
               </span>
@@ -323,7 +323,7 @@ export default function ContainersPage() {
                   placeholder="Filter by name or image"
                   className="pr-8 pl-8"
                 />
-                <kbd className="pointer-events-none absolute right-2 hidden sm:inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border bg-muted px-1 font-mono text-[11px] text-muted-foreground">/</kbd>
+                <kbd className="pointer-events-none absolute right-2 hidden sm:inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border bg-muted px-1 font-mono text-2xs text-muted-foreground">/</kbd>
               </label>
             </div>
           </div>
@@ -331,7 +331,7 @@ export default function ContainersPage() {
           {selected.length > 0 && (
             <div
               role="toolbar" aria-label="Bulk actions"
-              className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 py-2 pr-2.5 pl-3.5 motion-safe:animate-in fade-in-0 slide-in-from-top-1"
+              className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 py-2 pr-3 pl-4 motion-safe:animate-in fade-in-0 slide-in-from-top-1"
             >
               <span className="mr-1.5 text-sm font-semibold tabular-nums">{selected.length} selected</span>
               <Button variant="outline" size="sm" onClick={() => { selected.filter(c => c.state !== "running").forEach(handleStart); clearSel() }}>
@@ -352,9 +352,9 @@ export default function ContainersPage() {
           )}
 
           {!loaded ? (
-            <div className="space-y-3 rounded-xl border bg-card p-4">
+            <Panel className="space-y-3 rounded-xl p-4">
               {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
-            </div>
+            </Panel>
           ) : rows.length === 0 ? (
             <EmptyState
               icon={Box}

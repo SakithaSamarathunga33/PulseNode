@@ -145,10 +145,9 @@ export function HistoryTab({ history, schedules, filter, onFilter, onDelete, onR
         </div>
       </Card>
 
-      <ul className="space-y-3 md:hidden">
+      <ul className="divide-y overflow-hidden rounded-xl border bg-card shadow-card md:hidden">
         {history.map(h => (
-          <li key={h.id}>
-            <Card className="gap-3 py-4">
+          <li key={h.id} className="flex flex-col gap-3 py-4">
               <div className="flex items-start justify-between gap-3 px-4">
                 <div className="min-w-0">
                   <Truncate text={h.scheduleName} className="text-sm font-medium" />
@@ -164,7 +163,6 @@ export function HistoryTab({ history, schedules, filter, onFilter, onDelete, onR
                 <div className="col-span-2"><dt className="mb-0.5 text-muted-foreground">Copies</dt><dd><Files h={h} /></dd></div>
               </dl>
               <div className="px-3"><Actions h={h} onDelete={onDelete} onRestore={onRestore} /></div>
-            </Card>
           </li>
         ))}
       </ul>

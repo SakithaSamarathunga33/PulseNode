@@ -17,8 +17,8 @@ function MetricCard({ item }: { item: DbMetricItem }) {
     "text-foreground"
 
   return (
-    <div className="flex min-w-0 flex-col gap-1.5 rounded-lg border bg-card px-3.5 py-3">
-      <div className="truncate text-[13px] text-muted-foreground">{item.label}</div>
+    <div className="flex min-w-0 flex-col gap-1.5 bg-card px-3 py-3">
+      <div className="truncate text-ui text-muted-foreground">{item.label}</div>
       <div className={cn("truncate text-xl font-semibold tabular-nums", valueColor)} title={String(item.value)}>
         {String(item.value)}
       </div>
@@ -31,7 +31,7 @@ function ConnectionMeter({ db }: { db: Database }) {
   const pct = db.maxConns > 0 ? (db.conns / db.maxConns) * 100 : 0
   return (
     <div className="space-y-1.5">
-      <div className="flex items-baseline justify-between gap-3 text-[13px]">
+      <div className="flex items-baseline justify-between gap-3 text-ui">
         <span className="text-muted-foreground">Connections used</span>
         <span className="font-mono tabular-nums">
           {db.conns}<span className="text-muted-foreground"> / {db.maxConns} default · {Math.round(pct)}%</span>
@@ -63,7 +63,7 @@ export function DatabaseMetricsPanel({ db }: { db: Database; onClose?: () => voi
 
   return (
     <div className="overflow-hidden rounded-lg border bg-card">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-2.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-3">
         {!loading && !error ? <LiveBadge>Live</LiveBadge> : <span className="text-xs font-medium text-muted-foreground">Metrics</span>}
         <span className="text-xs text-muted-foreground">refreshes every 5s</span>
       </div>
@@ -81,7 +81,8 @@ export function DatabaseMetricsPanel({ db }: { db: Database; onClose?: () => voi
           </Alert>
         )}
         {metrics && (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          // One hairline-split strip (like SummaryStrip), not a card per metric inside this panel.
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3 lg:grid-cols-5">
             {(Array.isArray(metrics.metrics) ? metrics.metrics : []).map((m, i) => (
               <MetricCard key={i} item={m} />
             ))}

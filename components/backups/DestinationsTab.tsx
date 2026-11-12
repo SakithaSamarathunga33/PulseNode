@@ -1,7 +1,6 @@
 "use client"
 
 import { Cloud, HardDrive, Loader2, Pencil, Plus, Trash2, Zap } from "lucide-react"
-import { Pill } from "@/components/dashboard/Pill"
 import { EmptyState } from "@/components/pn/EmptyState"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -26,12 +25,12 @@ function where(d: Destination) {
     : d.dir ?? ""
 }
 
-function TypePill({ d }: { d: Destination }) {
+function TypeLabel({ d }: { d: Destination }) {
   return (
-    <Pill tone="outline" className="gap-1">
-      {d.type === "s3" ? <Cloud className="size-3" /> : <HardDrive className="size-3" />}
+    <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+      {d.type === "s3" ? <Cloud className="size-3.5" aria-hidden /> : <HardDrive className="size-3.5" aria-hidden />}
       {d.type === "s3" ? "S3" : "Local"}
-    </Pill>
+    </span>
   )
 }
 
@@ -76,7 +75,7 @@ export function DestinationsTab({ destinations, testingId, onNew, onEdit, onDele
               {destinations.map(d => (
                 <TableRow key={d.id} className="h-[52px]">
                   <TableCell className="max-w-[14rem] text-sm font-medium"><Truncate text={d.name} /></TableCell>
-                  <TableCell><TypePill d={d} /></TableCell>
+                  <TableCell><TypeLabel d={d} /></TableCell>
                   <TableCell className="max-w-[280px] text-xs text-muted-foreground"><Truncate mono text={where(d)} /></TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {d.type === "s3" ? (d.secretSet ? <span className="font-mono text-xs">{d.accessKeyHint || "saved"} · secret saved</span> : <span className="text-warning">not set</span>) : "—"}
@@ -90,10 +89,9 @@ export function DestinationsTab({ destinations, testingId, onNew, onEdit, onDele
         </div>
       </Card>
 
-      <ul className="space-y-3 md:hidden">
+      <ul className="divide-y overflow-hidden rounded-xl border bg-card shadow-card md:hidden">
         {destinations.map(d => (
-          <li key={d.id}>
-            <Card className="gap-3 py-4">
+          <li key={d.id} className="flex flex-col gap-3 py-4">
               <div className="flex items-start justify-between gap-3 px-4">
                 <div className="min-w-0">
                   <Truncate text={d.name} className="text-sm font-medium" />
@@ -101,11 +99,10 @@ export function DestinationsTab({ destinations, testingId, onNew, onEdit, onDele
                 </div>
                 <Switch checked={d.enabled} onCheckedChange={v => onToggle(d, v)} aria-label={`Enable destination ${d.name}`} />
               </div>
-              <div className="flex items-center gap-2 px-4"><TypePill d={d} />
+              <div className="flex items-center gap-2 px-4"><TypeLabel d={d} />
                 {d.type === "s3" && !d.secretSet && <span className="text-xs text-warning">credentials not set</span>}
               </div>
               <div className="px-3"><Actions d={d} testing={testingId === d.id} onEdit={onEdit} onDelete={onDelete} onTest={onTest} /></div>
-            </Card>
           </li>
         ))}
       </ul>

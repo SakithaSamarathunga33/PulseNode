@@ -187,14 +187,14 @@ export default function DatabasesPage() {
         actions={addActions}
       />
       <PageBody>
-        <SummaryStrip
+        {!loaded ? <Skeleton className="h-[112px] rounded-xl" /> : <SummaryStrip
           items={[
             { label: "Databases", icon: DatabaseIcon, value: databases.length, meta: `${databases.length - unhealthy} healthy${unhealthy > 0 ? ` · ${unhealthy} need attention` : ""}`, tone: unhealthy > 0 ? "warn" : undefined },
             { label: "Connections", icon: Link2, value: totalConns, unit: "open", meta: `${Math.max(...connHistory)} peak this session` },
             { label: "Queries/sec", icon: Activity, value: totalQps > 0 ? totalQps.toLocaleString() : "—", meta: "across all engines" },
             { label: "Slow queries", icon: Clock, value: totalSlow, meta: totalSlow === 0 ? "none reported" : "flagged by engines", tone: totalSlow > 0 ? "warn" : "ok" },
           ]}
-        />
+        />}
 
         {loaded && databases.length > 0 && <ConnectionsOverview databases={databases} history={connHistory.slice(1)} />}
 
@@ -231,7 +231,7 @@ export default function DatabasesPage() {
                   placeholder="Search name, engine or host"
                   className="pr-8 pl-8"
                 />
-                <kbd className="pointer-events-none absolute right-2 hidden sm:inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border bg-muted px-1 font-mono text-[11px] text-muted-foreground">/</kbd>
+                <kbd className="pointer-events-none absolute right-2 hidden sm:inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border bg-muted px-1 font-mono text-2xs text-muted-foreground">/</kbd>
               </label>
               <Segmented
                 aria-label="Filter by state"

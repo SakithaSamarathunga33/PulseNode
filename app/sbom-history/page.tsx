@@ -10,9 +10,10 @@ import { PageHeader, PageBody } from "@/components/pn/PageHeader"
 import { SearchInput } from "@/components/pn/SearchInput"
 import { EmptyState } from "@/components/pn/EmptyState"
 import { SummaryStrip } from "@/components/pn/SummaryStrip"
-import { Pill } from "@/components/dashboard/Pill"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Truncate } from "@/components/pn/Truncate"
@@ -45,7 +46,7 @@ function EcosystemBar({ eco }: { eco: SBOM["ecosystem"] }) {
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
         {present.map(e => (
           <span key={e.key} className="inline-flex items-center gap-1.5">
-            <span className="size-[7px] rounded-[2px]" style={{ background: e.color }} />
+            <span aria-hidden className="size-2 rounded-[2px]" style={{ background: e.color }} />
             {e.label} <span className="tabular-nums">{eco[e.key].toLocaleString()}</span>
           </span>
         ))}
@@ -74,7 +75,7 @@ function EcosystemSplit({ sboms }: { sboms: SBOM[] }) {
           <PieCenter defaultLabel="Packages" />
         </PieChart>
       </div>
-      <ul className="grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-2">
+      <ul className="grid gap-x-6 gap-y-2 text-ui sm:grid-cols-2">
         {slices.map(s => (
           <li key={s.label} className="flex items-center justify-between gap-3 border-b pb-2 last:border-b-0 sm:[&:nth-last-child(2)]:border-b-0">
             <span className="inline-flex items-center gap-2 text-muted-foreground">
@@ -180,57 +181,70 @@ export default function SBOMHistoryPage() {
 
         {!loading && <EcosystemSplit sboms={sboms} />}
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="relative w-full max-w-[300px]">
-            <SearchInput
-              ref={searchRef}
-              className="max-w-none"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search image"
-              aria-label="Search images"
-            />
-            <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border bg-muted px-1.5 font-mono text-[11px] text-muted-foreground sm:block">/</kbd>
+        <section aria-labelledby="sb-table" className="min-w-0 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 id="sb-table" className="mr-auto text-lg font-semibold">Images</h2>
+            <div className="relative w-full max-w-[300px]">
+              <SearchInput
+                ref={searchRef}
+                className="max-w-none"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search image"
+                aria-label="Search images"
+              />
+              <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border bg-muted px-1.5 font-mono text-2xs text-muted-foreground sm:block">/</kbd>
+            </div>
+            <Select value={eco} onValueChange={v => setEco(v as "all" | EcoKey)} items={FILTERS}>
+              <SelectTrigger aria-label="Ecosystem" className="w-[170px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {FILTERS.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
-          <Select value={eco} onValueChange={v => setEco(v as "all" | EcoKey)} items={FILTERS}>
-            <SelectTrigger size="sm" aria-label="Ecosystem" className="w-[170px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {FILTERS.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
 
-        {loading ? (
-          <Skeleton className="h-48 rounded-xl" />
-        ) : sboms.length === 0 ? (
-          <EmptyState icon={FileCode2} title="No SBOMs yet" description="SBOMs appear here once generated for an image." />
-        ) : shown.length === 0 ? (
-          <EmptyState icon={FileCode2} title="No SBOMs match the current filters" description="Try a different image name or ecosystem." />
-        ) : (
-          <section aria-label="SBOM inventory" className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,340px),1fr))] gap-3.5">
-            {shown.map(s => (
-              <article key={s.image} className="flex flex-col overflow-hidden rounded-xl border bg-card shadow-card">
-                <div className="space-y-1 px-4 pt-3.5 pb-3">
-                  <h2 className="text-[13px] font-medium"><Truncate mono text={s.image} /></h2>
-                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                    <span>Generated {s.generated}</span>
-                    <Pill tone="outline">{s.format}</Pill>
-                  </p>
-                </div>
-                <dl className="grid grid-cols-2 gap-2.5 px-4 pb-3">
-                  <div><dt className="text-xs text-muted-foreground">Packages</dt><dd className="text-[17px] font-semibold tabular-nums">{s.packages.toLocaleString()}</dd></div>
-                  <div><dt className="text-xs text-muted-foreground">Licenses</dt><dd className="text-[17px] font-semibold tabular-nums">{s.licenses.toLocaleString()}</dd></div>
-                </dl>
-                <div className="px-4 pb-3.5"><EcosystemBar eco={s.ecosystem} /></div>
-                <div className="mt-auto flex justify-end border-t bg-muted/40 px-3 py-2.5">
-                  <Button variant="outline" size="sm" onClick={() => download(s)}>
-                    <Download className="size-3.5" />Export summary
-                  </Button>
-                </div>
-              </article>
-            ))}
-          </section>
-        )}
+          {loading ? (
+            <Skeleton className="h-48 rounded-xl" />
+          ) : sboms.length === 0 ? (
+            <EmptyState icon={FileCode2} title="No SBOMs yet" description="SBOMs appear here once generated for an image." />
+          ) : shown.length === 0 ? (
+            <EmptyState icon={FileCode2} title="No SBOMs match the current filters" description="Try a different image name or ecosystem." />
+          ) : (
+            <Card className="gap-0 overflow-hidden py-0">
+              <div className="overflow-x-auto">
+                <Table className="min-w-[860px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Image</TableHead>
+                      <TableHead className="text-right">Packages</TableHead>
+                      <TableHead className="text-right">Licenses</TableHead>
+                      <TableHead className="w-[32%]">Ecosystems</TableHead>
+                      <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {shown.map(s => (
+                      <TableRow key={s.image}>
+                        <TableCell className="max-w-[340px]">
+                          <Truncate mono text={s.image} className="text-ui font-medium" />
+                          <p className="text-xs text-muted-foreground">Generated {s.generated} · <span className="font-mono">{s.format}</span></p>
+                        </TableCell>
+                        <TableCell className="text-right font-mono font-semibold tabular-nums">{s.packages.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums text-muted-foreground">{s.licenses.toLocaleString()}</TableCell>
+                        <TableCell><EcosystemBar eco={s.ecosystem} /></TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="outline" size="sm" onClick={() => download(s)}>
+                            <Download className="size-3.5" />Export summary
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
+          )}
+        </section>
       </PageBody>
     </>
   )

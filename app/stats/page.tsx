@@ -38,7 +38,7 @@ function Trend({ data, unit, extra }: { data: number[]; unit: string; extra?: st
   const Icon = d >= 0 ? ArrowUpRight : ArrowDownRight
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className="inline-flex items-center gap-0.5 font-medium text-foreground/80"><Icon className="size-3" />{d >= 0 ? "+" : ""}{d.toFixed(1)}{unit}</span>
+      <span className="inline-flex items-center gap-0.5 font-medium text-foreground"><Icon className="size-3" />{d >= 0 ? "+" : ""}{d.toFixed(1)}{unit}</span>
       <span>vs. start of window{extra ? ` · ${extra}` : ""}</span>
     </span>
   )
@@ -79,7 +79,7 @@ function PanelTitle({ icon: Icon, children }: { icon: LucideIcon; children: Reac
 function Headline({ value, unit }: { value: React.ReactNode; unit: string }) {
   return (
     <p className="flex items-baseline gap-1.5">
-      <span className="text-[28px] leading-none font-semibold tracking-tight tabular-nums">{value}</span>
+      <span className="text-metric leading-none font-semibold tracking-tight tabular-nums">{value}</span>
       <span className="text-sm text-muted-foreground">{unit}</span>
     </p>
   )
@@ -246,7 +246,7 @@ export default function StatsPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Card size="sm">
+          <Card>
             <CardHeader><PanelTitle icon={Server}>Host info</PanelTitle></CardHeader>
             <CardContent>
               <dl className="divide-y">
@@ -262,7 +262,7 @@ export default function StatsPage() {
             </CardContent>
           </Card>
 
-          <Card size="sm">
+          <Card>
             <CardHeader><PanelTitle icon={MemoryStick}>Memory breakdown</PanelTitle></CardHeader>
             <CardContent className="space-y-4">
               <Headline value={host.memory.used} unit={`/ ${host.memory.total} ${host.memory.unit}`} />
@@ -274,7 +274,7 @@ export default function StatsPage() {
                 <LegendRow color="var(--muted)" label="Free" value={`${memFree.toFixed(1)} ${host.memory.unit}`} pct={freePct} />
               </div>
               <div className="border-t pt-4">
-                <p className="mb-2 text-[13px] text-muted-foreground">Swap</p>
+                <p className="mb-2 text-ui text-muted-foreground">Swap</p>
                 <div className="flex items-center gap-3">
                   <ProgressBar value={host.swap.pct} label="Swap usage" className="flex-1" />
                   <span className="font-mono text-xs tabular-nums">{host.swap.used}/{host.swap.total} GB</span>
@@ -283,18 +283,18 @@ export default function StatsPage() {
             </CardContent>
           </Card>
 
-          <Card size="sm">
+          <Card>
             <CardHeader><PanelTitle icon={HardDrive}>Disk</PanelTitle></CardHeader>
             <CardContent className="space-y-4">
               <Headline value={`${host.disk.pct}%`} unit="used" />
               <ProgressBar value={host.disk.pct} label="Disk usage" className="h-2" />
-              <dl className="grid grid-cols-3 divide-x rounded-lg border">
+              <dl className="grid grid-cols-3 gap-4">
                 {[
                   { label: "Used", val: host.disk.used },
                   { label: "Free", val: host.disk.free },
                   { label: "Total", val: host.disk.total },
                 ].map(item => (
-                  <div key={item.label} className="min-w-0 px-3 py-2">
+                  <div key={item.label} className="min-w-0">
                     <dt className="text-xs text-muted-foreground">{item.label}</dt>
                     <dd className="mt-0.5 truncate font-mono text-sm font-semibold tabular-nums">{item.val} <span className="text-xs font-normal text-muted-foreground">{host.disk.unit}</span></dd>
                   </div>

@@ -207,6 +207,7 @@ export default function RuntimePage() {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [allContainers, setAllContainers] = useState<Container[]>([])
   const [allLoaded, setAllLoaded]   = useState(false)
+  const [allError, setAllError]     = useState(false)
   const [heartbeats, setHeartbeats] = useState<ContainerHeartbeats[]>([])
   const [range, setRange]           = useState<Range>("24h")
 
@@ -244,8 +245,8 @@ export default function RuntimePage() {
       if (busy) return
       busy = true
       nodeApi.get<Container[]>("/api/docker/containers")
-        .then(({ data }) => { if (Array.isArray(data)) setAllContainers(data) })
-        .catch(() => {})
+        .then(({ data }) => { if (Array.isArray(data)) setAllContainers(data); setAllError(false) })
+        .catch(() => setAllError(true))
         .finally(() => { busy = false; setAllLoaded(true) })
     }
     fetchAll()
@@ -382,11 +383,11 @@ export default function RuntimePage() {
                   <>
                   <ul className="divide-y sm:hidden">
                     {sorted.map(c => (
-                      <li key={c.id} className="space-y-2.5 px-4 py-3">
+                      <li key={c.id} className="space-y-2 px-4 py-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <Truncate text={c.name} className="text-sm font-medium" />
-                            <Truncate mono text={c.image} className="text-[11px] text-muted-foreground" />
+                            <Truncate mono text={c.image} className="text-2xs text-muted-foreground" />
                           </div>
                           <Pill tone="ok" dot>running</Pill>
                         </div>
@@ -405,7 +406,7 @@ export default function RuntimePage() {
                     ))}
                   </ul>
                   <div className="hidden overflow-x-auto sm:block">
-                    <Table className="min-w-[760px]">
+                    <Table className="min-w-[760px] [&_tr>*:first-child]:pl-4 [&_tr>*:last-child]:pr-4">
                       <TableHeader>
                         <TableRow>
                           <SortHead label="Container" k="name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="w-[26%]" />
@@ -419,10 +420,10 @@ export default function RuntimePage() {
                           <TableRow key={c.id} className="h-[52px]">
                             <TableCell className="max-w-[16rem]">
                               <Truncate text={c.name} className="text-sm font-medium" />
-                              <Truncate mono text={c.image} className="text-[11px] text-muted-foreground" />
+                              <Truncate mono text={c.image} className="text-2xs text-muted-foreground" />
                             </TableCell>
                             <TableCell>
-                              <div className="flex items-center gap-2.5">
+                              <div className="flex items-center gap-2">
                                 <ProgressBar value={c.cpu} tone={usageTone(c.cpu)} className="flex-1" />
                                 <span className={cn("w-14 shrink-0 text-right text-sm font-medium tabular-nums", TEXT_TONE[usageTone(c.cpu)])}>
                                   {c.cpu.toFixed(1)}%
@@ -430,7 +431,7 @@ export default function RuntimePage() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <div className="flex items-center gap-2.5">
+                              <div className="flex items-center gap-2">
                                 <ProgressBar value={c.ramPct} tone={usageTone(c.ramPct)} className="flex-1" />
                                 <span className="shrink-0 text-right text-sm tabular-nums whitespace-nowrap">
                                   <span className={cn("font-medium", TEXT_TONE[usageTone(c.ramPct)])}>{fmtMb(c.ramMb)}</span>
@@ -455,6 +456,14 @@ export default function RuntimePage() {
 
         {view === "uptime" && (
           <>
+            {allError && (
+              <Alert variant="destructive">
+                <AlertCircle />
+                <AlertTitle>Could not load containers</AlertTitle>
+                <AlertDescription>The container list did not respond, so uptime below may be out of date. Retrying every 5 seconds.</AlertDescription>
+              </Alert>
+            )}
+
             {!allLoaded ? (
               <Skeleton className="h-[112px] rounded-xl" />
             ) : allContainers.length > 0 && (
@@ -472,10 +481,10 @@ export default function RuntimePage() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-1">
                   <h2 id="rt-up" className="text-lg font-semibold">Uptime</h2>
-                  <p className="text-xs text-muted-foreground">{rangeLabel} · {upCount} / {allContainers.length} up · Recorded every 60s</p>
+                  <p className="text-sm text-muted-foreground">{rangeLabel} · {upCount} / {allContainers.length} up · Recorded every 60s</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex gap-3.5 text-xs text-muted-foreground">
+                  <div className="flex gap-3 text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1.5"><span aria-hidden className={cn("h-3.5 w-1.5 rounded-[2px]", BEAT_STYLE.up)} />Up</span>
                     <span className="inline-flex items-center gap-1.5"><span aria-hidden className={cn("h-3.5 w-1.5 rounded-[2px]", BEAT_STYLE.down)} />Down</span>
                     <span className="inline-flex items-center gap-1.5"><span aria-hidden className={cn("h-3.5 w-1.5 rounded-[2px]", BEAT_STYLE.none)} />No data</span>
@@ -498,8 +507,8 @@ export default function RuntimePage() {
                 ) : (
                   <ul className="divide-y">
                     {uptimeRows.map(({ c, statuses, downs, pct, isUp, tone }) => (
-                      <li key={c.id} className="space-y-2 px-4 py-3.5">
-                        <div className="flex items-center gap-2.5">
+                      <li key={c.id} className="space-y-2 px-4 py-4">
+                        <div className="flex items-center gap-2">
                           <span className={cn("inline-flex", tone === "ok" ? "text-success" : tone === "warn" ? "text-warning" : "text-danger")}>
                             <StatusDot tone={tone} />
                           </span>
@@ -513,7 +522,7 @@ export default function RuntimePage() {
                           </span>
                         </div>
                         <HeartbeatBar statuses={statuses} windowMs={RANGE_MS[range]} name={c.name} pct={pct} downs={downs} />
-                        <div className="flex justify-between text-[11px] text-muted-foreground"><span>{rangeStart}</span><span>now</span></div>
+                        <div className="flex justify-between text-2xs text-muted-foreground"><span>{rangeStart}</span><span>now</span></div>
                       </li>
                     ))}
                   </ul>

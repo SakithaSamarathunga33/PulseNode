@@ -50,7 +50,7 @@ export function ImageCharts({ images }: { images: DockerImage[] }) {
               </PieChart>
             </div>
           )}
-          <ul className="min-w-0 flex-1 space-y-1.5 text-[13px]">
+          <ul className="min-w-0 flex-1 space-y-1.5 text-ui">
             {sev.map(s => (
               <li key={s.key} className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-2 text-muted-foreground">
@@ -65,9 +65,9 @@ export function ImageCharts({ images }: { images: DockerImage[] }) {
       </div>
 
       <div className="min-w-0 space-y-3 border-t pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5">
-        <h3 className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <HardDrive className="size-3.5" />Largest images · on disk
-        </h3>
+        <h2 className="inline-flex items-center gap-2 text-sm font-semibold">
+          <HardDrive className="size-4 text-[var(--hue)]" strokeWidth={1.75} />Largest images · on disk
+        </h2>
         {sizes.length === 0 ? (
           <p className="text-xs text-muted-foreground">No size information reported.</p>
         ) : (
@@ -91,7 +91,7 @@ export function ImageCharts({ images }: { images: DockerImage[] }) {
                   valueLabelFormatter={fmtMb}
                   // --primary-foreground keeps >= 4.5:1 on --chart-1 in both themes (white in light, near-black in dark).
                   valueLabelColor="var(--primary-foreground)"
-                  valueLabelClassName="font-mono text-[11px]"
+                  valueLabelClassName="font-mono text-2xs"
                 />
                 <BarYAxis />
                 <ChartTooltip
