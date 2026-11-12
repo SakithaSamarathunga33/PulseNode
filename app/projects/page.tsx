@@ -502,9 +502,10 @@ export default function ProjectsPage() {
                 action={<Button variant="outline" size="sm" onClick={() => { setFilter("all"); setQuery("") }}>Clear filter</Button>}
               />
             ) : (
-              <section aria-label="Project list" className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <section aria-label="Project list" className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {visible.map(e => (
-                  <div key={e.key} className={cn(e.group && "md:col-span-2 xl:col-span-3")}>
+                  // Cards fill their grid row so every card in a row is the same height; the footer sits at the bottom (mt-auto).
+                  <div key={e.key} className={cn("flex *:min-w-0 *:flex-1", e.group && "md:col-span-2 xl:col-span-3")}>
                     {e.group ? (
                       <RepoGroup
                         repoUrl={e.members[0].RepoURL}
