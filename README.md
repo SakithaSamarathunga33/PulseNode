@@ -14,7 +14,7 @@
 [![Images](https://img.shields.io/badge/images-amd64%20%7C%20arm64-2496ED?logo=docker&logoColor=white)](https://github.com/SakithaSamarathunga33?tab=packages&repo_name=PulseNode)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Website](https://sakithasamarathunga33.github.io/PulseNode/) · [Install](#one-command-install) · [Features](#features) · [Architecture](#how-it-works) · [Deploying projects](#deploying-projects) · [Configuration](#configuration) · [Roadmap](#roadmap) · [FAQ](#faq) · [Contributing](#contributing)
+[Website](https://pulsenode.sakitha.com/) · [Install](#one-command-install) · [Features](#features) · [Architecture](#how-it-works) · [Deploying projects](#deploying-projects) · [Configuration](#configuration) · [Roadmap](#roadmap) · [FAQ](#faq) · [Contributing](#contributing)
 
 </div>
 
